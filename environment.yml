@@ -1,0 +1,7 @@
+name: CADET-GUI
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - cadet
+  - pip

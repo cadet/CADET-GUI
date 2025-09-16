@@ -1,0 +1,26 @@
+{
+    "title": "",
+    "upload_type": "software",
+    "creators": [
+        {
+            "name": "",
+            "orcid": "",
+            "affiliation": "Forschungszentrum Jülich"
+        }
+    ],
+    "license": "GPL-3.0",
+    "keywords": [
+        "modeling",
+        "simulation",
+        "biotechnology",
+        "process",
+        "chromatography",
+        "CADET",
+        "general rate model",
+        "Python"
+    ],
+    "version": "",
+    "access_right": "open",
+    "communities": [{"identifier": "open-source"}],
+    "doi": ""
+}

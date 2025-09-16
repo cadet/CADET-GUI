@@ -1,0 +1,23 @@
+repos:
+# pre-commit-hooks
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v5.0.0
+  hooks:
+    - id: check-merge-conflict
+    - id: check-illegal-windows-names
+    - id: check-yaml
+    - id: end-of-file-fixer
+    - id: trailing-whitespace
+#-   repo: https://github.com/mwouts/jupytext
+#    rev: v1.16.7  # CURRENT_TAG/COMMIT_HASH
+#    hooks:
+#    - id: jupytext
+#      args: [--sync, --pipe, black]
+#      additional_dependencies:
+#        - black==25.1.0 # Matches hook
+
+-   repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+    - id: black
+      language_version: python3
