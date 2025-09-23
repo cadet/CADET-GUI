@@ -2,7 +2,7 @@ from __future__ import annotations
 import pytest
 import ipywidgets as W
 
-from cadetgui.widget import (
+from cadetgui.widgets.elements import (
     BaseWidget,
     TextField,
     FloatField,
