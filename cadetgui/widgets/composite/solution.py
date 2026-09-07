@@ -10,6 +10,7 @@ import ipywidgets as W
 from ...simulation import run_process as _default_runner
 from .._chrome import style_tag
 from ..elements import ChoiceField
+from .run_history import RunHistoryWidget, RunRecord
 
 __all__ = ["SolutionWidget"]
 
@@ -37,10 +38,12 @@ class SolutionWidget:
         self._signal_picker = ChoiceField(label="Signal:", options=[])
         self._plot_out = W.Output()
         self.status = W.HTML("<em>Ready.</em>")
+        self.history = RunHistoryWidget()
 
         self._btn_run.on_click(self._on_run)
         self._btn_clear.on_click(self._on_clear)
         self._signal_picker.observe(self._on_signal_change, names="selected_index")
+        self.history.add_listener(self._on_history_pick)
         self.status.add_class("cadetgui-status")
 
         toolbar = W.HBox(
@@ -54,6 +57,7 @@ class SolutionWidget:
                 W.HTML(style_tag()),
                 W.HTML("<div class='cadetgui-panel-title'>Solution</div>"),
                 toolbar,
+                self.history.root,
                 self._signal_picker,
                 self._plot_out,
                 self.status,
@@ -85,20 +89,38 @@ class SolutionWidget:
         if self.process is None:
             self.status.value = "<span style='color:#b00020'>No process to run.</span>"
             return
+
+        label = getattr(self.process, "name", type(self.process).__name__)
         try:
-            self.result = self._runner(self.process)
+            result = self._runner(self.process)
         except Exception as exc:  # noqa: BLE001
             self.result = None
+            self.history.record(label, error=str(exc))
             self.status.value = f"<span style='color:#b00020'>Simulation failed: {exc}</span>"
             return
 
+        self.history.record(label, result=result)
+        self._load_result(result)
+        self.status.value = "<em>Simulation finished.</em>"
+
+    def _on_history_pick(self, run: RunRecord) -> None:
+        self._plot_out.clear_output()
+        if not run.ok:
+            self.result = None
+            self._signal_picker.set_options([])
+            self.status.value = f"<span style='color:#b00020'>Simulation failed: {run.error}</span>"
+            return
+        self._load_result(run.result)
+        self.status.value = f"<em>Viewing: {run.label}</em>"
+
+    def _load_result(self, result: Any) -> None:
+        self.result = result
         signals = [
             (f"{unit}: {port}", (unit, port))
-            for unit, ports in self.result.solution.items()
+            for unit, ports in result.solution.items()
             for port in ports
         ]
         self._signal_picker.set_options(signals, keep_value=True)
-        self.status.value = "<em>Simulation finished.</em>"
         self._plot_selected()
 
     def _on_clear(self, _btn: Any) -> None:
