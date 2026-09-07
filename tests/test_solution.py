@@ -1,14 +1,32 @@
 from __future__ import annotations
 
+import datetime as dt
 import warnings
 
 import matplotlib
 
 matplotlib.use("Agg")  # headless test environment, no display needed
 
-from cadetgui.widgets.composite import ConfigurationWidget, SolutionWidget
+from cadetgui.widgets.composite import (
+    ConfigurationWidget,
+    DataImportWidget,
+    SolutionWidget,
+)
 
 warnings.filterwarnings("ignore", category=UserWarning)
+
+
+def upload_csv(widget: DataImportWidget, filename: str, csv_text: str) -> None:
+    content = memoryview(csv_text.encode("utf-8"))
+    widget._upload.value = (
+        {
+            "name": filename,
+            "type": "text/csv",
+            "size": len(content),
+            "last_modified": dt.datetime.now(),
+            "content": content,
+        },
+    )
 
 
 def built_process():
@@ -131,3 +149,32 @@ def test_solutionwidget_picking_a_failed_run_shows_its_error():
     sw.history._picker.selected_index = 1  # the failed run
     assert sw._signal_picker.option_labels == []
     assert "Simulation failed" in sw.status.value
+
+
+def test_solutionwidget_overlays_bound_experimental_data():
+    sw = SolutionWidget(process=built_process())
+    di = DataImportWidget()
+    sw.bind_to_data(di)
+
+    upload_csv(di, "measured.csv", "time,signal\n0,0.0\n1,0.5\n")
+    sw._on_run(None)  # no exception with data already loaded before the run
+
+    unit, port = sw._signal_picker.value
+    solution = sw.result.solution[unit][port]
+    fig, ax = solution.plot()
+    for ds in di.datasets:
+        ax.plot(ds.time_min, ds.signal, linestyle="--", label=f"{ds.label} (measured)")
+    ax.legend()
+    labels = ax.get_legend_handles_labels()[1]
+    assert any("measured" in label for label in labels)
+
+
+def test_solutionwidget_replots_when_data_uploaded_after_run():
+    sw = SolutionWidget(process=built_process())
+    di = DataImportWidget()
+    sw.bind_to_data(di)
+
+    sw._on_run(None)  # plot exists before any experimental data is loaded
+    upload_csv(di, "late.csv", "time,signal\n0,0.0\n1,1.0\n")  # must not raise
+
+    assert di.datasets  # upload succeeded and triggered a listener-driven replot
