@@ -4,6 +4,7 @@ import pytest
 from cadetgui.widgets.elements import (
     BoolField,
     ChoiceField,
+    ComponentListField,
     Element,
     FloatField,
     FloatListField,
@@ -121,3 +122,26 @@ def test_choicefield_validate_observes_selected_index():
     c.set_options([])
     assert not c.is_valid
     assert c.error == "required"
+
+
+def test_componentlistfield_defaults_to_one_component():
+    f = ComponentListField(label="Components:")
+    assert f.value == ["Component 1"]
+
+
+def test_componentlistfield_accepts_initial_names():
+    f = ComponentListField(value=["Salt", "Protein"])
+    assert f.value == ["Salt", "Protein"]
+
+
+def test_componentlistfield_empty_initial_value_falls_back_to_default():
+    f = ComponentListField(value=[])
+    assert f.value == ["Component 1"]
+
+
+def test_componentlistfield_observe_fires_on_value_change():
+    f = ComponentListField()
+    seen = []
+    f.observe(lambda change: seen.append(change["new"]), names="value")
+    f.value = ["A", "B", "C"]
+    assert seen == [["A", "B", "C"]]

@@ -49,10 +49,11 @@ def test_configuration_widget_rebuilds_column_on_component_change():
     original_column = cw._get_column()
     assert original_column.n_comp == 1
 
-    cw._components.value = 2
+    cw._components.value = ["Salt", "Protein"]
     new_column = cw._get_column()
     assert new_column is not original_column
     assert new_column.n_comp == 2
+    assert list(new_column.component_system.names) == ["Salt", "Protein"]
     # the stale 1-component column must not linger in the cache
     assert original_column not in cw._column_cache.values()
 
@@ -86,7 +87,8 @@ def test_export_script_produces_executable_equivalent_process():
 
     assert type(ns["process"]) is type(cw.process)
     assert type(ns["column"]) is type(cw._get_column())
-    assert ns["component_system"].n_comp == cw._components.value
+    assert ns["component_system"].n_comp == len(cw._components.value)
+    assert list(ns["component_system"].names) == cw._components.value
 
     from cadetgui.simulation import run_process
 
@@ -178,3 +180,52 @@ def test_export_script_includes_binding_model_and_round_trips():
         res_widget.solution[unit]["outlet"].solution,
         res_script.solution[unit]["outlet"].solution,
     )
+
+
+def test_components_field_defaults_to_one_named_component():
+    cw = ConfigurationWidget()
+    assert cw._components.value == ["Component 1"]
+    assert cw._get_column().n_comp == 1
+    assert list(cw._get_column().component_system.names) == ["Component 1"]
+
+
+def test_renaming_components_rebuilds_column_with_new_names():
+    cw = ConfigurationWidget()
+    cw._components.value = ["Salt", "Protein"]
+
+    column = cw._get_column()
+    assert column.n_comp == 2
+    assert list(column.component_system.names) == ["Salt", "Protein"]
+
+
+def test_binding_model_scales_to_multiple_named_components():
+    cw = ConfigurationWidget()
+    cw._components.value = ["Salt", "Protein"]
+    cw._binding_picker.value = cw._binding_registry["Linear"]
+    cw._column_form._on_apply(None)
+    cw._binding_form._on_apply(None)
+
+    column = cw._get_column()
+    assert column.binding_model.n_comp == 2
+    assert cw._binding_form.status.value == "<em>Built successfully.</em>"
+    # NOTE: applying the model form itself (batch_elution_spec/lwe_spec) is not
+    # exercised with >1 component here — those specs hard-code single-value
+    # concentration defaults (e.g. c_feed=[10.0]) that CADET-Process rejects
+    # for n_comp != 1. Pre-existing adapter-layer limitation, unrelated to
+    # component naming; column/binding config already scale correctly, as
+    # this test shows. See ai-docs/REQUIREMENTS.md.
+
+
+def test_export_script_reflects_a_renamed_single_component():
+    cw = ConfigurationWidget()
+    cw._components.value = ["MyProtein"]  # still one component, just renamed
+    cw._column_form._on_apply(None)
+    cw._binding_form._on_apply(None)
+    cw._model_form._on_apply(None)
+
+    script = cw.export_script()
+    assert "component_system = ComponentSystem(['MyProtein'])" in script
+
+    ns = {}
+    exec(compile(script, "<generated>", "exec"), ns)  # noqa: S102
+    assert list(ns["component_system"].names) == ["MyProtein"]

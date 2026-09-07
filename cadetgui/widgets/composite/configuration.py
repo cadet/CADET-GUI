@@ -15,7 +15,7 @@ from ...cadetprocessadapter import (
     build_parameter_config_spec,
 )
 from .._chrome import style_tag
-from ..elements import ChoiceField
+from ..elements import ChoiceField, ComponentListField
 from ..forms import FormRenderer
 
 __all__ = ["ConfigurationWidget"]
@@ -48,7 +48,7 @@ class ConfigurationWidget:
         self._binding_form: Optional[FormRenderer] = None
         self._model_form: Optional[FormRenderer] = None
 
-        self._components = W.BoundedIntText(description="Components:", value=1, min=1, max=99)
+        self._components = ComponentListField(label="Components:")
         self._column_picker = ChoiceField(
             label="Column Model:", options=list(self._columns.items())
         )
@@ -69,8 +69,11 @@ class ConfigurationWidget:
         self._script_out = W.Textarea(layout=W.Layout(width="100%", height="220px", display="none"))
         self._script_out.add_class("cadetgui-script")
 
+        components_section = W.VBox([self._components])
+        components_section.add_class("cadetgui-section")
+
         toolbar = W.HBox(
-            [self._components, self._column_picker, self._binding_picker, self._model_picker],
+            [self._column_picker, self._binding_picker, self._model_picker],
             layout=W.Layout(flex_flow="row wrap"),
         )
         toolbar.add_class("cadetgui-toolbar")
@@ -79,6 +82,7 @@ class ConfigurationWidget:
             [
                 W.HTML(style_tag()),
                 W.HTML("<div class='cadetgui-panel-title'>Configuration</div>"),
+                components_section,
                 toolbar,
                 self._column_form_box,
                 self._binding_form_box,
@@ -210,7 +214,7 @@ class ConfigurationWidget:
             f"from {bind_cls.__module__} import {bind_cls.__name__}",
             f"from {proc_cls.__module__} import {proc_cls.__name__}",
             "",
-            f"component_system = {cs_cls.__name__}({self._components.value})",
+            f"component_system = {cs_cls.__name__}({self._components.value!r})",
             "",
             f"column = {col_cls.__name__}(component_system, name={column.name!r})",
         ]

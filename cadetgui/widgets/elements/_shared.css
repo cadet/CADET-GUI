@@ -131,3 +131,14 @@
 .cadetgui-field-list-add {
   width: fit-content;
 }
+
+.cadetgui-field-list-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.cadetgui-field-count {
+  color: var(--cg-muted);
+  font-size: 12px;
+}
