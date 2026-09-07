@@ -18,7 +18,8 @@ from CADETProcess.processModel import (
     StericMassAction,
 )
 
-FieldKind = str
+from .parameters import get_parameters as _param_metadata_for
+
 Validator = Callable[[Any], None]
 Transform = Callable[[Any], Any]
 
@@ -190,8 +191,6 @@ DEFAULT_BINDING_FACTORIES: Dict[str, BindingFactory] = {
     "Steric Mass Action (SMA)": make_sma_binding,
 }
 
-PARAM_TYPE_OVERRIDES: Dict[str, FieldKind] = {}
-
 
 def _unique_preserve_order(names: Sequence[str]) -> list[str]:
     """Return names in original order, dropping duplicates (first occurrence wins)."""
@@ -204,48 +203,89 @@ def _unique_preserve_order(names: Sequence[str]) -> list[str]:
     return out
 
 
-PARAM_SCHEMA: dict[str, dict] = {
-    "diameter":          {"kind": "float", "default": 0.024, "min": 0.0, "units": "m"},
-    "bed_porosity":      {"kind": "float", "default": 0.72, "min": 0.0, "max": 1.0},
-    "length":            {"kind": "float", "default": 0.5, "min": 0.0, "units": "m"},
-    "pore_diffusion":    {"kind": "float", "default": 1e-10, "min": 0.0, "units": "m^2/s"},
-    "film_diffusion":    {"kind": "float", "default": 1e-3, "min": 0.0, "units": "m/s"},
-    "particle_porosity": {"kind": "float", "default": 0.6, "min": 0.0, "max": 1.0},
-    "particle_radius":   {"kind": "float", "default": 5.0e-6, "min": 0.0, "units": "m"},
-    "axial_dispersion":  {"kind": "float", "default": 1e-8, "min": 0.0, "units": "m^2/s"},
-
-    # Binding-model parameters. Bounds/units sourced from CADET-Core's binding
-    # model docs (cadet.github.io/master/interface/binding/{linear,
-    # multi_component_langmuir,steric_mass_action}.html), not invented — see
-    # ai-docs/ARCHITECTURE.md's "no inventing bounds" rule.
-    #
-    # `adsorption_rate`'s unit differs by model (Langmuir: m^3/(mol*s); Linear
-    # and SMA: m^3_MP/m^3_SP/s) — left unspecified since this schema is shared
-    # across binding model types and picking one would be wrong for the others.
-    # `desorption_rate` (1/s) and `capacity` (mol/m^3) are consistent across
-    # every model that uses them, so those do get a unit.
-    "adsorption_rate":       {"kind": "float", "min": 0.0},
-    "desorption_rate":       {"kind": "float", "min": 0.0, "units": "1/s"},
-    "capacity":              {"kind": "float", "min": 0.0, "units": "mol/m^3"},
-    "characteristic_charge": {"kind": "float", "min": 0.0},
-    "steric_factor":         {"kind": "float", "min": 0.0},
-}
-
-
 def _infer_kind(x) -> str:
     if isinstance(x, (list, tuple)): return "float_list"
     if isinstance(x, bool): return "bool"
     return "float"
 
 
-def _resolve_param(name: str, column_value):
-    meta = PARAM_SCHEMA.get(name, {})
-    default = meta.get("default", column_value)
-    kind = meta.get("kind", _infer_kind(default))
+# GUI-only seed defaults: a sensible starting value for a blank form, so
+# "Apply" without touching anything doesn't build a degenerate (zero-length,
+# zero-porosity) column. CADET-Core has no canonical default for these --
+# they're mandatory, problem-specific physical inputs -- so this deliberately
+# lives here rather than in parameters/interface.json (which is the ground-truth
+# CADET-Process<->CADET-Core mapping, not a GUI convenience). Shared across
+# column models via the `None` model slot; add a `(category, "ModelName", name)`
+# entry only if a specific model genuinely needs a different seed.
+_GUI_SEED_DEFAULTS: dict[tuple[str, Optional[str], str], float] = {
+    ("column", None, "diameter"): 0.024,
+    ("column", None, "length"): 0.5,
+    ("column", None, "axial_dispersion"): 1e-8,
+    ("column", None, "bed_porosity"): 0.72,
+    ("column", None, "particle_porosity"): 0.6,
+    ("column", None, "particle_radius"): 5.0e-6,
+    ("column", None, "film_diffusion"): 1e-3,
+    ("column", None, "pore_diffusion"): 1e-10,
+}
+
+
+def _seed_default(category: str, model_name: str, name: str) -> float:
+    key = (category, model_name, name)
+    if key in _GUI_SEED_DEFAULTS:
+        return _GUI_SEED_DEFAULTS[key]
+    return _GUI_SEED_DEFAULTS.get((category, None, name), 0.0)
+
+
+def _category_and_model(obj: Any) -> tuple[Optional[str], str]:
+    model_name = type(obj).__name__
+    if isinstance(obj, BindingBaseClass):
+        return "binding", model_name
+    if isinstance(obj, ChromatographicColumnBase) or isinstance(obj, Cstr):
+        return "column", model_name
+    return None, model_name
+
+
+def _resolve_param(obj: Any, category: Optional[str], model_name: str, name: str):
+    """Resolve one parameter's kind/bounds/units/default.
+
+    Ground truth (kind, bounds, units, whether it's per-component) comes from
+    `parameters/interface.json` via `category`/`model_name` -- see
+    ai-docs/ARCHITECTURE.md's "Parameter metadata schema" for why this is
+    nested per-model rather than one flat dict (e.g. `Langmuir.capacity` is
+    per-component, `StericMassAction.capacity` is a single scalar; same
+    CADET-Process attribute name, different shape). Falls back to inferring
+    purely from the object's current value when the schema doesn't (yet) know
+    this category/model/parameter, so an unregistered model still renders
+    something instead of raising.
+    """
+    meta = None
+    if category is not None:
+        try:
+            meta = _param_metadata_for(category, model_name).get(name)
+        except KeyError:
+            meta = None
+
+    current = getattr(obj, name, None)
+
+    if meta is None:
+        kind = _infer_kind(current)
+        transform = parse_float_list if kind == "float_list" else None
+        return current, kind, transform, {}, None
+
+    dtype = meta["dtype"]
+    kind = "float_list" if (dtype == "float" and meta["component_dependent"]) else dtype
+
+    if current is not None:
+        default = current
+    elif kind == "float_list":
+        n_comp = getattr(obj, "n_comp", None) or 1
+        default = [_seed_default(category, model_name, name)] * n_comp
+    else:
+        default = _seed_default(category, model_name, name)
+
+    bounds = {k: meta[k] for k in ("min", "max") if meta.get(k) is not None}
     transform = parse_float_list if kind == "float_list" else None
-    bounds = {k: meta[k] for k in ("min", "max") if k in meta}
-    units = meta.get("units")
-    return default, kind, transform, bounds, units
+    return default, kind, transform, bounds, meta.get("unit")
 
 
 def _coerce_to_kind(kind: str, val):
@@ -266,11 +306,13 @@ def build_parameter_config_spec(obj: Any) -> ModelSpec:
     """
     req = getattr(obj, "required_parameters", None) or []
     names = _unique_preserve_order(list(req))
+    category, model_name = _category_and_model(obj)
     fields: list[FieldSpec] = []
+    kinds: dict[str, str] = {}
 
     for name in names:
-        current_val = getattr(obj, name, None)
-        default, kind, transform, bounds, units = _resolve_param(name, current_val)
+        default, kind, transform, bounds, units = _resolve_param(obj, category, model_name, name)
+        kinds[name] = kind
         label = name.replace("_", " ").capitalize()
         fs_kwargs = dict(name=name, kind=kind, label=label, default=default, transform=transform, **bounds)
         if units is not None:
@@ -282,14 +324,7 @@ def build_parameter_config_spec(obj: Any) -> ModelSpec:
             if name not in values:
                 continue
             try:
-                # prefer schema kind; fall back to explicit overrides; else infer
-                schema_kind = PARAM_SCHEMA.get(name, {}).get("kind")
-                kind = schema_kind or PARAM_TYPE_OVERRIDES.get(name)  # keep if you still have it
-                if kind is None:
-                    # last-resort inference from current value
-                    cur = getattr(obj, name, None)
-                    kind = _infer_kind(cur)
-                coerced = _coerce_to_kind(kind, values[name])
+                coerced = _coerce_to_kind(kinds[name], values[name])
                 setattr(obj, name, coerced)
             except Exception:
                 # swallow and continue so one bad value doesn't block the rest
