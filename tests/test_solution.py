@@ -85,3 +85,49 @@ def test_solutionwidget_clear_resets_state():
 
     assert sw.result is None
     assert sw._signal_picker.option_labels == []
+
+
+def test_solutionwidget_run_records_history():
+    sw = SolutionWidget(process=built_process())
+    sw._on_run(None)
+    sw._on_run(None)
+
+    assert len(sw.history.runs) == 2
+    assert all(r.ok for r in sw.history.runs)
+    assert sw.history.selected.result is sw.result
+
+
+def test_solutionwidget_failed_run_records_history_without_crashing():
+    sw = SolutionWidget(process=object())  # not a real process
+    sw._on_run(None)
+
+    assert len(sw.history.runs) == 1
+    assert sw.history.runs[0].ok is False
+    assert sw.result is None
+
+
+def test_solutionwidget_picking_a_past_run_restores_its_view():
+    sw = SolutionWidget(process=built_process())
+    sw._on_run(None)
+    first_result = sw.result
+    sw._on_run(None)
+    assert sw.result is not first_result
+
+    sw.history._picker.selected_index = 0  # go back to the first run
+    assert sw.result is first_result
+    assert "Viewing" in sw.status.value
+
+
+def test_solutionwidget_picking_a_failed_run_shows_its_error():
+    sw = SolutionWidget(process=built_process())
+    sw._on_run(None)  # one good run in history
+
+    sw.process = object()
+    sw._on_run(None)  # one failed run in history
+
+    sw.history._picker.selected_index = 0  # back to the good run
+    assert sw._signal_picker.option_labels
+
+    sw.history._picker.selected_index = 1  # the failed run
+    assert sw._signal_picker.option_labels == []
+    assert "Simulation failed" in sw.status.value
