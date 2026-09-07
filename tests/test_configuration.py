@@ -55,3 +55,56 @@ def test_configuration_widget_rebuilds_column_on_component_change():
     assert new_column.n_comp == 2
     # the stale 1-component column must not linger in the cache
     assert original_column not in cw._column_cache.values()
+
+
+def test_export_script_raises_before_anything_is_built():
+    cw = ConfigurationWidget()
+    try:
+        cw.export_script()
+        assert False, "should have raised"
+    except RuntimeError as exc:
+        assert "Apply" in str(exc)
+
+
+def test_export_script_button_shows_error_status_before_build():
+    cw = ConfigurationWidget()
+    cw._on_export(None)
+    assert "Apply" in cw.status.value
+    assert cw._script_out.layout.display == "none"
+
+
+def test_export_script_produces_executable_equivalent_process():
+    import numpy as np
+
+    cw = ConfigurationWidget()
+    cw._column_form._on_apply(None)
+    cw._model_form._on_apply(None)
+
+    script = cw.export_script()
+    ns = {}
+    exec(compile(script, "<generated>", "exec"), ns)  # noqa: S102
+
+    assert type(ns["process"]) is type(cw.process)
+    assert type(ns["column"]) is type(cw._get_column())
+    assert ns["component_system"].n_comp == cw._components.value
+
+    from cadetgui.simulation import run_process
+
+    res_widget = run_process(cw.process)
+    res_script = run_process(ns["process"])
+    unit = next(iter(res_widget.solution))
+    assert np.array_equal(
+        res_widget.solution[unit]["outlet"].solution,
+        res_script.solution[unit]["outlet"].solution,
+    )
+
+
+def test_export_script_button_populates_textarea_on_success():
+    cw = ConfigurationWidget()
+    cw._column_form._on_apply(None)
+    cw._model_form._on_apply(None)
+
+    cw._on_export(None)
+    assert "process = " in cw._script_out.value
+    assert cw._script_out.layout.display == ""
+    assert "generated" in cw.status.value.lower()

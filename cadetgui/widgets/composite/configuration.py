@@ -51,6 +51,10 @@ class ConfigurationWidget:
         self.status = W.HTML("<em>Select a column and model.</em>")
         self.status.add_class("cadetgui-status")
 
+        self._btn_export = W.Button(description="Export script", icon="code")
+        self._script_out = W.Textarea(layout=W.Layout(width="100%", height="220px", display="none"))
+        self._script_out.add_class("cadetgui-script")
+
         toolbar = W.HBox(
             [self._components, self._column_picker, self._model_picker],
             layout=W.Layout(flex_flow="row wrap"),
@@ -64,6 +68,8 @@ class ConfigurationWidget:
                 toolbar,
                 self._column_form_box,
                 self._model_form_box,
+                self._btn_export,
+                self._script_out,
                 self.status,
             ]
         )
@@ -72,6 +78,7 @@ class ConfigurationWidget:
         self._components.observe(self._on_components_change, names="value")
         self._column_picker.observe(self._on_selection_change, names="selected_index")
         self._model_picker.observe(self._on_selection_change, names="selected_index")
+        self._btn_export.on_click(self._on_export)
 
         self._rebuild_forms()
 
@@ -123,6 +130,54 @@ class ConfigurationWidget:
         self._model_form_box.children = (self._model_form.root,)
 
         self.status.value = "<em>Configure the column, then the model, and Apply each.</em>"
+
+    def export_script(self) -> str:
+        """Generate an executable CADET-Process Python script for the current build.
+
+        Introspects the actual built objects' classes (`type(obj).__module__` /
+        `__name__`) rather than a hardcoded column/model name mapping, so this
+        works for any column or model registered — no per-type special-casing
+        (PRODUCT_VISION.md ARCH-003: the "expert escape hatch"/anti-black-box
+        requirement).
+        """
+        if self.process is None or self._column_form is None or self._model_form is None:
+            raise RuntimeError("Nothing built yet — Apply both the column and model forms first.")
+
+        column = self._get_column()
+        cs_cls = ComponentSystem
+        col_cls = type(column)
+        proc_cls = type(self.process)
+
+        lines = [
+            f"from {cs_cls.__module__} import {cs_cls.__name__}",
+            f"from {col_cls.__module__} import {col_cls.__name__}",
+            f"from {proc_cls.__module__} import {proc_cls.__name__}",
+            "",
+            f"component_system = {cs_cls.__name__}({self._components.value})",
+            "",
+            f"column = {col_cls.__name__}(component_system, name={column.name!r})",
+        ]
+        for name, value in self._column_form.collect_values().items():
+            lines.append(f"column.{name} = {value!r}")
+
+        lines.append("")
+        lines.append(f"process = {proc_cls.__name__}(")
+        lines.append("    column=column,")
+        for name, value in self._model_form.collect_values().items():
+            lines.append(f"    {name}={value!r},")
+        lines.append(")")
+
+        return "\n".join(lines)
+
+    def _on_export(self, _btn: Any) -> None:
+        try:
+            script = self.export_script()
+        except RuntimeError as exc:
+            self.status.value = f"<span style='color:#b00020'>{exc}</span>"
+            return
+        self._script_out.value = script
+        self._script_out.layout.display = ""
+        self.status.value = "<em>Script generated below.</em>"
 
     def display(self) -> None:
         """Render this widget in a Jupyter cell."""

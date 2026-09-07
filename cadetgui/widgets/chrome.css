@@ -101,3 +101,13 @@
   font: inherit;
   padding: 4px 8px;
 }
+
+.cadetgui-script textarea {
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  background: var(--cg-bg);
+  color: var(--cg-fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  padding: 10px;
+}

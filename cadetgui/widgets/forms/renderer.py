@@ -84,7 +84,8 @@ class FormRenderer:
         """Whether every rendered field currently passes its validator."""
         return all(el.is_valid for el in self._elements.values())
 
-    def _collect_values(self) -> Dict[str, Any]:
+    def collect_values(self) -> Dict[str, Any]:
+        """Return the current field values, with each field's `transform` applied."""
         values: Dict[str, Any] = {}
         for f in self.spec.fields:
             raw = self._elements[f.name].value
@@ -98,7 +99,7 @@ class FormRenderer:
             )
             return
         try:
-            values = self._collect_values()
+            values = self.collect_values()
             if self.spec.build is None:
                 raise RuntimeError("Spec has no 'build' function.")
             self.built = self.spec.build(values)
