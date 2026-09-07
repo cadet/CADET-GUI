@@ -54,19 +54,60 @@ def parse_float_list(v: Any) -> list[float]:
     return vals
 
 
+# Units sourced from CADET-Core docs (interface/unit_operations/inlet.rst's
+# CONST_COEFF for concentrations: mol/m_IV^-3; interface/solver.rst's
+# SECTION_TIMES for durations: s). `flow_rate`'s m^3/s isn't documented for
+# this exact field (Inlet-to-column connection flow rate isn't itemized in
+# system.rst), but is the one volumetric-flow-rate unit CADET-Core uses
+# consistently everywhere else (e.g. CSTR's FLOWRATE_FILTER) -- inferred by
+# consistency, not invented, and noted here rather than silently assumed.
 PARAMS: dict[str, FieldSpec] = {
-    "c_feed": FieldSpec("c_feed", "float_list", "Feed concentration", [10.0], transform=parse_float_list),
-    "c_load": FieldSpec("c_load", "float_list", "Load concentration", [50.0], transform=parse_float_list),
-    "c_salt_low": FieldSpec("c_salt_low", "float_list", "Low-salt buffer", [50.0], transform=parse_float_list),
-    "c_salt_high": FieldSpec("c_salt_high", "float_list", "High-salt buffer", [500.0], transform=parse_float_list),
-    "flow_rate": FieldSpec("flow_rate", "float", "Flow rate", 1.0e-6, validate=require_positive),
-    "feed_duration": FieldSpec("feed_duration", "float", "Feed duration", 60.0, validate=require_positive),
-    "load_duration": FieldSpec("load_duration", "float", "Load duration", 60.0, validate=require_positive),
-    "cycle_time": FieldSpec("cycle_time", "float", "Cycle time", 6000.0, validate=require_positive),
-    "wash_duration": FieldSpec("wash_duration", "float", "Wash duration", 10.0, validate=require_positive),
-    "gradient_duration": FieldSpec("gradient_duration", "float", "Gradient duration", 10.0, validate=require_positive),
-    "final_wash_duration": FieldSpec("final_wash_duration", "float", "Final wash duration", 10.0),
-    "c_eluent": FieldSpec("c_eluent", "float", "Eluent (scalar)", 0.0),
+    "c_feed": FieldSpec(
+        "c_feed", "float_list", "Feed concentration", [10.0],
+        transform=parse_float_list, units="mol/m^3_IV",
+    ),
+    "c_load": FieldSpec(
+        "c_load", "float_list", "Load concentration", [50.0],
+        transform=parse_float_list, units="mol/m^3_IV",
+    ),
+    "c_salt_low": FieldSpec(
+        "c_salt_low", "float_list", "Low-salt buffer", [50.0],
+        transform=parse_float_list, units="mol/m^3_IV",
+    ),
+    "c_salt_high": FieldSpec(
+        "c_salt_high", "float_list", "High-salt buffer", [500.0],
+        transform=parse_float_list, units="mol/m^3_IV",
+    ),
+    "flow_rate": FieldSpec(
+        "flow_rate", "float", "Flow rate", 1.0e-6,
+        validate=require_positive, units="m^3/s",
+    ),
+    "feed_duration": FieldSpec(
+        "feed_duration", "float", "Feed duration", 60.0,
+        validate=require_positive, units="s",
+    ),
+    "load_duration": FieldSpec(
+        "load_duration", "float", "Load duration", 60.0,
+        validate=require_positive, units="s",
+    ),
+    "cycle_time": FieldSpec(
+        "cycle_time", "float", "Cycle time", 6000.0,
+        validate=require_positive, units="s",
+    ),
+    "wash_duration": FieldSpec(
+        "wash_duration", "float", "Wash duration", 10.0,
+        validate=require_positive, units="s",
+    ),
+    "gradient_duration": FieldSpec(
+        "gradient_duration", "float", "Gradient duration", 10.0,
+        validate=require_positive, units="s",
+    ),
+    "final_wash_duration": FieldSpec(
+        "final_wash_duration", "float", "Final wash duration", 10.0, units="s",
+    ),
+    "c_eluent": FieldSpec(
+        "c_eluent", "float", "Eluent (scalar)", 0.0, units="mol/m^3_IV",
+    ),
 }
 
 
