@@ -89,6 +89,27 @@ def test_floatlistfield_defaults_and_set():
     assert fl2.value == [4.0]
 
 
+def test_floatlistfield_free_form_has_no_component_names():
+    fl = FloatListField(value=[1.0, 2.0])
+    assert fl.component_names == []
+
+
+def test_floatlistfield_pinned_mode_sizes_value_to_component_count():
+    fl = FloatListField(value=[1.0], component_names=["Salt", "Protein", "Impurity"])
+    assert fl.component_names == ["Salt", "Protein", "Impurity"]
+    assert fl.value == [1.0, 0.0, 0.0]
+
+
+def test_floatlistfield_pinned_mode_truncates_longer_value():
+    fl = FloatListField(value=[1.0, 2.0, 3.0], component_names=["Salt"])
+    assert fl.value == [1.0]
+
+
+def test_floatlistfield_pinned_mode_with_matching_value_is_unchanged():
+    fl = FloatListField(value=[1.0, 2.0], component_names=["Salt", "Protein"])
+    assert fl.value == [1.0, 2.0]
+
+
 def test_choicefield_selects_by_value_and_tracks_index():
     col_a, col_b = object(), object()
     c = ChoiceField(label="Column", options=[("GRM", col_a), ("LRMP", col_b)], value=col_b)

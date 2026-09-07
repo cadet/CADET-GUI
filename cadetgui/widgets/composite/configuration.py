@@ -12,6 +12,7 @@ from ...cadetprocessadapter import (
     DEFAULT_BINDING_FACTORIES,
     DEFAULT_COLUMN_FACTORIES,
     MODEL_REGISTRY,
+    MULTIPLEXABLE_COLUMN_PARAMS,
     build_parameter_config_spec,
 )
 from .._chrome import style_tag
@@ -48,6 +49,33 @@ class ConfigurationWidget:
         self._binding_form: Optional[FormRenderer] = None
         self._model_form: Optional[FormRenderer] = None
 
+        self._multiplex_state: Dict[str, bool] = dict.fromkeys(MULTIPLEXABLE_COLUMN_PARAMS, False)
+        self._multiplex_checkboxes: Dict[str, W.Checkbox] = {
+            name: W.Checkbox(
+                description=f"Enable {name.replace('_', ' ').title()} Multiplex",
+                value=False,
+                indent=False,
+            )
+            for name in MULTIPLEXABLE_COLUMN_PARAMS
+        }
+        for name, checkbox in self._multiplex_checkboxes.items():
+            checkbox.observe(self._make_on_multiplex_change(name), names="value")
+
+        self._btn_settings = W.Button(
+            icon="cog", tooltip="Column discretization settings",
+            layout=W.Layout(width="36px"),
+        )
+        self._btn_settings.on_click(self._on_toggle_settings)
+        self._settings_box = W.VBox(
+            [
+                W.HTML("<div class='cadetgui-section-title'>Settings</div>"),
+                *self._multiplex_checkboxes.values(),
+            ],
+            layout=W.Layout(display="none"),
+        )
+        self._settings_box.add_class("cadetgui-section")
+        self._settings_box.add_class("cadetgui-settings-box")
+
         self._components = ComponentListField(label="Components:")
         self._column_picker = ChoiceField(
             label="Column Model:", options=list(self._columns.items())
@@ -77,9 +105,17 @@ class ConfigurationWidget:
         )
         components_section.add_class("cadetgui-section")
 
-        column_section = W.VBox(
+        column_header = W.HBox(
             [
                 W.HTML("<div class='cadetgui-section-title'>Column Model</div>"),
+                self._btn_settings,
+            ],
+            layout=W.Layout(justify_content="space-between", align_items="center"),
+        )
+        column_section = W.VBox(
+            [
+                column_header,
+                self._settings_box,
                 self._column_picker,
                 self._column_form_box,
             ]
@@ -172,6 +208,19 @@ class ConfigurationWidget:
             return
         self._rebuild_forms()
 
+    def _on_toggle_settings(self, _btn: Any) -> None:
+        shown = self._settings_box.layout.display != "none"
+        self._settings_box.layout.display = "none" if shown else ""
+
+    def _make_on_multiplex_change(self, name: str) -> Callable[[dict], None]:
+        def _on_change(change: dict) -> None:
+            if change.get("name") != "value":
+                return
+            self._multiplex_state[name] = bool(change["new"])
+            self._rebuild_forms()
+
+        return _on_change
+
     def _on_process_built(self, built: Any) -> None:
         self.process = built
         self._notify()
@@ -187,7 +236,17 @@ class ConfigurationWidget:
             self._model_form_box.children = ()
             return
 
-        self._column_form = FormRenderer(build_parameter_config_spec(column))
+        column_params = set(getattr(column, "required_parameters", None) or [])
+        applicable = column_params & MULTIPLEXABLE_COLUMN_PARAMS
+        for name, checkbox in self._multiplex_checkboxes.items():
+            checkbox.layout.display = "" if name in applicable else "none"
+        self._btn_settings.layout.display = "" if applicable else "none"
+        if not applicable:
+            self._settings_box.layout.display = "none"
+
+        self._column_form = FormRenderer(
+            build_parameter_config_spec(column, multiplex=self._multiplex_state)
+        )
         self._column_form_box.children = (self._column_form.root,)
 
         def _attach_binding(built: Any, col: Any = column) -> None:

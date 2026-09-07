@@ -41,6 +41,15 @@ def test_element_for_field_passes_units_through_to_the_element():
     assert unitless.units == ""
 
 
+def test_element_for_field_passes_component_names_through_to_float_list():
+    field = FieldSpec("rate", "float_list", default=[1.0, 2.0], component_names=("Salt", "Protein"))
+    element = element_for_field(field)
+    assert element.component_names == ["Salt", "Protein"]
+
+    unnamed = element_for_field(FieldSpec("rate", "float_list", default=[1.0]))
+    assert unnamed.component_names == []
+
+
 def test_form_renders_one_element_per_field_with_defaults():
     form = FormRenderer(make_spec())
     assert set(form._elements) == {"rate", "name", "active", "levels"}

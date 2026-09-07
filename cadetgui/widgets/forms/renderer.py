@@ -35,7 +35,11 @@ _ELEMENT_FOR_KIND: Dict[str, Callable[[FieldSpec], Element]] = {
         validate=f.validate,
     ),
     "float_list": lambda f: FloatListField(
-        label=f.label or f.name, value=_coerced_default(f), units=f.units, validate=f.validate
+        label=f.label or f.name,
+        value=_coerced_default(f),
+        units=f.units,
+        component_names=f.component_names,
+        validate=f.validate,
     ),
     "bool": lambda f: BoolField(
         label=f.label or f.name, value=_coerced_default(f), units=f.units, validate=f.validate

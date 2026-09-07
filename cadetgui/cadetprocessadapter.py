@@ -35,6 +35,7 @@ class FieldSpec:
     min: float | None = None
     max: float | None = None
     units: str | None = None
+    component_names: tuple[str, ...] | None = None
 
 
 def require_positive(x: Any) -> None:
@@ -61,23 +62,12 @@ def parse_float_list(v: Any) -> list[float]:
 # system.rst), but is the one volumetric-flow-rate unit CADET-Core uses
 # consistently everywhere else (e.g. CSTR's FLOWRATE_FILTER) -- inferred by
 # consistency, not invented, and noted here rather than silently assumed.
+#
+# Concentration fields (c_feed, c_load, c_salt_low, c_salt_high, c_eluent) are
+# NOT in this dict -- they're genuinely per-component (`Inlet.c`), so they're
+# built fresh per model-spec call by `_concentration_field()`, sized/named
+# from the actual column's ComponentSystem, same as column/binding parameters.
 PARAMS: dict[str, FieldSpec] = {
-    "c_feed": FieldSpec(
-        "c_feed", "float_list", "Feed concentration", [10.0],
-        transform=parse_float_list, units="mol/m^3_IV",
-    ),
-    "c_load": FieldSpec(
-        "c_load", "float_list", "Load concentration", [50.0],
-        transform=parse_float_list, units="mol/m^3_IV",
-    ),
-    "c_salt_low": FieldSpec(
-        "c_salt_low", "float_list", "Low-salt buffer", [50.0],
-        transform=parse_float_list, units="mol/m^3_IV",
-    ),
-    "c_salt_high": FieldSpec(
-        "c_salt_high", "float_list", "High-salt buffer", [500.0],
-        transform=parse_float_list, units="mol/m^3_IV",
-    ),
     "flow_rate": FieldSpec(
         "flow_rate", "float", "Flow rate", 1.0e-6,
         validate=require_positive, units="m^3/s",
@@ -105,9 +95,6 @@ PARAMS: dict[str, FieldSpec] = {
     "final_wash_duration": FieldSpec(
         "final_wash_duration", "float", "Final wash duration", 10.0, units="s",
     ),
-    "c_eluent": FieldSpec(
-        "c_eluent", "float", "Eluent (scalar)", 0.0, units="mol/m^3_IV",
-    ),
 }
 
 
@@ -122,6 +109,18 @@ def _pick(keys: Sequence[str]) -> list[FieldSpec]:
     return [PARAMS[k] for k in keys]
 
 
+def _concentration_field(
+    name: str, label: str, default_scalar: float, column: ChromatographicColumnBase
+) -> FieldSpec:
+    """Per-component concentration field, sized/named from the column's ComponentSystem."""
+    names = tuple(column.component_system.names)
+    n_comp = len(names) or 1
+    return FieldSpec(
+        name, "float_list", label, [default_scalar] * n_comp,
+        transform=parse_float_list, units="mol/m^3_IV", component_names=names,
+    )
+
+
 def batch_elution_spec(column: ChromatographicColumnBase) -> ModelSpec:
     def _build(v: Mapping[str, Any]) -> Any:
         return BatchElution(
@@ -130,14 +129,15 @@ def batch_elution_spec(column: ChromatographicColumnBase) -> ModelSpec:
             flow_rate=float(v["flow_rate"]),
             feed_duration=float(v["feed_duration"]),
             cycle_time=float(v["cycle_time"]),
-            c_eluent=float(v["c_eluent"]),
+            c_eluent=v["c_eluent"],
         )
 
-    return ModelSpec(
-        title="Batch Elution",
-        fields=_pick(["c_feed", "flow_rate", "feed_duration", "cycle_time", "c_eluent"]),
-        build=_build,
-    )
+    fields = [
+        _concentration_field("c_feed", "Feed concentration", 10.0, column),
+        *_pick(["flow_rate", "feed_duration", "cycle_time"]),
+        _concentration_field("c_eluent", "Eluent concentration", 0.0, column),
+    ]
+    return ModelSpec(title="Batch Elution", fields=fields, build=_build)
 
 
 def lwe_spec(column: ChromatographicColumnBase) -> ModelSpec:
@@ -154,15 +154,16 @@ def lwe_spec(column: ChromatographicColumnBase) -> ModelSpec:
             final_wash_duration=float(v["final_wash_duration"]),
         )
 
-    return ModelSpec(
-        title="Load–Wash–Elute (LWE)",
-        fields=_pick([
-            "c_load", "c_salt_low", "c_salt_high",
-            "flow_rate", "load_duration", "wash_duration",
-            "gradient_duration", "final_wash_duration",
+    fields = [
+        _concentration_field("c_load", "Load concentration", 50.0, column),
+        _concentration_field("c_salt_low", "Low-salt buffer", 50.0, column),
+        _concentration_field("c_salt_high", "High-salt buffer", 500.0, column),
+        *_pick([
+            "flow_rate", "load_duration", "wash_duration", "gradient_duration",
+            "final_wash_duration",
         ]),
-        build=_build,
-    )
+    ]
+    return ModelSpec(title="Load–Wash–Elute (LWE)", fields=fields, build=_build)
 
 
 # CLR, Flip-Flop, and MRSSR specs were removed for now (see ai-docs/REQUIREMENTS.md
@@ -277,6 +278,20 @@ def _seed_default(category: str, model_name: str, name: str) -> float:
     return _GUI_SEED_DEFAULTS.get((category, None, name), 0.0)
 
 
+# Column parameters CADET-Process treats as genuinely per-component
+# (`SizedUnsignedList(size="n_comp")`, confirmed in ai-docs/ARCHITECTURE.md's
+# "Parameter metadata schema" notes) but that most users want to enter as one
+# shared value most of the time -- unlike binding-model parameters (rates,
+# capacities, ...), which are per-component almost always by physical
+# necessity. `ConfigurationWidget`'s multiplex toggle (gear icon on the
+# Column Model section) offers these three as opt-in per-component editors;
+# everywhere else they default to a single scalar that CADET-Process itself
+# broadcasts to every component (confirmed: `col.axial_dispersion = 1e-8` ->
+# `[1e-8, 1e-8, 1e-8]` for a 3-component system) -- not a GUI approximation,
+# the real CADET-Process setter behavior.
+MULTIPLEXABLE_COLUMN_PARAMS = frozenset({"axial_dispersion", "film_diffusion", "pore_diffusion"})
+
+
 def _category_and_model(obj: Any) -> tuple[Optional[str], str]:
     model_name = type(obj).__name__
     if isinstance(obj, BindingBaseClass):
@@ -286,7 +301,14 @@ def _category_and_model(obj: Any) -> tuple[Optional[str], str]:
     return None, model_name
 
 
-def _resolve_param(obj: Any, category: Optional[str], model_name: str, name: str):
+def _resolve_param(
+    obj: Any,
+    category: Optional[str],
+    model_name: str,
+    name: str,
+    *,
+    multiplex: Optional[Dict[str, bool]] = None,
+):
     """Resolve one parameter's kind/bounds/units/default.
 
     Ground truth (kind, bounds, units, whether it's per-component) comes from
@@ -298,6 +320,10 @@ def _resolve_param(obj: Any, category: Optional[str], model_name: str, name: str
     purely from the object's current value when the schema doesn't (yet) know
     this category/model/parameter, so an unregistered model still renders
     something instead of raising.
+
+    `multiplex` overrides `component_dependent` for names in
+    `MULTIPLEXABLE_COLUMN_PARAMS` -- everywhere else the schema's own flag
+    (ground truth, not a GUI choice) decides.
     """
     meta = None
     if category is not None:
@@ -314,9 +340,19 @@ def _resolve_param(obj: Any, category: Optional[str], model_name: str, name: str
         return current, kind, transform, {}, None
 
     dtype = meta["dtype"]
-    kind = "float_list" if (dtype == "float" and meta["component_dependent"]) else dtype
+    component_dependent = meta["component_dependent"]
+    if multiplex is not None and name in MULTIPLEXABLE_COLUMN_PARAMS:
+        component_dependent = bool(multiplex.get(name, False))
+    kind = "float_list" if (dtype == "float" and component_dependent) else dtype
 
-    if current is not None:
+    if current is not None and isinstance(current, (list, tuple)) and kind == "float":
+        # CADET-Process always stores these as a per-component list internally,
+        # even when it was set via scalar broadcast -- if multiplex was just
+        # toggled off, `current` is still that list. "multiplex off" means
+        # "one value for every component," so the first entry is the
+        # representative scalar (matches how it would've been entered).
+        default = current[0] if len(current) else _seed_default(category, model_name, name)
+    elif current is not None:
         default = current
     elif kind == "float_list":
         n_comp = getattr(obj, "n_comp", None) or 1
@@ -338,26 +374,38 @@ def _coerce_to_kind(kind: str, val):
     return float(val)
 
 
-def build_parameter_config_spec(obj: Any) -> ModelSpec:
+def build_parameter_config_spec(
+    obj: Any, *, multiplex: Optional[Dict[str, bool]] = None
+) -> ModelSpec:
     """Build a ModelSpec from any object exposing `required_parameters`.
 
     Generic over what `obj` is — a column, a binding model, anything with the
     CADET-Process `required_parameters` convention — so the same function
     drives both the column form and the binding-model form.
+
+    `multiplex`: see `MULTIPLEXABLE_COLUMN_PARAMS` — only meaningful for the
+    column category's `axial_dispersion`/`film_diffusion`/`pore_diffusion`;
+    ignored (and unnecessary) for everything else, which always renders
+    per-component when the schema says it's component-dependent.
     """
     req = getattr(obj, "required_parameters", None) or []
     names = _unique_preserve_order(list(req))
     category, model_name = _category_and_model(obj)
+    component_names = tuple(obj.component_system.names) if hasattr(obj, "component_system") else ()
     fields: list[FieldSpec] = []
     kinds: dict[str, str] = {}
 
     for name in names:
-        default, kind, transform, bounds, units = _resolve_param(obj, category, model_name, name)
+        default, kind, transform, bounds, units = _resolve_param(
+            obj, category, model_name, name, multiplex=multiplex
+        )
         kinds[name] = kind
         label = name.replace("_", " ").capitalize()
         fs_kwargs = dict(name=name, kind=kind, label=label, default=default, transform=transform, **bounds)
         if units is not None:
             fs_kwargs["units"] = units
+        if kind == "float_list" and component_names:
+            fs_kwargs["component_names"] = component_names
         fields.append(FieldSpec(**fs_kwargs))
 
     def _apply(values: Mapping[str, Any]) -> Any:

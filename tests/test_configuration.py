@@ -216,6 +216,88 @@ def test_binding_model_scales_to_multiple_named_components():
     # this test shows. See ai-docs/REQUIREMENTS.md.
 
 
+def test_binding_form_fields_get_component_names_matching_component_system():
+    cw = ConfigurationWidget()
+    cw._components.value = ["Salt", "Protein"]
+    cw._binding_picker.value = cw._binding_registry["Linear"]
+
+    by_name = {f.name: f for f in cw._binding_form.spec.fields}
+    assert by_name["adsorption_rate"].component_names == ("Salt", "Protein")
+    assert by_name["desorption_rate"].component_names == ("Salt", "Protein")
+
+
+def test_column_geometry_fields_default_to_scalar_non_multiplexed():
+    cw = ConfigurationWidget()
+    cw._column_picker.value = cw._columns["GRM"]
+
+    by_name = {f.name: f for f in cw._column_form.spec.fields}
+    assert by_name["axial_dispersion"].kind == "float"
+    assert by_name["film_diffusion"].kind == "float"
+    assert by_name["pore_diffusion"].kind == "float"
+
+
+def test_enabling_multiplex_switches_field_to_per_component():
+    cw = ConfigurationWidget()
+    cw._components.value = ["Salt", "Protein"]
+    cw._column_picker.value = cw._columns["GRM"]
+
+    cw._multiplex_checkboxes["axial_dispersion"].value = True
+
+    by_name = {f.name: f for f in cw._column_form.spec.fields}
+    assert by_name["axial_dispersion"].kind == "float_list"
+    assert by_name["axial_dispersion"].component_names == ("Salt", "Protein")
+    # untouched params stay scalar
+    assert by_name["film_diffusion"].kind == "float"
+
+
+def test_multiplex_settings_hidden_for_column_without_any_applicable_param():
+    cw = ConfigurationWidget()
+    cw._column_picker.value = cw._columns["CSTR"]
+    assert cw._btn_settings.layout.display == "none"
+
+
+def test_multiplex_checkbox_visibility_matches_column_capabilities():
+    cw = ConfigurationWidget()
+    cw._column_picker.value = cw._columns["LRM"]  # LumpedRateModelWithoutPores: no particles
+    assert cw._multiplex_checkboxes["axial_dispersion"].layout.display == ""
+    assert cw._multiplex_checkboxes["film_diffusion"].layout.display == "none"
+    assert cw._multiplex_checkboxes["pore_diffusion"].layout.display == "none"
+
+
+def test_scalar_column_field_broadcasts_via_cadetprocess_on_apply():
+    cw = ConfigurationWidget()
+    cw._components.value = ["Salt", "Protein", "Impurity"]
+    cw._column_picker.value = cw._columns["GRM"]
+
+    cw._column_form._on_apply(None)
+    column = cw._get_column()
+    assert column.axial_dispersion == [column.axial_dispersion[0]] * 3
+
+
+def test_multiplexed_column_field_keeps_distinct_per_component_values():
+    cw = ConfigurationWidget()
+    cw._components.value = ["Salt", "Protein"]
+    cw._column_picker.value = cw._columns["GRM"]
+    cw._multiplex_checkboxes["axial_dispersion"].value = True
+
+    cw._column_form._elements["axial_dispersion"].value = [1e-8, 2e-8]
+    cw._column_form._on_apply(None)
+
+    column = cw._get_column()
+    assert column.axial_dispersion == [1e-8, 2e-8]
+
+
+def test_concentration_fields_are_sized_and_named_from_component_system():
+    cw = ConfigurationWidget()
+    cw._components.value = ["Salt", "Protein", "Impurity"]
+    cw._model_picker.value = cw._registry["Batch Elution"]
+
+    by_name = {f.name: f for f in cw._model_form.spec.fields}
+    assert by_name["c_feed"].component_names == ("Salt", "Protein", "Impurity")
+    assert len(by_name["c_feed"].default) == 3
+    assert by_name["c_eluent"].component_names == ("Salt", "Protein", "Impurity")
+
+
 def test_export_script_reflects_a_renamed_single_component():
     cw = ConfigurationWidget()
     cw._components.value = ["MyProtein"]  # still one component, just renamed

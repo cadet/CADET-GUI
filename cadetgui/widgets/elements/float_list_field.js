@@ -105,6 +105,10 @@ function render({ model, el }) {
   const rows = document.createElement("div");
   body.appendChild(rows);
 
+  function isPinned() {
+    return (model.get("component_names") || []).length > 0;
+  }
+
   function currentValues() {
     return Array.from(rows.querySelectorAll("input")).map((i) => parseFloat(i.value) || 0);
   }
@@ -114,7 +118,7 @@ function render({ model, el }) {
     model.save_changes();
   }
 
-  function addRow(value) {
+  function addRow(value, componentName) {
     const row = document.createElement("div");
     row.className = "cadetgui-field-list-row";
 
@@ -125,14 +129,16 @@ function render({ model, el }) {
     input.addEventListener("change", commit);
     row.appendChild(input);
 
-    const rm = document.createElement("button");
-    rm.type = "button";
-    rm.textContent = "−";
-    rm.addEventListener("click", () => {
-      row.remove();
-      commit();
-    });
-    row.appendChild(rm);
+    if (!isPinned()) {
+      const rm = document.createElement("button");
+      rm.type = "button";
+      rm.textContent = "−";
+      rm.addEventListener("click", () => {
+        row.remove();
+        commit();
+      });
+      row.appendChild(rm);
+    }
 
     const unitEl = document.createElement("span");
     unitEl.className = "cadetgui-field-unit";
@@ -140,11 +146,25 @@ function render({ model, el }) {
     unitEl.hidden = !model.get("units");
     row.appendChild(unitEl);
 
+    const names = model.get("component_names") || [];
+    if (componentName !== undefined && names.length > 1) {
+      const nameEl = document.createElement("span");
+      nameEl.className = "cadetgui-field-component-name";
+      nameEl.textContent = `[${componentName}]`;
+      row.appendChild(nameEl);
+    }
+
     rows.appendChild(row);
   }
 
   function syncFromModel() {
     rows.innerHTML = "";
+    const names = model.get("component_names") || [];
+    if (names.length > 0) {
+      const values = model.get("value") || [];
+      names.forEach((name, i) => addRow(values[i] ?? 0, name));
+      return;
+    }
     const values = model.get("value") || [];
     (values.length ? values : [0]).forEach((v) => addRow(v));
   }
@@ -159,6 +179,10 @@ function render({ model, el }) {
   });
   body.appendChild(addBtn);
   wrap.appendChild(body);
+
+  const syncPinned = () => {
+    addBtn.hidden = isPinned();
+  };
 
   const syncUnits = () => {
     const units = model.get("units");
@@ -177,10 +201,12 @@ function render({ model, el }) {
   };
   wrap.appendChild(err);
 
+  syncPinned();
   syncFromModel();
   syncError();
 
   model.on("change:value", syncFromModel);
+  model.on("change:component_names", () => { syncPinned(); syncFromModel(); });
   model.on("change:error", syncError);
   model.on("change:label", () => { labelEl.textContent = model.get("label"); });
   model.on("change:units", syncUnits);
