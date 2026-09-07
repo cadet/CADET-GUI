@@ -32,6 +32,15 @@ def test_element_for_field_maps_kind_to_element_type():
     assert isinstance(element_for_field(field), FloatListField)
 
 
+def test_element_for_field_passes_units_through_to_the_element():
+    field = FieldSpec("length", "float", "Length", default=0.5, units="m")
+    element = element_for_field(field)
+    assert element.units == "m"
+
+    unitless = element_for_field(FieldSpec("rate", "float", default=1.0))
+    assert unitless.units == ""
+
+
 def test_form_renders_one_element_per_field_with_defaults():
     form = FormRenderer(make_spec())
     assert set(form._elements) == {"rate", "name", "active", "levels"}

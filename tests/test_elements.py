@@ -53,6 +53,11 @@ def test_floatfield_is_element():
     assert isinstance(FloatField(), Element)
 
 
+def test_floatfield_units_default_to_empty_and_can_be_set():
+    assert FloatField().units == ""
+    assert FloatField(units="m").units == "m"
+
+
 def test_floatfield_ships_esm_and_css():
     f = FloatField()
     assert "function render" in f._esm
