@@ -2,10 +2,16 @@
 
 `app.ipynb` renders `ConfigurationWidget`, `SolutionWidget` (with its built-in
 run history), and `DataImportWidget` — the exact same widgets used in
-`examples/configuration_and_solution.ipynb` — composed into a one-page layout,
-served via [Voilà](https://voila.readthedocs.io/). Try uploading
-`examples/data/example_uv_signal.csv` (a synthetic UV trace generated for these
-examples) in the data card to see it overlaid on a simulation run.
+`examples/configuration_and_solution.ipynb` — composed into three tabs
+(**Configuration** / **Solution** / **Analysis**), served via
+[Voilà](https://voila.readthedocs.io/). `DataImportWidget` lives under
+**Analysis**, not alongside Solution — that's a deliberate separation, not a
+demotion: comparison/analysis is its own concern, distinct from running and
+viewing a single simulation, even though it visually overlays onto Solution's
+plot. Try uploading `examples/data/example_uv_signal.csv` (a synthetic UV trace
+generated for these examples) there to see it overlaid on a simulation run —
+switching tabs doesn't lose anything; a plot rendered on one tab is still there
+when you switch back.
 
 ## Run it
 
@@ -15,11 +21,11 @@ voila examples/webapp/app.ipynb
 ```
 
 Then open the URL Voilà prints (defaults to `http://localhost:8866`). What you
-get is a plain web page — no notebook UI, no code, no cell boundaries, just the
-widgets in a styled two-column layout with a header. Anyone visiting the URL in
-a browser sees a website; the `.ipynb` file is just this app's source format
-(convenient because it's also directly editable/runnable in JupyterLab), not
-something end users interact with.
+get is a plain web page — no notebook UI, no code, no cell boundaries, just a
+header and three tabs. Anyone visiting the URL in a browser sees a website; the
+`.ipynb` file is just this app's source format (convenient because it's also
+directly editable/runnable in JupyterLab), not something end users interact
+with.
 
 ## Why this proves anything
 
