@@ -47,6 +47,12 @@
   align-items: center !important;
 }
 
+.cadetgui-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cg-muted);
+}
+
 .cadetgui-section {
   display: flex;
   flex-direction: column;

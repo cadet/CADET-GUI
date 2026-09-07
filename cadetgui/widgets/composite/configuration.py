@@ -69,24 +69,49 @@ class ConfigurationWidget:
         self._script_out = W.Textarea(layout=W.Layout(width="100%", height="220px", display="none"))
         self._script_out.add_class("cadetgui-script")
 
-        components_section = W.VBox([self._components])
+        components_section = W.VBox(
+            [
+                W.HTML("<div class='cadetgui-section-title'>Component System</div>"),
+                self._components,
+            ]
+        )
         components_section.add_class("cadetgui-section")
 
-        toolbar = W.HBox(
-            [self._column_picker, self._binding_picker, self._model_picker],
-            layout=W.Layout(flex_flow="row wrap"),
+        column_section = W.VBox(
+            [
+                W.HTML("<div class='cadetgui-section-title'>Column Model</div>"),
+                self._column_picker,
+                self._column_form_box,
+            ]
         )
-        toolbar.add_class("cadetgui-toolbar")
+        column_section.add_class("cadetgui-section")
+
+        binding_section = W.VBox(
+            [
+                W.HTML("<div class='cadetgui-section-title'>Binding Model</div>"),
+                self._binding_picker,
+                self._binding_form_box,
+            ]
+        )
+        binding_section.add_class("cadetgui-section")
+
+        process_section = W.VBox(
+            [
+                W.HTML("<div class='cadetgui-section-title'>Process</div>"),
+                self._model_picker,
+                self._model_form_box,
+            ]
+        )
+        process_section.add_class("cadetgui-section")
 
         self.root = W.VBox(
             [
                 W.HTML(style_tag()),
                 W.HTML("<div class='cadetgui-panel-title'>Configuration</div>"),
                 components_section,
-                toolbar,
-                self._column_form_box,
-                self._binding_form_box,
-                self._model_form_box,
+                column_section,
+                binding_section,
+                process_section,
                 self._btn_export,
                 self._script_out,
                 self.status,
