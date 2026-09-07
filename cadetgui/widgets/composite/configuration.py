@@ -43,8 +43,8 @@ class ConfigurationWidget:
         self._model_form: Optional[FormRenderer] = None
 
         self._components = W.BoundedIntText(description="Components:", value=1, min=1, max=99)
-        self._column_picker = ChoiceField(label="Column:", options=list(self._columns.items()))
-        self._model_picker = ChoiceField(label="Model:", options=list(self._registry.items()))
+        self._column_picker = ChoiceField(label="Column Model:", options=list(self._columns.items()))
+        self._model_picker = ChoiceField(label="Process Template:", options=list(self._registry.items()))
 
         self._column_form_box = W.VBox([])
         self._model_form_box = W.VBox([])
