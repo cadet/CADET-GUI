@@ -1,8 +1,11 @@
 # CADET-GUI as a website
 
-`app.ipynb` renders `ConfigurationWidget` + `SolutionWidget` — the exact same
-widgets used in `examples/configuration_and_solution.ipynb` — composed into a
-one-page layout, served via [Voilà](https://voila.readthedocs.io/).
+`app.ipynb` renders `ConfigurationWidget`, `SolutionWidget` (with its built-in
+run history), and `DataImportWidget` — the exact same widgets used in
+`examples/configuration_and_solution.ipynb` — composed into a one-page layout,
+served via [Voilà](https://voila.readthedocs.io/). Try uploading
+`examples/data/example_uv_signal.csv` (a synthetic UV trace generated for these
+examples) in the data card to see it overlaid on a simulation run.
 
 ## Run it
 
