@@ -6,6 +6,7 @@
 .cadetgui-field {
   --cg-fg: #1f2937;
   --cg-muted: #6b7280;
+  --cg-unit: #828d99;
   --cg-border: #d1d5db;
   --cg-focus: #2563eb;
   --cg-danger: #dc2626;
@@ -25,6 +26,7 @@
   .cadetgui-field {
     --cg-fg: #e5e7eb;
     --cg-muted: #9ca3af;
+    --cg-unit: #5b6472;
     --cg-border: #4b5563;
     --cg-focus: #60a5fa;
     --cg-danger: #f87171;
@@ -36,6 +38,27 @@
   min-width: 140px;
   flex: 0 0 auto;
   color: var(--cg-muted);
+}
+
+.cadetgui-field-unit {
+  color: var(--cg-unit);
+  flex: 0 0 auto;
+  font-family: "STIX Two Math", "Cambria Math", Georgia, "Times New Roman", serif;
+}
+
+.cadetgui-field-unit sup,
+.cadetgui-field-unit sub {
+  line-height: 0;
+}
+
+.cadetgui-field-unit sub[title] {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.cadetgui-field-unit[hidden] {
+  display: none;
 }
 
 .cadetgui-field-input {

@@ -27,6 +27,7 @@ class Element(anywidget.AnyWidget):
     """
 
     label = T.Unicode("").tag(sync=True)
+    units = T.Unicode("").tag(sync=True)
     error = T.Unicode("").tag(sync=True)
 
     _value_trait_name = "value"

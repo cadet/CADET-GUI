@@ -28,7 +28,8 @@ class FloatListField(Element):
         *,
         label: str = "",
         value: Optional[Sequence[float]] = None,
+        units: Optional[str] = None,
         validate: Optional[Validator] = None,
     ) -> None:
         values: List[float] = [float(v) for v in value] if value else [0.0]
-        super().__init__(label=label, value=values, validate=validate)
+        super().__init__(label=label, value=values, units=units or "", validate=validate)

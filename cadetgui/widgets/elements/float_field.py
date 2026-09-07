@@ -32,6 +32,9 @@ class FloatField(Element):
         value: float = 0.0,
         min: Optional[float] = None,
         max: Optional[float] = None,
+        units: Optional[str] = None,
         validate: Optional[Validator] = None,
     ) -> None:
-        super().__init__(label=label, value=value, min=min, max=max, validate=validate)
+        super().__init__(
+            label=label, value=value, min=min, max=max, units=units or "", validate=validate
+        )

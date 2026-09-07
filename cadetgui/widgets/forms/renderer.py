@@ -31,16 +31,17 @@ _ELEMENT_FOR_KIND: Dict[str, Callable[[FieldSpec], Element]] = {
         value=_coerced_default(f),
         min=f.min,
         max=f.max,
+        units=f.units,
         validate=f.validate,
     ),
     "float_list": lambda f: FloatListField(
-        label=f.label or f.name, value=_coerced_default(f), validate=f.validate
+        label=f.label or f.name, value=_coerced_default(f), units=f.units, validate=f.validate
     ),
     "bool": lambda f: BoolField(
-        label=f.label or f.name, value=_coerced_default(f), validate=f.validate
+        label=f.label or f.name, value=_coerced_default(f), units=f.units, validate=f.validate
     ),
     "text": lambda f: TextField(
-        label=f.label or f.name, value=_coerced_default(f), validate=f.validate
+        label=f.label or f.name, value=_coerced_default(f), units=f.units, validate=f.validate
     ),
 }
 
