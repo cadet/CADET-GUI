@@ -4,6 +4,56 @@ const UNIT_GLOSSARY = {
   IV: "interstitial volume",
 };
 
+// Body-appended, position:fixed tooltip: Jupyter output-area containers
+// clip overflow, so a ::after on the <sub> gets cut off near boundaries.
+// Colors are hardcoded (not var(--cg-*)) since this lives outside any
+// .cadetgui-field-scoped stylesheet.
+function tooltipColors() {
+  const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  return dark ? { bg: "#9ca3af", fg: "#1f2937" } : { bg: "#6b7280", fg: "#ffffff" };
+}
+
+function getTooltipEl() {
+  let tip = document.getElementById("cadetgui-tooltip");
+  if (tip) return tip;
+  tip = document.createElement("div");
+  tip.id = "cadetgui-tooltip";
+  Object.assign(tip.style, {
+    position: "fixed",
+    padding: "6px 12px",
+    borderRadius: "2px",
+    fontFamily: "system-ui, -apple-system, sans-serif",
+    fontSize: "15px",
+    fontStyle: "normal",
+    lineHeight: "1.4",
+    whiteSpace: "nowrap",
+    pointerEvents: "none",
+    opacity: "0",
+    transition: "opacity 0.1s ease 80ms",
+    zIndex: "999999",
+  });
+  document.body.appendChild(tip);
+  return tip;
+}
+
+function showTooltip(anchorEl, text) {
+  const tip = getTooltipEl();
+  const { bg, fg } = tooltipColors();
+  tip.style.background = bg;
+  tip.style.color = fg;
+  tip.textContent = text;
+  const r = anchorEl.getBoundingClientRect();
+  tip.style.left = `${r.left + r.width / 2}px`;
+  tip.style.top = `${r.bottom + 10}px`;
+  tip.style.transform = "translateX(-50%)";
+  requestAnimationFrame(() => { tip.style.opacity = "1"; });
+}
+
+function hideTooltip() {
+  const tip = document.getElementById("cadetgui-tooltip");
+  if (tip) tip.style.opacity = "0";
+}
+
 function renderUnit(container, raw) {
   container.replaceChildren();
   if (!raw) return;
@@ -19,7 +69,12 @@ function renderUnit(container, raw) {
     } else if (m[2] !== undefined) {
       const sub = document.createElement("sub");
       sub.textContent = m[2];
-      if (UNIT_GLOSSARY[m[2]]) sub.title = UNIT_GLOSSARY[m[2]];
+      const gloss = UNIT_GLOSSARY[m[2]];
+      if (gloss) {
+        sub.dataset.tooltip = gloss;
+        sub.addEventListener("mouseenter", () => showTooltip(sub, gloss));
+        sub.addEventListener("mouseleave", hideTooltip);
+      }
       container.appendChild(sub);
     } else {
       container.append("·");

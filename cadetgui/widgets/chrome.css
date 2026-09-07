@@ -57,6 +57,15 @@
   background: color-mix(in srgb, var(--cg-border) 6%, transparent);
 }
 
+.cadetgui-section.cadetgui-settings-box {
+  gap: 4px;
+  background: color-mix(in srgb, var(--cg-fg) 12%, var(--cg-bg));
+}
+
+.cadetgui-settings-box .cadetgui-section-title {
+  margin-bottom: 4px;
+}
+
 .cadetgui-status {
   font-size: 12.5px;
   color: var(--cg-muted);

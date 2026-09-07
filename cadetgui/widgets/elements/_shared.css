@@ -51,7 +51,7 @@
   line-height: 0;
 }
 
-.cadetgui-field-unit sub[title] {
+.cadetgui-field-unit sub[data-tooltip] {
   cursor: help;
   text-decoration: underline dotted;
   text-underline-offset: 2px;
