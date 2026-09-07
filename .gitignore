@@ -8,3 +8,6 @@ diskcache_*
 results_*
 *.egg-info
 .vscode
+
+# AI-assisted development notes (local working docs, not for the repo yet)
+ai-docs/
