@@ -3,7 +3,7 @@
 # =========================================
 from __future__ import annotations
 
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 
 import ipywidgets as W
 
@@ -55,9 +55,12 @@ def element_for_field(f: FieldSpec) -> Element:
 class FormRenderer:
     """Render a ModelSpec into a form of Elements; build an object on Apply."""
 
-    def __init__(self, spec: ModelSpec) -> None:
+    def __init__(
+        self, spec: ModelSpec, *, on_built: Optional[Callable[[Any], None]] = None
+    ) -> None:
         self.spec = spec
         self.built: Any = None
+        self._on_built = on_built
         self.status = W.HTML("<em>Ready.</em>")
 
         self._elements: Dict[str, Element] = {f.name: element_for_field(f) for f in spec.fields}
@@ -96,6 +99,8 @@ class FormRenderer:
                 raise RuntimeError("Spec has no 'build' function.")
             self.built = self.spec.build(values)
             self.status.value = "<em>Built successfully.</em>"
+            if self._on_built is not None:
+                self._on_built(self.built)
         except Exception as exc:  # noqa: BLE001
             self.built = None
             self.status.value = f"<span style='color:#b00020'>{exc}</span>"
