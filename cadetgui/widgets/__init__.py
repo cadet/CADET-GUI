@@ -1,31 +1,31 @@
 # =========================================
 # File: cadetgui/widgets/__init__.py
 # =========================================
-"""Composable ipywidgets for CADET-GUI.
+"""Composable widgets for CADET-GUI.
 
 This subpackage provides:
-- elements: small form controls and simple display helpers
-- base: BaseWidget and ListenerMixin
-- form: FormRenderer to render a ModelSpec to a form
-- config: ConfigurationWidget for model+column selection & config
-- solution: SolutionWidget to run and visualize simulations
+- elements: atomic anywidget input controls (the target implementation)
+- legacy: the earlier ipywidgets-based prototype, kept working as reference
+  material during the anywidget port (see ai-docs/ARCHITECTURE.md)
 
-Public API is re-exported for convenience.
+Public API re-exports the legacy prototype for now, since it's what's usable
+end-to-end. Update this as anywidget equivalents land.
 """
-from .elements import (
-    Element,
-    TextField,
-    FloatField,
+from .legacy import (
+    BaseWidget,
     BoolField,
-    Display,
-    Popup,
     ChoiceField,
-    ObjectChoiceField
+    ConfigurationWidget,
+    Display,
+    Element,
+    FloatField,
+    FormRenderer,
+    ListenerMixin,
+    ObjectChoiceField,
+    Popup,
+    SolutionWidget,
+    TextField,
 )
-from .base import BaseWidget, ListenerMixin
-from .form import FormRenderer
-from .config import ConfigurationWidget
-from .solution import SolutionWidget
 
 __all__ = [
     "BaseWidget",
@@ -38,11 +38,7 @@ __all__ = [
     "Popup",
     "ChoiceField",
     "ObjectChoiceField",
-    "OverlayModal",
     "FormRenderer",
     "ConfigurationWidget",
     "SolutionWidget",
 ]
-
-
-
