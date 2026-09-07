@@ -4,41 +4,28 @@
 """Composable widgets for CADET-GUI.
 
 This subpackage provides:
-- elements: atomic anywidget input controls (the target implementation)
-- legacy: the earlier ipywidgets-based prototype, kept working as reference
-  material during the anywidget port (see ai-docs/ARCHITECTURE.md)
+- elements: atomic anywidget input controls
+- forms: FormRenderer, rendering a ModelSpec into elements
+- composite: task widgets assembled from elements + forms (Configuration,
+  Solution, RunHistory, DataImport)
 
-Public API re-exports the legacy prototype for now, since it's what's usable
-end-to-end. Update this as anywidget equivalents land.
+Public API re-exports the composite widgets, the most common entry point.
+Import from `cadetgui.widgets.elements`/`.forms` directly for the lower layers.
 """
-from .legacy import (
-    BaseWidget,
-    BoolField,
-    ChoiceField,
+from .composite import (
     ConfigurationWidget,
-    Display,
-    Element,
-    FloatField,
-    FormRenderer,
-    ListenerMixin,
-    ObjectChoiceField,
-    Popup,
+    DataImportWidget,
+    ExperimentalDataset,
+    RunHistoryWidget,
+    RunRecord,
     SolutionWidget,
-    TextField,
 )
 
 __all__ = [
-    "BaseWidget",
-    "ListenerMixin",
-    "Element",
-    "TextField",
-    "FloatField",
-    "BoolField",
-    "Display",
-    "Popup",
-    "ChoiceField",
-    "ObjectChoiceField",
-    "FormRenderer",
     "ConfigurationWidget",
     "SolutionWidget",
+    "RunHistoryWidget",
+    "RunRecord",
+    "DataImportWidget",
+    "ExperimentalDataset",
 ]
