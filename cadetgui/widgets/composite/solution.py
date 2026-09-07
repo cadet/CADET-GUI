@@ -31,6 +31,7 @@ class SolutionWidget:
         self._runner = runner or _default_runner
         self.process = process
         self.result: Any = None
+        self._data_widget: Optional[Any] = None
 
         self._process_label = W.HTML()
         self._btn_run = W.Button(description="Run simulation", icon="play", button_style="success")
@@ -76,6 +77,11 @@ class SolutionWidget:
         config_widget.add_listener(self.set_process)
         if getattr(config_widget, "process", None) is not None:
             self.set_process(config_widget.process)
+
+    def bind_to_data(self, data_widget: Any) -> None:
+        """Overlay a DataImportWidget's loaded datasets on this widget's plot."""
+        self._data_widget = data_widget
+        data_widget.add_listener(self._plot_selected)
 
     def _update_process_label(self) -> None:
         if self.process is None:
@@ -145,7 +151,12 @@ class SolutionWidget:
             import matplotlib.pyplot as plt
             from IPython.display import display
 
-            fig, _ax = solution.plot()
+            fig, ax = solution.plot()
+            datasets = self._data_widget.datasets if self._data_widget else []
+            for ds in datasets:
+                ax.plot(ds.time_min, ds.signal, linestyle="--", label=f"{ds.label} (measured)")
+            if datasets:
+                ax.legend()
             display(fig)
             plt.close(fig)
 
