@@ -5,12 +5,17 @@ from typing import Any, Callable, Dict, Literal, Mapping, Optional, Sequence
 
 from CADETProcess.modelBuilder import LWE, BatchElution
 from CADETProcess.processModel import (
+    BindingBaseClass,
     ChromatographicColumnBase,
     ComponentSystem,
     Cstr,
     GeneralRateModel,
+    Langmuir,
+    Linear,
     LumpedRateModelWithoutPores,
     LumpedRateModelWithPores,
+    NoBinding,
+    StericMassAction,
 )
 
 FieldKind = str
@@ -157,6 +162,34 @@ DEFAULT_COLUMN_FACTORIES: Dict[str, ColumnFactory] = {
 
 }
 
+BindingFactory = Callable[[ComponentSystem], BindingBaseClass]
+
+
+def make_no_binding(cs: ComponentSystem) -> BindingBaseClass:
+    return NoBinding(cs, name="NoBinding")
+
+
+def make_linear_binding(cs: ComponentSystem) -> BindingBaseClass:
+    return Linear(cs, name="Linear")
+
+
+def make_langmuir_binding(cs: ComponentSystem) -> BindingBaseClass:
+    return Langmuir(cs, name="Langmuir")
+
+
+def make_sma_binding(cs: ComponentSystem) -> BindingBaseClass:
+    return StericMassAction(cs, name="StericMassAction")
+
+
+# "None" first so a ChoiceField over this dict defaults to it, matching
+# CADET-Process's own default (an unconfigured column already has NoBinding).
+DEFAULT_BINDING_FACTORIES: Dict[str, BindingFactory] = {
+    "None": make_no_binding,
+    "Linear": make_linear_binding,
+    "Langmuir": make_langmuir_binding,
+    "Steric Mass Action (SMA)": make_sma_binding,
+}
+
 PARAM_TYPE_OVERRIDES: Dict[str, FieldKind] = {}
 
 
@@ -180,6 +213,22 @@ PARAM_SCHEMA: dict[str, dict] = {
     "particle_porosity": {"kind": "float", "default": 0.6, "min": 0.0, "max": 1.0},
     "particle_radius":   {"kind": "float", "default": 5.0e-6, "min": 0.0, "units": "m"},
     "axial_dispersion":  {"kind": "float", "default": 1e-8, "min": 0.0, "units": "m^2/s"},
+
+    # Binding-model parameters. Bounds/units sourced from CADET-Core's binding
+    # model docs (cadet.github.io/master/interface/binding/{linear,
+    # multi_component_langmuir,steric_mass_action}.html), not invented — see
+    # ai-docs/ARCHITECTURE.md's "no inventing bounds" rule.
+    #
+    # `adsorption_rate`'s unit differs by model (Langmuir: m^3/(mol*s); Linear
+    # and SMA: m^3_MP/m^3_SP/s) — left unspecified since this schema is shared
+    # across binding model types and picking one would be wrong for the others.
+    # `desorption_rate` (1/s) and `capacity` (mol/m^3) are consistent across
+    # every model that uses them, so those do get a unit.
+    "adsorption_rate":       {"kind": "float", "min": 0.0},
+    "desorption_rate":       {"kind": "float", "min": 0.0, "units": "1/s"},
+    "capacity":              {"kind": "float", "min": 0.0, "units": "mol/m^3"},
+    "characteristic_charge": {"kind": "float", "min": 0.0},
+    "steric_factor":         {"kind": "float", "min": 0.0},
 }
 
 
@@ -208,14 +257,20 @@ def _coerce_to_kind(kind: str, val):
     return float(val)
 
 
-def build_column_config_spec(column: ChromatographicColumnBase) -> ModelSpec:
-    req = getattr(column, "required_parameters", None) or []
+def build_parameter_config_spec(obj: Any) -> ModelSpec:
+    """Build a ModelSpec from any object exposing `required_parameters`.
+
+    Generic over what `obj` is — a column, a binding model, anything with the
+    CADET-Process `required_parameters` convention — so the same function
+    drives both the column form and the binding-model form.
+    """
+    req = getattr(obj, "required_parameters", None) or []
     names = _unique_preserve_order(list(req))
     fields: list[FieldSpec] = []
 
     for name in names:
-        col_val = getattr(column, name, None)
-        default, kind, transform, bounds, units = _resolve_param(name, col_val)
+        current_val = getattr(obj, name, None)
+        default, kind, transform, bounds, units = _resolve_param(name, current_val)
         label = name.replace("_", " ").capitalize()
         fs_kwargs = dict(name=name, kind=kind, label=label, default=default, transform=transform, **bounds)
         if units is not None:
@@ -231,18 +286,18 @@ def build_column_config_spec(column: ChromatographicColumnBase) -> ModelSpec:
                 schema_kind = PARAM_SCHEMA.get(name, {}).get("kind")
                 kind = schema_kind or PARAM_TYPE_OVERRIDES.get(name)  # keep if you still have it
                 if kind is None:
-                    # last-resort inference from current column value
-                    cur = getattr(column, name, None)
+                    # last-resort inference from current value
+                    cur = getattr(obj, name, None)
                     kind = _infer_kind(cur)
                 coerced = _coerce_to_kind(kind, values[name])
-                setattr(column, name, coerced)
+                setattr(obj, name, coerced)
             except Exception:
                 # swallow and continue so one bad value doesn't block the rest
                 continue
-        return column
+        return obj
 
     return ModelSpec(
-        title=f"Configure {column.__class__.__name__}",
+        title=f"Configure {obj.__class__.__name__}",
         fields=fields,
         build=_apply,  # <- pass the function directly; it takes (values)
     )

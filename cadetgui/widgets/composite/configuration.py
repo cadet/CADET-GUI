@@ -9,9 +9,10 @@ import ipywidgets as W
 from CADETProcess.processModel import ComponentSystem
 
 from ...cadetprocessadapter import (
+    DEFAULT_BINDING_FACTORIES,
     DEFAULT_COLUMN_FACTORIES,
     MODEL_REGISTRY,
-    build_column_config_spec,
+    build_parameter_config_spec,
 )
 from .._chrome import style_tag
 from ..elements import ChoiceField
@@ -21,11 +22,12 @@ __all__ = ["ConfigurationWidget"]
 
 
 class ConfigurationWidget:
-    """Pick a unit operation + model-builder template, configure both, build a process.
+    """Pick a unit operation + binding model + model-builder template, build a process.
 
-    Rebuilds its forms whenever the component count, column, or model selection
-    changes. `.process` holds the latest successfully-built object; `add_listener`
-    registers a callback that fires with it on every successful build.
+    Rebuilds its forms whenever the component count, column, binding model, or
+    process-template selection changes. `.process` holds the latest
+    successfully-built object; `add_listener` registers a callback that fires
+    with it on every successful build.
     """
 
     def __init__(
@@ -33,20 +35,32 @@ class ConfigurationWidget:
         *,
         registry: Optional[Dict[str, Callable[[Any], Any]]] = None,
         columns: Optional[Dict[str, Callable[[ComponentSystem], Any]]] = None,
+        binding_registry: Optional[Dict[str, Callable[[ComponentSystem], Any]]] = None,
     ) -> None:
         self._registry = registry or MODEL_REGISTRY
         self._columns = columns or DEFAULT_COLUMN_FACTORIES
+        self._binding_registry = binding_registry or DEFAULT_BINDING_FACTORIES
         self._column_cache: Dict[Any, Any] = {}
+        self._binding_cache: Dict[Any, Any] = {}
         self._listeners: List[Callable[[Any], None]] = []
         self.process: Any = None
         self._column_form: Optional[FormRenderer] = None
+        self._binding_form: Optional[FormRenderer] = None
         self._model_form: Optional[FormRenderer] = None
 
         self._components = W.BoundedIntText(description="Components:", value=1, min=1, max=99)
-        self._column_picker = ChoiceField(label="Column Model:", options=list(self._columns.items()))
-        self._model_picker = ChoiceField(label="Process Template:", options=list(self._registry.items()))
+        self._column_picker = ChoiceField(
+            label="Column Model:", options=list(self._columns.items())
+        )
+        self._binding_picker = ChoiceField(
+            label="Binding Model:", options=list(self._binding_registry.items())
+        )
+        self._model_picker = ChoiceField(
+            label="Process Template:", options=list(self._registry.items())
+        )
 
         self._column_form_box = W.VBox([])
+        self._binding_form_box = W.VBox([])
         self._model_form_box = W.VBox([])
         self.status = W.HTML("<em>Select a column and model.</em>")
         self.status.add_class("cadetgui-status")
@@ -56,7 +70,7 @@ class ConfigurationWidget:
         self._script_out.add_class("cadetgui-script")
 
         toolbar = W.HBox(
-            [self._components, self._column_picker, self._model_picker],
+            [self._components, self._column_picker, self._binding_picker, self._model_picker],
             layout=W.Layout(flex_flow="row wrap"),
         )
         toolbar.add_class("cadetgui-toolbar")
@@ -67,6 +81,7 @@ class ConfigurationWidget:
                 W.HTML("<div class='cadetgui-panel-title'>Configuration</div>"),
                 toolbar,
                 self._column_form_box,
+                self._binding_form_box,
                 self._model_form_box,
                 self._btn_export,
                 self._script_out,
@@ -77,6 +92,7 @@ class ConfigurationWidget:
 
         self._components.observe(self._on_components_change, names="value")
         self._column_picker.observe(self._on_selection_change, names="selected_index")
+        self._binding_picker.observe(self._on_selection_change, names="selected_index")
         self._model_picker.observe(self._on_selection_change, names="selected_index")
         self._btn_export.on_click(self._on_export)
 
@@ -99,10 +115,27 @@ class ConfigurationWidget:
             self._column_cache[factory] = factory(cs)
         return self._column_cache[factory]
 
+    def _get_binding_model(self) -> Any:
+        factory = self._binding_picker.value
+        column = self._get_column()
+        if factory is None or column is None:
+            return None
+        # Keyed by (factory, id(column)) rather than just factory: a binding
+        # model's component_system must be the *same object* as its column's
+        # (CADET-Process raises "Component systems do not match" otherwise),
+        # and each distinct column instance gets its own ComponentSystem — so
+        # a binding model cached against a since-replaced column would no
+        # longer be attachable to the current one.
+        cache_key = (factory, id(column))
+        if cache_key not in self._binding_cache:
+            self._binding_cache[cache_key] = factory(column.component_system)
+        return self._binding_cache[cache_key]
+
     def _on_components_change(self, change: dict) -> None:
         if change.get("name") != "value":
             return
         self._column_cache.clear()
+        self._binding_cache.clear()
         self._rebuild_forms()
 
     def _on_selection_change(self, change: dict) -> None:
@@ -117,40 +150,64 @@ class ConfigurationWidget:
 
     def _rebuild_forms(self) -> None:
         column = self._get_column()
+        binding_model = self._get_binding_model()
         model_fn = self._model_picker.value
-        if column is None or model_fn is None:
+        if column is None or binding_model is None or model_fn is None:
             self._column_form_box.children = ()
+            self._binding_form_box.children = ()
             self._model_form_box.children = ()
             return
 
-        self._column_form = FormRenderer(build_column_config_spec(column))
+        self._column_form = FormRenderer(build_parameter_config_spec(column))
         self._column_form_box.children = (self._column_form.root,)
+
+        def _attach_binding(built: Any, col: Any = column) -> None:
+            col.binding_model = built
+
+        self._binding_form = FormRenderer(
+            build_parameter_config_spec(binding_model), on_built=_attach_binding
+        )
+        self._binding_form_box.children = (self._binding_form.root,)
 
         self._model_form = FormRenderer(model_fn(column), on_built=self._on_process_built)
         self._model_form_box.children = (self._model_form.root,)
 
-        self.status.value = "<em>Configure the column, then the model, and Apply each.</em>"
+        self.status.value = (
+            "<em>Configure the column, binding model, and process, then Apply each"
+            " (in that order — the process picks up whatever's applied on column"
+            " and binding model at the time).</em>"
+        )
 
     def export_script(self) -> str:
         """Generate an executable CADET-Process Python script for the current build.
 
         Introspects the actual built objects' classes (`type(obj).__module__` /
-        `__name__`) rather than a hardcoded column/model name mapping, so this
-        works for any column or model registered — no per-type special-casing
+        `__name__`) rather than a hardcoded column/model/binding name mapping, so
+        this works for anything registered — no per-type special-casing
         (PRODUCT_VISION.md ARCH-003: the "expert escape hatch"/anti-black-box
         requirement).
         """
-        if self.process is None or self._column_form is None or self._model_form is None:
-            raise RuntimeError("Nothing built yet — Apply both the column and model forms first.")
+        if (
+            self.process is None
+            or self._column_form is None
+            or self._binding_form is None
+            or self._model_form is None
+        ):
+            raise RuntimeError(
+                "Nothing built yet — Apply the column, binding model, and process forms first."
+            )
 
         column = self._get_column()
+        binding_model = self._get_binding_model()
         cs_cls = ComponentSystem
         col_cls = type(column)
+        bind_cls = type(binding_model)
         proc_cls = type(self.process)
 
         lines = [
             f"from {cs_cls.__module__} import {cs_cls.__name__}",
             f"from {col_cls.__module__} import {col_cls.__name__}",
+            f"from {bind_cls.__module__} import {bind_cls.__name__}",
             f"from {proc_cls.__module__} import {proc_cls.__name__}",
             "",
             f"component_system = {cs_cls.__name__}({self._components.value})",
@@ -159,6 +216,14 @@ class ConfigurationWidget:
         ]
         for name, value in self._column_form.collect_values().items():
             lines.append(f"column.{name} = {value!r}")
+
+        lines.append("")
+        lines.append(
+            f"column.binding_model = {bind_cls.__name__}("
+            f"component_system, name={binding_model.name!r})"
+        )
+        for name, value in self._binding_form.collect_values().items():
+            lines.append(f"column.binding_model.{name} = {value!r}")
 
         lines.append("")
         lines.append(f"process = {proc_cls.__name__}(")

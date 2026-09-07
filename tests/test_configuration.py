@@ -108,3 +108,73 @@ def test_export_script_button_populates_textarea_on_success():
     assert "process = " in cw._script_out.value
     assert cw._script_out.layout.display == ""
     assert "generated" in cw.status.value.lower()
+
+
+def test_binding_model_defaults_to_none_matching_cadetprocess_default():
+    cw = ConfigurationWidget()
+    assert cw._binding_picker.option_labels[0] == "None"
+    assert cw._binding_form.spec.fields == []  # NoBinding has no required_parameters
+
+
+def test_switching_binding_model_rebuilds_its_form():
+    cw = ConfigurationWidget()
+    cw._binding_picker.value = cw._binding_registry["Langmuir"]
+    assert {f.name for f in cw._binding_form.spec.fields} == {
+        "adsorption_rate",
+        "desorption_rate",
+        "capacity",
+    }
+
+
+def test_applying_binding_form_attaches_it_to_the_column():
+    cw = ConfigurationWidget()
+    cw._binding_picker.value = cw._binding_registry["Linear"]
+    cw._binding_form._on_apply(None)
+
+    column = cw._get_column()
+    assert type(column.binding_model).__name__ == "Linear"
+
+
+def test_switching_column_type_keeps_binding_model_attachable():
+    """Regression test: binding model and column must share one ComponentSystem
+    instance (CADET-Process rejects a mismatch), and each column factory gets
+    its own fresh ComponentSystem — so a binding model cached against a
+    since-replaced column must not be reused as-is."""
+    cw = ConfigurationWidget()
+    cw._binding_picker.value = cw._binding_registry["Linear"]
+    cw._binding_form._on_apply(None)
+
+    cw._column_picker.value = cw._columns["LRMP"]  # different column, different ComponentSystem
+    cw._binding_form._on_apply(None)  # must not raise / must not fail validation
+
+    assert cw._binding_form.built is not None
+    assert "Built successfully" in cw._binding_form.status.value
+    column = cw._get_column()
+    assert type(column.binding_model).__name__ == "Linear"
+    assert column.binding_model.component_system is column.component_system
+
+
+def test_export_script_includes_binding_model_and_round_trips():
+    import numpy as np
+    from cadetgui.simulation import run_process
+
+    cw = ConfigurationWidget()
+    cw._binding_picker.value = cw._binding_registry["Linear"]
+    cw._column_form._on_apply(None)
+    cw._binding_form._on_apply(None)
+    cw._model_form._on_apply(None)
+
+    script = cw.export_script()
+    assert "column.binding_model = Linear(" in script
+
+    ns = {}
+    exec(compile(script, "<generated>", "exec"), ns)  # noqa: S102
+    assert type(ns["column"].binding_model).__name__ == "Linear"
+
+    res_widget = run_process(cw.process)
+    res_script = run_process(ns["process"])
+    unit = next(iter(res_widget.solution))
+    assert np.array_equal(
+        res_widget.solution[unit]["outlet"].solution,
+        res_script.solution[unit]["outlet"].solution,
+    )
