@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, Optional
 import ipywidgets as W
 
 from ...cadetprocessadapter import FieldSpec, ModelSpec
+from .._chrome import style_tag
 from ..elements import BoolField, Element, FloatField, FloatListField, TextField
 
 __all__ = ["FormRenderer", "element_for_field"]
@@ -70,10 +71,13 @@ class FormRenderer:
         self._btn_apply.on_click(self._on_apply)
         self._btn_reset.on_click(self._on_reset)
 
-        header = W.HTML(f"<h3 style='margin:0'>{spec.title}</h3>")
+        header = W.HTML(f"<div class='cadetgui-panel-title'>{spec.title}</div>")
         actions = W.HBox([self._btn_apply, self._btn_reset])
         rows = [self._elements[f.name] for f in spec.fields]
-        self.root = W.VBox([header, *rows, actions, self.status])
+        self.status.add_class("cadetgui-status")
+        self.root = W.VBox([W.HTML(style_tag()), header, *rows, actions, self.status])
+        self.root.add_class("cadetgui-panel")
+        self.root.add_class("cadetgui-section")
 
     @property
     def is_valid(self) -> bool:

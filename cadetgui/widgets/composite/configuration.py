@@ -13,6 +13,7 @@ from ...cadetprocessadapter import (
     MODEL_REGISTRY,
     build_column_config_spec,
 )
+from .._chrome import style_tag
 from ..elements import ChoiceField
 from ..forms import FormRenderer
 
@@ -48,16 +49,25 @@ class ConfigurationWidget:
         self._column_form_box = W.VBox([])
         self._model_form_box = W.VBox([])
         self.status = W.HTML("<em>Select a column and model.</em>")
+        self.status.add_class("cadetgui-status")
+
+        toolbar = W.HBox(
+            [self._components, self._column_picker, self._model_picker],
+            layout=W.Layout(flex_flow="row wrap"),
+        )
+        toolbar.add_class("cadetgui-toolbar")
 
         self.root = W.VBox(
             [
-                W.HTML("<h3 style='margin:0'>Configuration</h3>"),
-                W.HBox([self._components, self._column_picker, self._model_picker]),
+                W.HTML(style_tag()),
+                W.HTML("<div class='cadetgui-panel-title'>Configuration</div>"),
+                toolbar,
                 self._column_form_box,
                 self._model_form_box,
                 self.status,
             ]
         )
+        self.root.add_class("cadetgui-panel")
 
         self._components.observe(self._on_components_change, names="value")
         self._column_picker.observe(self._on_selection_change, names="selected_index")

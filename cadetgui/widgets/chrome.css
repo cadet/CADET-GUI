@@ -1,0 +1,103 @@
+/* Shared chrome for composite/form widgets (FormRenderer, ConfigurationWidget,
+   SolutionWidget) — these compose plain ipywidgets containers, not anywidget
+   elements, so this gets injected via a <style> HTML child rather than an
+   anywidget `_css`. Same --cg-* token names as elements/_shared.css so both
+   layers read as one system. */
+
+.cadetgui-panel {
+  --cg-fg: #1f2937;
+  --cg-muted: #6b7280;
+  --cg-border: #d1d5db;
+  --cg-focus: #2563eb;
+  --cg-danger: #dc2626;
+  --cg-success: #059669;
+  --cg-bg: #ffffff;
+  --cg-radius: 8px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--cg-fg);
+}
+
+@media (prefers-color-scheme: dark) {
+  .cadetgui-panel {
+    --cg-fg: #e5e7eb;
+    --cg-muted: #9ca3af;
+    --cg-border: #4b5563;
+    --cg-focus: #60a5fa;
+    --cg-danger: #f87171;
+    --cg-success: #34d399;
+    --cg-bg: #1f2937;
+  }
+}
+
+.cadetgui-panel-title {
+  margin: 0 0 4px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--cg-border);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--cg-fg);
+}
+
+.cadetgui-toolbar {
+  gap: 10px 18px !important;
+  align-items: center !important;
+}
+
+.cadetgui-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  background: color-mix(in srgb, var(--cg-border) 6%, transparent);
+}
+
+.cadetgui-status {
+  font-size: 12.5px;
+  color: var(--cg-muted);
+}
+
+/* ipywidgets renders Button/Dropdown/etc. as .jupyter-widgets + a specific
+   widget class — target broadly so this covers plain ipywidgets controls used
+   for layout/actions (Button, BoundedIntText) inside our panels. */
+.cadetgui-panel .jupyter-widgets.jupyter-button {
+  border-radius: var(--cg-radius);
+  border: 1px solid var(--cg-border);
+  background: var(--cg-bg);
+  color: var(--cg-fg);
+  font: inherit;
+  font-size: 13px;
+  box-shadow: none;
+  transition: filter 0.1s ease;
+}
+
+.cadetgui-panel .jupyter-button:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.cadetgui-panel .jupyter-button.mod-success {
+  background: var(--cg-success);
+  border-color: var(--cg-success);
+  color: #ffffff;
+}
+
+.cadetgui-panel .jupyter-button.mod-danger {
+  background: var(--cg-danger);
+  border-color: var(--cg-danger);
+  color: #ffffff;
+}
+
+.cadetgui-panel input[type="number"],
+.cadetgui-panel input[type="text"] {
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  background: var(--cg-bg);
+  color: var(--cg-fg);
+  font: inherit;
+  padding: 4px 8px;
+}

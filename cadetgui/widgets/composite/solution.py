@@ -8,6 +8,7 @@ from typing import Any, Callable, Optional
 import ipywidgets as W
 
 from ...simulation import run_process as _default_runner
+from .._chrome import style_tag
 from ..elements import ChoiceField
 
 __all__ = ["SolutionWidget"]
@@ -40,16 +41,25 @@ class SolutionWidget:
         self._btn_run.on_click(self._on_run)
         self._btn_clear.on_click(self._on_clear)
         self._signal_picker.observe(self._on_signal_change, names="selected_index")
+        self.status.add_class("cadetgui-status")
+
+        toolbar = W.HBox(
+            [self._process_label, self._btn_run, self._btn_clear],
+            layout=W.Layout(flex_flow="row wrap"),
+        )
+        toolbar.add_class("cadetgui-toolbar")
 
         self.root = W.VBox(
             [
-                W.HTML("<h3 style='margin:0'>Solution</h3>"),
-                W.HBox([self._process_label, self._btn_run, self._btn_clear]),
+                W.HTML(style_tag()),
+                W.HTML("<div class='cadetgui-panel-title'>Solution</div>"),
+                toolbar,
                 self._signal_picker,
                 self._plot_out,
                 self.status,
             ]
         )
+        self.root.add_class("cadetgui-panel")
         self._update_process_label()
 
     def set_process(self, process: Any) -> None:
