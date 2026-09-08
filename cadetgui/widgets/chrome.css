@@ -63,6 +63,18 @@
   background: color-mix(in srgb, var(--cg-border) 6%, transparent);
 }
 
+.cadetgui-row {
+  display: flex;
+  flex-flow: row wrap;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.cadetgui-row > .cadetgui-section-half {
+  flex: 1 1 340px;
+  min-width: 0;
+}
+
 .cadetgui-section.cadetgui-settings-box {
   gap: 4px;
   background: color-mix(in srgb, var(--cg-fg) 12%, var(--cg-bg));

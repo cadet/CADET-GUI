@@ -311,3 +311,66 @@ def test_export_script_reflects_a_renamed_single_component():
     ns = {}
     exec(compile(script, "<generated>", "exec"), ns)  # noqa: S102
     assert list(ns["component_system"].names) == ["MyProtein"]
+
+
+def test_event_sliders_cover_only_scalar_timing_fields_not_concentration_lists():
+    cw = ConfigurationWidget()  # defaults to Batch Elution
+    assert set(cw._event_sliders) == {"flow_rate", "feed_duration", "cycle_time"}
+
+
+def test_event_sliders_change_when_process_template_changes():
+    cw = ConfigurationWidget()
+    cw._model_picker.value = cw._registry["Load–Wash–Elute (LWE)"]
+    assert set(cw._event_sliders) == {
+        "flow_rate", "load_duration", "wash_duration",
+        "gradient_duration", "final_wash_duration",
+    }
+
+
+def test_moving_event_slider_updates_the_linked_form_field():
+    cw = ConfigurationWidget()
+    slider = cw._event_sliders["feed_duration"]
+
+    slider.value = slider.value * 2
+
+    assert cw._model_form.element("feed_duration").value == slider.value
+
+
+def test_editing_form_field_updates_the_linked_event_slider():
+    cw = ConfigurationWidget()
+    element = cw._model_form.element("flow_rate")
+
+    element.value = element.value * 3
+
+    assert cw._event_sliders["flow_rate"].value == element.value
+
+
+def test_moving_event_slider_after_column_applied_rebuilds_a_preview_process():
+    cw = ConfigurationWidget()
+    cw._column_form._on_apply(None)
+
+    seen = []
+    original_build = cw._model_form.spec.build
+    cw._model_form.spec.build = lambda values: seen.append(values) or original_build(values)
+
+    cw._event_sliders["cycle_time"].value += 1.0
+
+    assert len(seen) == 1
+    assert seen[0]["cycle_time"] == cw._event_sliders["cycle_time"].value
+
+
+def test_moving_event_slider_before_column_applied_does_not_crash():
+    cw = ConfigurationWidget()
+    cw._event_sliders["cycle_time"].value += 1.0  # column still has unconfigured geometry
+
+
+def test_switching_column_type_rebuilds_event_sliders_without_stale_links():
+    cw = ConfigurationWidget()
+    old_slider = cw._event_sliders["flow_rate"]
+
+    cw._column_picker.selected_index = 1  # GRM -> LRMP
+
+    new_slider = cw._event_sliders["flow_rate"]
+    assert new_slider is not old_slider
+    old_slider.value = old_slider.value + 1.0  # must no longer affect the live form
+    assert cw._model_form.element("flow_rate").value != old_slider.value

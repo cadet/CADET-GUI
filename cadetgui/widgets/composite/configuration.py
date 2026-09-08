@@ -6,7 +6,9 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional
 
 import ipywidgets as W
+import matplotlib.pyplot as plt
 from CADETProcess.processModel import ComponentSystem
+from IPython.display import clear_output, display
 
 from ...cadetprocessadapter import (
     DEFAULT_BINDING_FACTORIES,
@@ -20,6 +22,11 @@ from ..elements import ChoiceField, ComponentListField
 from ..forms import FormRenderer
 
 __all__ = ["ConfigurationWidget"]
+
+
+def _round_10sf(v: float) -> float:
+    """Round to 10 significant figures, clearing browser-slider float noise."""
+    return float(f"{v:.10g}")
 
 
 class ConfigurationWidget:
@@ -48,6 +55,7 @@ class ConfigurationWidget:
         self._column_form: Optional[FormRenderer] = None
         self._binding_form: Optional[FormRenderer] = None
         self._model_form: Optional[FormRenderer] = None
+        self._event_sliders: Dict[str, W.FloatSlider] = {}
 
         self._multiplex_state: Dict[str, bool] = dict.fromkeys(MULTIPLEXABLE_COLUMN_PARAMS, False)
         self._multiplex_checkboxes: Dict[str, W.Checkbox] = {
@@ -90,6 +98,8 @@ class ConfigurationWidget:
         self._column_form_box = W.VBox([])
         self._binding_form_box = W.VBox([])
         self._model_form_box = W.VBox([])
+        self._event_plot_label = W.HTML("<div class='cadetgui-section-title'>Event Timeline</div>")
+        self._event_plot_out = W.Output()
         self.status = W.HTML("<em>Select a column and model.</em>")
         self.status.add_class("cadetgui-status")
 
@@ -121,6 +131,7 @@ class ConfigurationWidget:
             ]
         )
         column_section.add_class("cadetgui-section")
+        column_section.add_class("cadetgui-section-half")
 
         binding_section = W.VBox(
             [
@@ -130,12 +141,18 @@ class ConfigurationWidget:
             ]
         )
         binding_section.add_class("cadetgui-section")
+        binding_section.add_class("cadetgui-section-half")
+
+        column_binding_row = W.HBox([column_section, binding_section])
+        column_binding_row.add_class("cadetgui-row")
 
         process_section = W.VBox(
             [
                 W.HTML("<div class='cadetgui-section-title'>Process</div>"),
                 self._model_picker,
                 self._model_form_box,
+                self._event_plot_label,
+                self._event_plot_out,
             ]
         )
         process_section.add_class("cadetgui-section")
@@ -145,8 +162,7 @@ class ConfigurationWidget:
                 W.HTML(style_tag()),
                 W.HTML("<div class='cadetgui-panel-title'>Configuration</div>"),
                 components_section,
-                column_section,
-                binding_section,
+                column_binding_row,
                 process_section,
                 self._btn_export,
                 self._script_out,
@@ -230,6 +246,7 @@ class ConfigurationWidget:
             self._column_form_box.children = ()
             self._binding_form_box.children = ()
             self._model_form_box.children = ()
+            self._clear_event_section()
             return
 
         column_params = set(getattr(column, "required_parameters", None) or [])
@@ -255,12 +272,114 @@ class ConfigurationWidget:
 
         self._model_form = FormRenderer(model_fn(column), on_built=self._on_process_built)
         self._model_form_box.children = (self._model_form.root,)
+        self._rebuild_event_sliders()
 
         self.status.value = (
             "<em>Configure the column, binding model, and process, then Apply each"
             " (in that order — the process picks up whatever's applied on column"
             " and binding model at the time).</em>"
         )
+
+    def _clear_event_section(self) -> None:
+        self._event_sliders = {}
+        with self._event_plot_out:
+            clear_output()
+
+    def _rebuild_event_sliders(self) -> None:
+        """Slider per scalar timing/flow field, spliced right next to its own field.
+
+        Only `float`-kind fields get a slider — the per-component
+        concentration fields stay list-editors, untouched. A slider move
+        rebuilds a throwaway process (cheap: no solver call) and redraws
+        `process.plot_events()`; it does not commit to `.process` or notify
+        listeners — only the form's own Apply button does that.
+        """
+        self._event_sliders = {}
+        if self._model_form is None:
+            self._clear_event_section()
+            return
+
+        for f in self._model_form.spec.fields:
+            if f.kind != "float":
+                continue
+            el = self._model_form.element(f.name)
+            default = float(el.value)
+            # min=0 and step=default/100 put the default exactly on the
+            # slider's step grid -- otherwise the browser snaps the handle
+            # to the nearest step on render and reports that back, quietly
+            # overwriting the clean default via the link below.
+            step = default / 100 if default > 0 else 0.01
+            slider = W.FloatSlider(
+                value=default,
+                min=0.0,
+                max=default * 5 if default > 0 else 1.0,
+                step=step,
+                readout=False,  # the linked field already shows the value
+                layout=W.Layout(width="220px"),
+            )
+            # dlink + rounding, not link: the browser's slider reports
+            # position as a float with drag-accumulated noise (e.g.
+            # 19620.00000000004), which a plain link would pass straight
+            # into the field unrounded.
+            W.dlink((slider, "value"), (el, "value"), transform=_round_10sf)
+            W.dlink((el, "value"), (slider, "value"), transform=_round_10sf)
+            slider.observe(lambda _change: self._redraw_event_plot(), names="value")
+            self._event_sliders[f.name] = slider
+
+        # Pair each field's row with its slider in place, rather than
+        # listing every slider together below the whole form.
+        new_children = []
+        for child in self._model_form.root.children:
+            paired = next(
+                (
+                    self._event_sliders[f.name]
+                    for f in self._model_form.spec.fields
+                    if f.name in self._event_sliders and child is self._model_form.element(f.name)
+                ),
+                None,
+            )
+            new_children.append(W.HBox([child, paired]) if paired is not None else child)
+        self._model_form.root.children = tuple(new_children)
+
+        self._event_plot_label.layout.display = "" if self._event_sliders else "none"
+        self._redraw_event_plot()
+
+    def _redraw_event_plot(self) -> None:
+        if self._model_form is None or not self._model_form.is_valid:
+            return
+        try:
+            values = self._model_form.collect_values()
+            preview = self._model_form.spec.build(values)
+            fig, axes = preview.plot_events(x_axis_in_minutes=True)
+        except Exception:
+            return
+        axes = list(axes) if hasattr(axes, "__iter__") else [axes]
+
+        # plot_events() always stacks one subplot per parameter in a single
+        # column; re-plot the same lines into a smaller row layout instead
+        # (CADETProcess.plot_events(ax=...) can't do this directly -- passing
+        # a pre-built axes array hits an UnboundLocalError on `fig` in its
+        # own implementation).
+        row_fig, row_axes = plt.subplots(
+            1, len(axes), figsize=(3 * len(axes), 2.5), squeeze=True
+        )
+        row_axes = row_axes.reshape(-1)
+        xlabel = axes[-1].get_xlabel()
+        for old_ax, ax in zip(axes, row_axes):
+            for line in old_ax.get_lines():
+                ax.plot(line.get_xdata(), line.get_ydata())
+            title = old_ax.texts[0].get_text() if old_ax.texts else ""
+            ax.set_title(title, fontsize=9)
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(old_ax.get_ylabel())
+            ax.grid(True)
+        plt.close(fig)
+        row_fig.tight_layout()
+
+        with self._event_plot_out:
+            clear_output(wait=True)
+            display(row_fig)
+        plt.close(row_fig)
 
     def export_script(self) -> str:
         """Generate an executable CADET-Process Python script for the current build.

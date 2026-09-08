@@ -89,6 +89,10 @@ class FormRenderer:
         """Whether every rendered field currently passes its validator."""
         return all(el.is_valid for el in self._elements.values())
 
+    def element(self, name: str) -> Element:
+        """Return the Element rendered for one field, keyed by FieldSpec.name."""
+        return self._elements[name]
+
     def collect_values(self) -> Dict[str, Any]:
         """Return the current field values, with each field's `transform` applied."""
         values: Dict[str, Any] = {}
