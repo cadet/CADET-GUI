@@ -185,12 +185,8 @@ class ConfigurationWidget:
         column = self._get_column()
         if factory is None or column is None:
             return None
-        # Keyed by (factory, id(column)) rather than just factory: a binding
-        # model's component_system must be the *same object* as its column's
-        # (CADET-Process raises "Component systems do not match" otherwise),
-        # and each distinct column instance gets its own ComponentSystem — so
-        # a binding model cached against a since-replaced column would no
-        # longer be attachable to the current one.
+        # Keyed by id(column) too: a binding model's component_system must be
+        # the same object as its column's, and each column gets its own.
         cache_key = (factory, id(column))
         if cache_key not in self._binding_cache:
             self._binding_cache[cache_key] = factory(column.component_system)
@@ -269,11 +265,8 @@ class ConfigurationWidget:
     def export_script(self) -> str:
         """Generate an executable CADET-Process Python script for the current build.
 
-        Introspects the actual built objects' classes (`type(obj).__module__` /
-        `__name__`) rather than a hardcoded column/model/binding name mapping, so
-        this works for anything registered — no per-type special-casing
-        (PRODUCT_VISION.md ARCH-003: the "expert escape hatch"/anti-black-box
-        requirement).
+        Introspects the built objects' classes rather than a hardcoded
+        column/model/binding mapping, so it works for anything registered.
         """
         if (
             self.process is None

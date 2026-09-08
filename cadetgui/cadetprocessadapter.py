@@ -55,18 +55,12 @@ def parse_float_list(v: Any) -> list[float]:
     return vals
 
 
-# Units sourced from CADET-Core docs (interface/unit_operations/inlet.rst's
-# CONST_COEFF for concentrations: mol/m_IV^-3; interface/solver.rst's
-# SECTION_TIMES for durations: s). `flow_rate`'s m^3/s isn't documented for
-# this exact field (Inlet-to-column connection flow rate isn't itemized in
-# system.rst), but is the one volumetric-flow-rate unit CADET-Core uses
-# consistently everywhere else (e.g. CSTR's FLOWRATE_FILTER) -- inferred by
-# consistency, not invented, and noted here rather than silently assumed.
+# Units: mol/m^3_IV (inlet.rst CONST_COEFF), s (solver.rst SECTION_TIMES),
+# flow_rate m^3/s by consistency with CADET-Core's other flow-rate fields.
 #
-# Concentration fields (c_feed, c_load, c_salt_low, c_salt_high, c_eluent) are
-# NOT in this dict -- they're genuinely per-component (`Inlet.c`), so they're
-# built fresh per model-spec call by `_concentration_field()`, sized/named
-# from the actual column's ComponentSystem, same as column/binding parameters.
+# Concentration fields (c_feed, c_load, c_salt_low, c_salt_high, c_eluent)
+# aren't here -- they're per-component (`Inlet.c`), built by
+# `_concentration_field()` per model-spec call instead.
 PARAMS: dict[str, FieldSpec] = {
     "flow_rate": FieldSpec(
         "flow_rate", "float", "Flow rate", 1.0e-6,
@@ -166,8 +160,7 @@ def lwe_spec(column: ChromatographicColumnBase) -> ModelSpec:
     return ModelSpec(title="Load–Wash–Elute (LWE)", fields=fields, build=_build)
 
 
-# CLR, Flip-Flop, and MRSSR specs were removed for now (see ai-docs/REQUIREMENTS.md
-# "Open decisions" — not rejected, just out of scope until picked back up).
+# CLR/Flip-Flop/MRSSR: see ai-docs/REQUIREMENTS.md "Open decisions".
 MODEL_REGISTRY: dict[str, Callable[[ChromatographicColumnBase], ModelSpec]] = {
     "Batch Elution": batch_elution_spec,
     "Load–Wash–Elute (LWE)": lwe_spec,
@@ -251,14 +244,9 @@ def _infer_kind(x) -> str:
     return "float"
 
 
-# GUI-only seed defaults: a sensible starting value for a blank form, so
-# "Apply" without touching anything doesn't build a degenerate (zero-length,
-# zero-porosity) column. CADET-Core has no canonical default for these --
-# they're mandatory, problem-specific physical inputs -- so this deliberately
-# lives here rather than in parameters/interface.json (which is the ground-truth
-# CADET-Process<->CADET-Core mapping, not a GUI convenience). Shared across
-# column models via the `None` model slot; add a `(category, "ModelName", name)`
-# entry only if a specific model genuinely needs a different seed.
+# Starting values so a blank form doesn't Apply a degenerate column;
+# CADET-Core has no canonical default for these. `None` model slot = shared
+# across column models; add a specific model name only to override it.
 _GUI_SEED_DEFAULTS: dict[tuple[str, Optional[str], str], float] = {
     ("column", None, "diameter"): 0.024,
     ("column", None, "length"): 0.5,
@@ -278,17 +266,11 @@ def _seed_default(category: str, model_name: str, name: str) -> float:
     return _GUI_SEED_DEFAULTS.get((category, None, name), 0.0)
 
 
-# Column parameters CADET-Process treats as genuinely per-component
-# (`SizedUnsignedList(size="n_comp")`, confirmed in ai-docs/ARCHITECTURE.md's
-# "Parameter metadata schema" notes) but that most users want to enter as one
-# shared value most of the time -- unlike binding-model parameters (rates,
-# capacities, ...), which are per-component almost always by physical
-# necessity. `ConfigurationWidget`'s multiplex toggle (gear icon on the
-# Column Model section) offers these three as opt-in per-component editors;
-# everywhere else they default to a single scalar that CADET-Process itself
-# broadcasts to every component (confirmed: `col.axial_dispersion = 1e-8` ->
-# `[1e-8, 1e-8, 1e-8]` for a 3-component system) -- not a GUI approximation,
-# the real CADET-Process setter behavior.
+# Per-component in CADET-Process but usually entered as one shared value,
+# unlike binding parameters (per-component by physical necessity). Default
+# scalar; `ConfigurationWidget`'s multiplex toggle opts a name into
+# per-component editing -- CADET-Process broadcasts a scalar assignment to
+# every component either way.
 MULTIPLEXABLE_COLUMN_PARAMS = frozenset({"axial_dispersion", "film_diffusion", "pore_diffusion"})
 
 
@@ -311,19 +293,12 @@ def _resolve_param(
 ):
     """Resolve one parameter's kind/bounds/units/default.
 
-    Ground truth (kind, bounds, units, whether it's per-component) comes from
-    `parameters/interface.json` via `category`/`model_name` -- see
-    ai-docs/ARCHITECTURE.md's "Parameter metadata schema" for why this is
-    nested per-model rather than one flat dict (e.g. `Langmuir.capacity` is
-    per-component, `StericMassAction.capacity` is a single scalar; same
-    CADET-Process attribute name, different shape). Falls back to inferring
-    purely from the object's current value when the schema doesn't (yet) know
-    this category/model/parameter, so an unregistered model still renders
-    something instead of raising.
-
-    `multiplex` overrides `component_dependent` for names in
-    `MULTIPLEXABLE_COLUMN_PARAMS` -- everywhere else the schema's own flag
-    (ground truth, not a GUI choice) decides.
+    Ground truth comes from `parameters/interface.json` via
+    `category`/`model_name` (nested per-model, since e.g. `Langmuir.capacity`
+    and `StericMassAction.capacity` differ in shape despite the same name).
+    Falls back to inferring from the object's current value for an
+    unregistered category/model/parameter. `multiplex` overrides
+    `component_dependent` for `MULTIPLEXABLE_COLUMN_PARAMS` only.
     """
     meta = None
     if category is not None:
@@ -346,11 +321,7 @@ def _resolve_param(
     kind = "float_list" if (dtype == "float" and component_dependent) else dtype
 
     if current is not None and isinstance(current, (list, tuple)) and kind == "float":
-        # CADET-Process always stores these as a per-component list internally,
-        # even when it was set via scalar broadcast -- if multiplex was just
-        # toggled off, `current` is still that list. "multiplex off" means
-        # "one value for every component," so the first entry is the
-        # representative scalar (matches how it would've been entered).
+        # CADET-Process stores these as a list even after scalar broadcast.
         default = current[0] if len(current) else _seed_default(category, model_name, name)
     elif current is not None:
         default = current
@@ -379,14 +350,9 @@ def build_parameter_config_spec(
 ) -> ModelSpec:
     """Build a ModelSpec from any object exposing `required_parameters`.
 
-    Generic over what `obj` is — a column, a binding model, anything with the
-    CADET-Process `required_parameters` convention — so the same function
-    drives both the column form and the binding-model form.
-
-    `multiplex`: see `MULTIPLEXABLE_COLUMN_PARAMS` — only meaningful for the
-    column category's `axial_dispersion`/`film_diffusion`/`pore_diffusion`;
-    ignored (and unnecessary) for everything else, which always renders
-    per-component when the schema says it's component-dependent.
+    Generic over `obj` (column, binding model, ...) so the same function
+    drives every form. `multiplex` only matters for
+    `MULTIPLEXABLE_COLUMN_PARAMS`.
     """
     req = getattr(obj, "required_parameters", None) or []
     names = _unique_preserve_order(list(req))

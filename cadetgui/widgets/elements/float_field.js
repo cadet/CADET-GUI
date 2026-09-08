@@ -4,10 +4,9 @@ const UNIT_GLOSSARY = {
   IV: "interstitial volume",
 };
 
-// Body-appended, position:fixed tooltip: Jupyter output-area containers
-// clip overflow, so a ::after on the <sub> gets cut off near boundaries.
-// Colors are hardcoded (not var(--cg-*)) since this lives outside any
-// .cadetgui-field-scoped stylesheet.
+// Body-appended, fixed-position tooltip: Jupyter output areas clip
+// overflow, so a ::after here gets cut off. Colors hardcoded -- outside
+// any .cadetgui-field-scoped stylesheet.
 function tooltipColors() {
   const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
   return dark ? { bg: "#9ca3af", fg: "#1f2937" } : { bg: "#6b7280", fg: "#ffffff" };
