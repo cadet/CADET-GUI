@@ -6,23 +6,24 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional
 
 import ipywidgets as W
-import matplotlib.pyplot as plt
 from CADETProcess.processModel import ComponentSystem
-from IPython.display import clear_output, display
 
 from ...cadetprocessadapter import (
     DEFAULT_BINDING_FACTORIES,
     DEFAULT_COLUMN_FACTORIES,
     MODEL_REGISTRY,
     MULTIPLEXABLE_COLUMN_PARAMS,
+    PARAMS,
     build_parameter_config_spec,
     require_positive,
 )
 from .._chrome import style_tag
-from ..elements import ChoiceField, ComponentListField, FloatField
+from ..elements import ChoiceField, ComponentListField, EventTimelineChart, FloatField
 from ..forms import FormRenderer
 
 __all__ = ["ConfigurationWidget"]
+
+_CYCLE_TIME_SLIDER_MAX_SECONDS = 300.0 * 60.0
 
 
 def _round_10sf(v: float) -> float:
@@ -121,7 +122,7 @@ class ConfigurationWidget:
         self._binding_form_box = W.VBox([])
         self._model_form_box = W.VBox([])
         self._event_plot_label = W.HTML("<div class='cadetgui-section-title'>Event Timeline</div>")
-        self._event_plot_out = W.Output()
+        self._event_chart = EventTimelineChart()
         self.status = W.HTML("<em>Select a column and model.</em>")
         self.status.add_class("cadetgui-status")
 
@@ -175,14 +176,22 @@ class ConfigurationWidget:
             ],
             layout=W.Layout(justify_content="space-between", align_items="center"),
         )
+
+        model_form_column = W.VBox([self._model_form_box])
+        model_form_column.add_class("cadetgui-section-half")
+
+        event_chart_column = W.VBox([self._event_plot_label, self._event_chart])
+        event_chart_column.add_class("cadetgui-section-half")
+
+        process_columns = W.HBox([model_form_column, event_chart_column])
+        process_columns.add_class("cadetgui-row")
+
         process_section = W.VBox(
             [
                 process_header,
                 self._process_settings_box,
                 self._model_picker,
-                self._model_form_box,
-                self._event_plot_label,
-                self._event_plot_out,
+                process_columns,
             ]
         )
         process_section.add_class("cadetgui-section")
@@ -317,9 +326,7 @@ class ConfigurationWidget:
     def _clear_event_section(self) -> None:
         self._event_sliders = {}
         self._cycle_time_minutes_element = None
-        self._cycle_time_unit_checkbox = None
-        with self._event_plot_out:
-            clear_output()
+        self._event_chart.series = []
 
     def _rebuild_event_sliders(self) -> None:
         """Slider per scalar timing/flow field, spliced right next to its own field.
@@ -348,6 +355,15 @@ class ConfigurationWidget:
                 continue
             el = self._model_form.element(f.name)
             default = float(el.value)
+            if f.name == "cycle_time":
+                # Capped for now (product owner) rather than the usual
+                # default*5 -- 5x an hours-long cycle_time makes for a
+                # near-useless slider. max(default, ...) so the slider still
+                # covers an existing larger value instead of constructing
+                # invalid (value > max).
+                slider_max = max(default, _CYCLE_TIME_SLIDER_MAX_SECONDS)
+            else:
+                slider_max = default * 5 if default > 0 else 1.0
             # min=0 and step=default/100 put the default exactly on the
             # slider's step grid -- otherwise the browser snaps the handle
             # to the nearest step on render and reports that back, quietly
@@ -356,10 +372,10 @@ class ConfigurationWidget:
             slider = W.FloatSlider(
                 value=default,
                 min=0.0,
-                max=default * 5 if default > 0 else 1.0,
+                max=slider_max,
                 step=step,
                 readout=False,  # the linked field already shows the value
-                layout=W.Layout(width="100%", max_width="220px", min_width="120px"),
+                layout=W.Layout(width="100%", max_width="200px", min_width="100px"),
             )
             # dlink + rounding, not link: the browser's slider reports
             # position as a float with drag-accumulated noise (e.g.
@@ -449,43 +465,74 @@ class ConfigurationWidget:
         self._cycle_time_minutes_element.layout.display = "" if show_minutes else "none"
 
     def _redraw_event_plot(self) -> None:
-        # Reuse the form's own auto-committed build rather than building
-        # again here: the slider is dlinked to the field, so by the time
-        # this observer runs (registered after the dlink), the form has
-        # already auto-committed and `.built` is current.
+        """Feed the interactive chart raw values, not a rendered plot.
+
+        Reuses the form's own auto-committed build rather than building
+        again here: the slider is dlinked to the field, so by the time this
+        observer runs (registered after the dlink), the form has already
+        auto-committed and `.built` is current. Pulls straight from
+        `Process.parameter_timelines` — the same data `plot_events()` uses
+        internally — rather than rendering a matplotlib figure and scraping
+        line data back out of it (the previous approach); `EventTimelineChart`
+        does its own interactive rendering client-side from this raw data.
+        """
         if self._model_form is None or self._model_form.built is None:
             return
+        process = self._model_form.built
         try:
-            fig, axes = self._model_form.built.plot_events(x_axis_in_minutes=True)
+            cycle_time = float(process.cycle_time)
+            if cycle_time <= 0:
+                self._event_chart.series = []
+                return
+            n_samples = 300
+            times_s = [cycle_time * i / (n_samples - 1) for i in range(n_samples)]
+            times_min = [t / 60.0 for t in times_s]
+
+            series = []
+            for name, timeline in process.parameter_timelines.items():
+                raw = timeline.value(times_s)
+                raw = raw.tolist() if hasattr(raw, "tolist") else list(raw)
+                n_cols = len(raw[0]) if raw and isinstance(raw[0], (list, tuple)) else 1
+                # Dotted CADET-Process paths like "flow_sheet.eluent.flow_rate"
+                # are precise but not what a reader wants in a legend --
+                # the unit-operation name (the second-to-last segment) is
+                # the actual identity readers care about ("Eluent"); the
+                # quantity (last segment) is common to every series here
+                # and belongs on the axis instead (below), not repeated
+                # per line.
+                parts = name.split(".")
+                unit_op = parts[-2] if len(parts) >= 2 else name
+                display_name = unit_op.replace("_", " ").capitalize()
+                for col in range(n_cols):
+                    label = display_name if n_cols == 1 else f"{display_name} [{col}]"
+                    values = [
+                        float(row[col]) if isinstance(row, (list, tuple)) else float(row)
+                        for row in raw
+                    ]
+                    series.append({"name": label, "times": times_min, "values": values})
+
+            # Quantity name (the shared last path segment, e.g. "flow_rate")
+            # goes on the axis instead of repeated in every series' name.
+            # Every CADET-Process event-driven parameter observed in this
+            # codebase so far is a flow rate (confirmed directly, not
+            # assumed) -- reuse the unit PARAMS['flow_rate'] already
+            # declares rather than inventing one here; anything else (a
+            # future template with a different, unverified quantity) shows
+            # the quantity name alone, no invented unit.
+            quantities = {name.split(".")[-1] for name in process.parameter_timelines}
+            if len(quantities) == 1:
+                quantity = next(iter(quantities))
+                quantity_label = quantity.replace("_", " ").capitalize()
+                self._event_chart.y_label = (
+                    f"{quantity_label} / {PARAMS['flow_rate'].units}"
+                    if quantity == "flow_rate"
+                    else quantity_label
+                )
+            else:
+                self._event_chart.y_label = "state"
+            self._event_chart.series = series
         except Exception:
             return
-        axes = list(axes) if hasattr(axes, "__iter__") else [axes]
-
-        # plot_events() always stacks one subplot per parameter in a single
-        # column; re-plot the same lines into a smaller row layout instead
-        # (CADETProcess.plot_events(ax=...) can't do this directly -- passing
-        # a pre-built axes array hits an UnboundLocalError on `fig` in its
-        # own implementation).
-        row_fig, row_axes = plt.subplots(
-            1, len(axes), figsize=(3 * len(axes), 2.5), squeeze=True
-        )
-        row_axes = row_axes.reshape(-1)
-        xlabel = axes[-1].get_xlabel()
-        for old_ax, ax in zip(axes, row_axes):
-            for line in old_ax.get_lines():
-                ax.plot(line.get_xdata(), line.get_ydata())
-            title = old_ax.texts[0].get_text() if old_ax.texts else ""
-            ax.set_title(title, fontsize=9)
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel(old_ax.get_ylabel())
-            ax.grid(True)
-        plt.close(fig)
-        row_fig.tight_layout()
-
-        with self._event_plot_out:
-            clear_output(wait=True)
-            display(row_fig)
-        plt.close(row_fig)
 
     def export_script(self) -> str:
         """Generate an executable CADET-Process Python script for the current build.

@@ -5,6 +5,7 @@ function render({ model, el }) {
   const labelEl = document.createElement("span");
   labelEl.className = "cadetgui-field-label";
   labelEl.textContent = model.get("label");
+  labelEl.title = model.get("label");
   wrap.appendChild(labelEl);
 
   const body = document.createElement("div");
@@ -95,7 +96,10 @@ function render({ model, el }) {
 
   model.on("change:value", syncFromModel);
   model.on("change:error", syncError);
-  model.on("change:label", () => { labelEl.textContent = model.get("label"); });
+  model.on("change:label", () => {
+    labelEl.textContent = model.get("label");
+    labelEl.title = model.get("label");
+  });
 
   el.appendChild(wrap);
 }

@@ -97,6 +97,7 @@ function render({ model, el }) {
   const labelEl = document.createElement("span");
   labelEl.className = "cadetgui-field-label";
   labelEl.textContent = model.get("label");
+  labelEl.title = model.get("label");
   wrap.appendChild(labelEl);
 
   const input = document.createElement("input");
@@ -153,7 +154,10 @@ function render({ model, el }) {
   model.on("change:min", syncBounds);
   model.on("change:max", syncBounds);
   model.on("change:error", syncError);
-  model.on("change:label", () => { labelEl.textContent = model.get("label"); });
+  model.on("change:label", () => {
+    labelEl.textContent = model.get("label");
+    labelEl.title = model.get("label");
+  });
   model.on("change:units", syncUnit);
 
   el.appendChild(wrap);

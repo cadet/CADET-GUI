@@ -380,6 +380,60 @@ def test_moving_event_slider_with_invalid_column_field_does_not_crash():
     cw._event_sliders["cycle_time"].value += 1.0  # must not raise despite the column error
 
 
+def test_event_chart_populates_series_from_parameter_timelines_on_construction():
+    cw = ConfigurationWidget()  # defaults to Batch Elution, valid out of the box
+
+    series = cw._event_chart.series
+    assert len(series) == len(cw.process.parameter_timelines)
+    # display names are the unit-operation name, not the raw dotted
+    # CADET-Process path (e.g. "Eluent", not "flow_sheet.eluent.flow_rate")
+    names = {s["name"] for s in series}
+    assert names == {"Eluent", "Feed"}
+    for s in series:
+        assert len(s["times"]) == len(s["values"]) == 300
+        assert s["times"][0] == 0.0
+        assert s["times"][-1] == cw.process.cycle_time / 60.0  # minutes, not seconds
+
+
+def test_event_chart_updates_when_a_field_changes():
+    cw = ConfigurationWidget()
+    first_series = cw._event_chart.series
+
+    cw._model_form.element("cycle_time").value = 7000.0
+
+    assert cw._event_chart.series != first_series
+    assert cw._event_chart.series[0]["times"][-1] == 7000.0 / 60.0
+
+
+def test_event_chart_clears_when_nothing_is_selectable():
+    cw = ConfigurationWidget()
+    assert cw._event_chart.series  # non-empty to start
+
+    cw._column_picker.value = None
+
+    assert cw._event_chart.series == []
+
+
+def test_event_chart_y_label_is_flow_rate_quantity_and_unit():
+    cw = ConfigurationWidget()  # Batch Elution: every timeline is *.flow_rate
+    assert cw._event_chart.y_label == "Flow rate / (m^3)/s"
+
+
+def test_cycle_time_slider_is_capped_at_300_minutes_by_default():
+    cw = ConfigurationWidget()  # default cycle_time (6000s = 100min) is under the cap
+    assert cw._event_sliders["cycle_time"].max == 300.0 * 60.0
+
+
+def test_cycle_time_slider_cap_stretches_to_fit_an_existing_larger_value():
+    cw = ConfigurationWidget()
+    cw._model_form.element("cycle_time").value = 400.0 * 60.0  # already above the 300min cap
+
+    cw._rebuild_event_sliders()  # normally triggered by a rebuild, called directly here
+
+    assert cw._event_sliders["cycle_time"].max >= 400.0 * 60.0
+    assert cw._event_sliders["cycle_time"].value <= cw._event_sliders["cycle_time"].max
+
+
 def test_switching_column_type_rebuilds_event_sliders_without_stale_links():
     cw = ConfigurationWidget()
     old_slider = cw._event_sliders["flow_rate"]

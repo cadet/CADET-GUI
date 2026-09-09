@@ -5,6 +5,7 @@ function render({ model, el }) {
   const labelEl = document.createElement("span");
   labelEl.className = "cadetgui-field-label";
   labelEl.textContent = model.get("label");
+  labelEl.title = model.get("label");
   wrap.appendChild(labelEl);
 
   const select = document.createElement("select");
@@ -48,7 +49,10 @@ function render({ model, el }) {
   model.on("change:option_labels", syncOptions);
   model.on("change:selected_index", syncSelection);
   model.on("change:error", syncError);
-  model.on("change:label", () => { labelEl.textContent = model.get("label"); });
+  model.on("change:label", () => {
+    labelEl.textContent = model.get("label");
+    labelEl.title = model.get("label");
+  });
 
   el.appendChild(wrap);
 }
