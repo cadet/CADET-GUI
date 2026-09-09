@@ -6,7 +6,14 @@ import ipywidgets as W
 
 from ...cadetprocessadapter import FieldSpec, ModelSpec
 from .._chrome import style_tag
-from ..elements import BoolField, Element, FloatField, FloatListField, TextField
+from ..elements import (
+    BoolField,
+    ChoiceField,
+    Element,
+    FloatField,
+    FloatListField,
+    TextField,
+)
 
 __all__ = ["FormRenderer", "element_for_field"]
 
@@ -19,6 +26,8 @@ def _coerced_default(f: FieldSpec) -> Any:
         return list(f.default) if f.default else [0.0]
     if f.kind == "bool":
         return bool(f.default)
+    if f.kind == "choice":
+        return f.default
     return str(f.default) if f.default is not None else ""
 
 
@@ -44,6 +53,9 @@ _ELEMENT_FOR_KIND: Dict[str, Callable[[FieldSpec], Element]] = {
     "text": lambda f: TextField(
         label=f.label or f.name, value=_coerced_default(f), units=f.units, validate=f.validate
     ),
+    "choice": lambda f: ChoiceField(
+        label=f.label or f.name, options=f.options or (), value=_coerced_default(f)
+    ),
 }
 
 
@@ -68,7 +80,10 @@ class FormRenderer:
 
         self._elements: Dict[str, Element] = {f.name: element_for_field(f) for f in spec.fields}
         for element in self._elements.values():
-            element.observe(self._on_field_changed, names="value")
+            # Not always "value" itself: ChoiceField's `value` is a plain
+            # property over `selected_index` (see Element._value_trait_name),
+            # since its true value isn't JSON-serializable.
+            element.observe(self._on_field_changed, names=element._value_trait_name)
 
         self._btn_reset = W.Button(description="Reset")
         self._btn_reset.on_click(self._on_reset)
@@ -99,9 +114,7 @@ class FormRenderer:
             values[f.name] = f.transform(raw) if f.transform else raw
         return values
 
-    def _on_field_changed(self, change: dict) -> None:
-        if change.get("name") != "value":
-            return
+    def _on_field_changed(self, _change: dict) -> None:
         self._commit()
 
     def _commit(self) -> None:

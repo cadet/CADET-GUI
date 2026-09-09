@@ -170,10 +170,19 @@
 }
 
 .cadetgui-field-list-stacked > .cadetgui-field-list-body {
-  /* A small nesting indent under the label, not all the way out to where
-     other fields' inputs start (calc(140px + 0.6rem) read as pushed too
-     far right compared to every other field). */
-  padding-left: 1rem;
+  /* Matches the label width + gap of every other field's row layout, so
+     the input column doesn't jump sideways the moment a second row makes
+     this field switch from row to stacked layout. */
+  padding-left: calc(140px + 0.6rem);
+}
+
+.cadetgui-field-list-stacked > .cadetgui-field-label {
+  /* .cadetgui-field-label's flex: 0 0 140px pins its *main-axis* size to
+     140px -- width in the normal row layout, but height once the stacked
+     variant switches to flex-direction: column, leaving a 140px-tall blank
+     label box above the rows. Reset it to size from content instead. */
+  width: auto;
+  flex: 0 0 auto;
 }
 
 .cadetgui-field-list-body {
