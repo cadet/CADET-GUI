@@ -368,6 +368,51 @@ def test_switching_column_type_rebuilds_event_sliders_without_stale_links():
     assert cw._model_form.element("flow_rate").value != old_slider.value
 
 
+def test_cycle_time_settings_gear_visible_only_when_cycle_time_exists():
+    cw = ConfigurationWidget()  # defaults to Batch Elution, which has cycle_time
+    assert cw._btn_process_settings.layout.display == ""
+
+    cw._model_picker.value = cw._registry["Load–Wash–Elute (LWE)"]  # no cycle_time field
+    assert cw._btn_process_settings.layout.display == "none"
+    assert cw._process_settings_box.layout.display == "none"
+
+
+def test_cycle_time_minutes_toggle_swaps_visible_field_and_converts_value():
+    cw = ConfigurationWidget()
+    seconds_element = cw._model_form.element("cycle_time")
+    assert seconds_element.value == 6000.0
+    assert seconds_element.layout.display == ""
+    assert cw._cycle_time_minutes_element.layout.display == "none"
+
+    cw._cycle_time_unit_checkbox.value = True
+
+    assert seconds_element.layout.display == "none"
+    assert cw._cycle_time_minutes_element.layout.display == ""
+    assert cw._cycle_time_minutes_element.value == 100.0  # 6000s == 100min
+
+
+def test_editing_cycle_time_in_minutes_updates_the_real_seconds_field():
+    cw = ConfigurationWidget()
+    cw._cycle_time_unit_checkbox.value = True
+
+    cw._cycle_time_minutes_element.value = 150.0
+
+    seconds_element = cw._model_form.element("cycle_time")
+    assert seconds_element.value == 9000.0  # 150min == 9000s
+    assert cw.process.cycle_time == 9000.0  # auto-committed like any other field
+
+
+def test_cycle_time_unit_checkbox_state_persists_across_a_rebuild():
+    cw = ConfigurationWidget()
+    cw._cycle_time_unit_checkbox.value = True
+
+    cw._components.value = ["Salt", "Protein"]  # triggers _rebuild_forms -> fresh elements
+
+    seconds_element = cw._model_form.element("cycle_time")
+    assert seconds_element.layout.display == "none"
+    assert cw._cycle_time_minutes_element.layout.display == ""
+
+
 def test_invalid_field_value_is_not_committed_and_shows_an_inline_error():
     cw = ConfigurationWidget()
     element = cw._model_form.element("flow_rate")  # has validate=require_positive

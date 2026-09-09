@@ -16,9 +16,10 @@ from ...cadetprocessadapter import (
     MODEL_REGISTRY,
     MULTIPLEXABLE_COLUMN_PARAMS,
     build_parameter_config_spec,
+    require_positive,
 )
 from .._chrome import style_tag
-from ..elements import ChoiceField, ComponentListField
+from ..elements import ChoiceField, ComponentListField, FloatField
 from ..forms import FormRenderer
 
 __all__ = ["ConfigurationWidget"]
@@ -56,6 +57,7 @@ class ConfigurationWidget:
         self._binding_form: Optional[FormRenderer] = None
         self._model_form: Optional[FormRenderer] = None
         self._event_sliders: Dict[str, W.FloatSlider] = {}
+        self._cycle_time_minutes_element: Optional[FloatField] = None
 
         self._multiplex_state: Dict[str, bool] = dict.fromkeys(MULTIPLEXABLE_COLUMN_PARAMS, False)
         self._multiplex_checkboxes: Dict[str, W.Checkbox] = {
@@ -83,6 +85,26 @@ class ConfigurationWidget:
         )
         self._settings_box.add_class("cadetgui-section")
         self._settings_box.add_class("cadetgui-settings-box")
+
+        self._cycle_time_unit_checkbox = W.Checkbox(
+            description="Show Cycle Time in Minutes", value=False, indent=False
+        )
+        self._cycle_time_unit_checkbox.observe(self._on_cycle_time_unit_change, names="value")
+
+        self._btn_process_settings = W.Button(
+            icon="cog", tooltip="Process display settings",
+            layout=W.Layout(width="36px", display="none"),
+        )
+        self._btn_process_settings.on_click(self._on_toggle_process_settings)
+        self._process_settings_box = W.VBox(
+            [
+                W.HTML("<div class='cadetgui-section-title'>Settings</div>"),
+                self._cycle_time_unit_checkbox,
+            ],
+            layout=W.Layout(display="none"),
+        )
+        self._process_settings_box.add_class("cadetgui-section")
+        self._process_settings_box.add_class("cadetgui-settings-box")
 
         self._components = ComponentListField(label="Components:")
         self._column_picker = ChoiceField(
@@ -146,9 +168,17 @@ class ConfigurationWidget:
         column_binding_row = W.HBox([column_section, binding_section])
         column_binding_row.add_class("cadetgui-row")
 
-        process_section = W.VBox(
+        process_header = W.HBox(
             [
                 W.HTML("<div class='cadetgui-section-title'>Process</div>"),
+                self._btn_process_settings,
+            ],
+            layout=W.Layout(justify_content="space-between", align_items="center"),
+        )
+        process_section = W.VBox(
+            [
+                process_header,
+                self._process_settings_box,
                 self._model_picker,
                 self._model_form_box,
                 self._event_plot_label,
@@ -224,6 +254,10 @@ class ConfigurationWidget:
         shown = self._settings_box.layout.display != "none"
         self._settings_box.layout.display = "none" if shown else ""
 
+    def _on_toggle_process_settings(self, _btn: Any) -> None:
+        shown = self._process_settings_box.layout.display != "none"
+        self._process_settings_box.layout.display = "none" if shown else ""
+
     def _make_on_multiplex_change(self, name: str) -> Callable[[dict], None]:
         def _on_change(change: dict) -> None:
             if change.get("name") != "value":
@@ -282,6 +316,8 @@ class ConfigurationWidget:
 
     def _clear_event_section(self) -> None:
         self._event_sliders = {}
+        self._cycle_time_minutes_element = None
+        self._cycle_time_unit_checkbox = None
         with self._event_plot_out:
             clear_output()
 
@@ -297,9 +333,15 @@ class ConfigurationWidget:
         then just redraws from the form's freshly committed build.
         """
         self._event_sliders = {}
+        self._cycle_time_minutes_element = None
         if self._model_form is None:
             self._clear_event_section()
             return
+
+        has_cycle_time = any(f.name == "cycle_time" for f in self._model_form.spec.fields)
+        self._btn_process_settings.layout.display = "" if has_cycle_time else "none"
+        if not has_cycle_time:
+            self._process_settings_box.layout.display = "none"
 
         for f in self._model_form.spec.fields:
             if f.kind != "float":
@@ -328,26 +370,32 @@ class ConfigurationWidget:
             slider.observe(lambda _change: self._redraw_event_plot(), names="value")
             self._event_sliders[f.name] = slider
 
-        # Pair each field's row with its slider in place, rather than
-        # listing every slider together below the whole form.
+        # Pair each field's row with its slider (and, for cycle_time, a
+        # minutes/seconds companion field) in place, rather than listing
+        # everything together below the whole form.
         new_children = []
         for child in self._model_form.root.children:
-            paired = next(
+            matched = next(
                 (
-                    self._event_sliders[f.name]
+                    f
                     for f in self._model_form.spec.fields
-                    if f.name in self._event_sliders and child is self._model_form.element(f.name)
+                    if child is self._model_form.element(f.name)
                 ),
                 None,
             )
-            if paired is not None:
+            extras: list = []
+            if matched is not None and matched.name == "cycle_time":
+                extras.append(self._make_cycle_time_unit_toggle(child))
+            if matched is not None and matched.name in self._event_sliders:
+                extras.append(self._event_sliders[matched.name])
+
+            if extras:
                 # wrap, not nowrap (ipywidgets HBox's default): on a narrow
                 # window the field row alone doesn't shrink below its own
-                # intrinsic width, so a same-line slider had nowhere to go
-                # but overlap it -- let the slider drop to its own line
-                # instead.
+                # intrinsic width, so same-line extras had nowhere to go
+                # but overlap it -- let them drop to their own line instead.
                 pair_row = W.HBox(
-                    [child, paired],
+                    [child, *extras],
                     layout=W.Layout(flex_flow="row wrap", align_items="center"),
                 )
                 new_children.append(pair_row)
@@ -357,6 +405,48 @@ class ConfigurationWidget:
 
         self._event_plot_label.layout.display = "" if self._event_sliders else "none"
         self._redraw_event_plot()
+
+    def _make_cycle_time_unit_toggle(self, seconds_element: Any) -> Any:
+        """Companion minutes field for Cycle time, shown/hidden by the process settings checkbox.
+
+        `seconds_element` is the real field feeding `collect_values()` /
+        CADET-Process and always stays in seconds; the companion field is
+        dlinked to it in both directions so they stay in sync regardless of
+        which one is currently visible. Which one is visible is driven by
+        the single persistent `_cycle_time_unit_checkbox` in the Process
+        section's settings popover (not a per-row checkbox — that made
+        cycle_time's row wider than every other slider row, throwing off
+        their alignment).
+        """
+        minutes_element = FloatField(
+            label=seconds_element.label,
+            value=float(seconds_element.value) / 60.0,
+            units="min",
+            validate=require_positive,
+        )
+        W.dlink(
+            (seconds_element, "value"), (minutes_element, "value"), transform=lambda s: s / 60.0
+        )
+        W.dlink(
+            (minutes_element, "value"), (seconds_element, "value"), transform=lambda m: m * 60.0
+        )
+
+        self._cycle_time_minutes_element = minutes_element
+        self._apply_cycle_time_unit_display()
+        return minutes_element
+
+    def _on_cycle_time_unit_change(self, change: dict) -> None:
+        if change.get("name") != "value":
+            return
+        self._apply_cycle_time_unit_display()
+
+    def _apply_cycle_time_unit_display(self) -> None:
+        if self._cycle_time_minutes_element is None or self._model_form is None:
+            return
+        seconds_element = self._model_form.element("cycle_time")
+        show_minutes = self._cycle_time_unit_checkbox.value
+        seconds_element.layout.display = "none" if show_minutes else ""
+        self._cycle_time_minutes_element.layout.display = "" if show_minutes else "none"
 
     def _redraw_event_plot(self) -> None:
         # Reuse the form's own auto-committed build rather than building
