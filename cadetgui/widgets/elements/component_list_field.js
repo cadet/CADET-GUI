@@ -25,6 +25,14 @@ function render({ model, el }) {
     counter.textContent = `${n} component${n === 1 ? "" : "s"}`;
   }
 
+  function updateRemoveButtons() {
+    const min = model.get("min_components") || 1;
+    const atMin = rows.children.length <= min;
+    rows.querySelectorAll(".cadetgui-field-list-remove").forEach((btn) => {
+      btn.disabled = atMin;
+    });
+  }
+
   function commit() {
     model.set("value", currentNames());
     model.save_changes();
@@ -43,12 +51,14 @@ function render({ model, el }) {
 
     const rm = document.createElement("button");
     rm.type = "button";
+    rm.className = "cadetgui-field-list-remove";
     rm.textContent = "−";
     rm.title = "Remove component";
     rm.addEventListener("click", () => {
-      if (rows.children.length <= 1) return; // always keep at least one
+      if (rows.children.length <= (model.get("min_components") || 1)) return;
       row.remove();
       commit();
+      updateRemoveButtons();
     });
     row.appendChild(rm);
 
@@ -64,6 +74,7 @@ function render({ model, el }) {
     // indented below) once there's more than one row.
     wrap.classList.toggle("cadetgui-field-list-stacked", list.length > 1);
     updateCounter();
+    updateRemoveButtons();
   }
 
   const addBtn = document.createElement("button");
@@ -73,6 +84,7 @@ function render({ model, el }) {
   addBtn.addEventListener("click", () => {
     addRow(`Component ${rows.children.length + 1}`);
     commit();
+    updateRemoveButtons();
   });
 
   const controls = document.createElement("div");
@@ -96,6 +108,7 @@ function render({ model, el }) {
 
   model.on("change:value", syncFromModel);
   model.on("change:error", syncError);
+  model.on("change:min_components", updateRemoveButtons);
   model.on("change:label", () => {
     labelEl.textContent = model.get("label");
     labelEl.title = model.get("label");

@@ -16,10 +16,14 @@ class ComponentListField(Element):
     """Editable list of named components: add/remove/rename rows, live count.
 
     Defaults to one component ("Component 1") — always at least one, since a
-    `ComponentSystem` with zero components isn't meaningful.
+    `ComponentSystem` with zero components isn't meaningful. `min_components`
+    raises that floor further (e.g. a process template that needs a salt plus
+    a product component); the JS side greys out the remove button once the
+    row count reaches it.
     """
 
     value = T.List(T.Unicode()).tag(sync=True)
+    min_components = T.Int(1).tag(sync=True)
 
     _esm = _DIR / "component_list_field.js"
     _css = _DIR / "_shared.css"

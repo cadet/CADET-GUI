@@ -12,7 +12,9 @@ from ...cadetprocessadapter import (
     MODEL_REGISTRY,
     MULTIPLEXABLE_COLUMN_PARAMS,
     PARAMS,
+    batch_elution_spec,
     build_parameter_config_spec,
+    lwe_spec,
     require_positive,
 )
 from .._chrome import style_tag
@@ -22,6 +24,10 @@ from ..forms import FormRenderer
 __all__ = ["ConfigurationWidget"]
 
 _CYCLE_TIME_SLIDER_MAX_SECONDS = 300.0 * 60.0
+
+# These templates model a buffer/salt gradient against a load, which is
+# meaningless with a single component -- auto-add a second one on selection.
+_TEMPLATES_REQUIRING_MULTIPLE_COMPONENTS = frozenset({batch_elution_spec, lwe_spec})
 
 
 def _round_10sf(v: float) -> float:
@@ -106,6 +112,8 @@ class ConfigurationWidget:
         self._process_settings_box.add_class("cadetgui-settings-box")
 
         self._components = ComponentListField(label="Components:")
+        self._component_note = W.HTML(layout=W.Layout(display="none"))
+        self._component_note.add_class("cadetgui-note")
         self._column_picker = ChoiceField(
             label="Column Model:", options=list(self._columns.items())
         )
@@ -132,6 +140,7 @@ class ConfigurationWidget:
             [
                 W.HTML("<div class='cadetgui-section-title'>Component System</div>"),
                 self._components,
+                self._component_note,
             ]
         )
         components_section.add_class("cadetgui-section")
@@ -211,10 +220,12 @@ class ConfigurationWidget:
         self._components.observe(self._on_components_change, names="value")
         self._column_picker.observe(self._on_selection_change, names="selected_index")
         self._binding_picker.observe(self._on_selection_change, names="selected_index")
-        self._model_picker.observe(self._on_selection_change, names="selected_index")
+        self._model_picker.observe(self._on_model_selection_change, names="selected_index")
         self._btn_export.on_click(self._on_export)
 
-        self._rebuild_forms()
+        self._sync_component_minimum()
+        if not self._maybe_autoadd_component():
+            self._rebuild_forms()
 
     def add_listener(self, fn: Callable[[Any], None]) -> None:
         """Register a callback fired with `.process` on every successful build."""
@@ -256,6 +267,47 @@ class ConfigurationWidget:
         if change.get("name") != "selected_index":
             return
         self._rebuild_forms()
+
+    def _on_model_selection_change(self, change: dict) -> None:
+        if change.get("name") != "selected_index":
+            return
+        self._sync_component_minimum()
+        if self._maybe_autoadd_component():
+            return  # setting self._components.value already rebuilt the forms
+        self._rebuild_forms()
+
+    def _required_min_components(self) -> int:
+        model_fn = self._model_picker.value
+        return 2 if model_fn in _TEMPLATES_REQUIRING_MULTIPLE_COMPONENTS else 1
+
+    def _sync_component_minimum(self) -> None:
+        """Raise/lower the component list's floor to match the selected template.
+
+        Also drives the info note next to it and (via `min_components`) greys
+        out the list's remove button once the row count hits the floor.
+        """
+        required = self._required_min_components()
+        self._components.min_components = required
+        if required > 1:
+            self._component_note.value = (
+                "The process template you selected does not allow less than"
+                f" {required} components."
+            )
+            self._component_note.layout.display = ""
+        else:
+            self._component_note.layout.display = "none"
+
+    def _maybe_autoadd_component(self) -> bool:
+        """Add a second component when a gradient template needs one but only one exists."""
+        required = self._required_min_components()
+        names = self._components.value
+        if len(names) < required:
+            self._components.value = [
+                *names,
+                *(f"Component {i}" for i in range(len(names) + 1, required + 1)),
+            ]
+            return True
+        return False
 
     def _on_toggle_settings(self, _btn: Any) -> None:
         shown = self._settings_box.layout.display != "none"
@@ -471,8 +523,14 @@ class ConfigurationWidget:
                 parts = name.split(".")
                 unit_op = parts[-2] if len(parts) >= 2 else name
                 display_name = unit_op.replace("_", " ").capitalize()
+                component_names = self._components.value
                 for col in range(n_cols):
-                    label = display_name if n_cols == 1 else f"{display_name} [{col}]"
+                    if n_cols == 1:
+                        label = display_name
+                    elif col < len(component_names):
+                        label = f"{display_name} ({component_names[col]})"
+                    else:
+                        label = f"{display_name} [{col}]"
                     values = [
                         float(row[col]) if isinstance(row, (list, tuple)) else float(row)
                         for row in raw

@@ -49,14 +49,14 @@ def test_configuration_widget_rebuilds_forms_on_model_change():
 def test_configuration_widget_rebuilds_column_on_component_change():
     cw = ConfigurationWidget()
     original_column = cw._get_column()
-    assert original_column.n_comp == 1
+    assert original_column.n_comp == 2  # Batch Elution's auto-added default
 
-    cw._components.value = ["Salt", "Protein"]
+    cw._components.value = ["Salt", "Protein", "Impurity"]
     new_column = cw._get_column()
     assert new_column is not original_column
-    assert new_column.n_comp == 2
-    assert list(new_column.component_system.names) == ["Salt", "Protein"]
-    # the stale 1-component column must not linger in the cache
+    assert new_column.n_comp == 3
+    assert list(new_column.component_system.names) == ["Salt", "Protein", "Impurity"]
+    # the stale 2-component column must not linger in the cache
     assert original_column not in cw._column_cache.values()
 
 
@@ -187,11 +187,29 @@ def test_export_script_includes_binding_model_and_round_trips():
     )
 
 
-def test_components_field_defaults_to_one_named_component():
+def test_components_field_defaults_to_two_named_components():
+    # Batch Elution is the default template and needs a feed + eluent
+    # component, so construction auto-adds a second one (see
+    # _maybe_autoadd_component / _TEMPLATES_REQUIRING_MULTIPLE_COMPONENTS).
     cw = ConfigurationWidget()
-    assert cw._components.value == ["Component 1"]
-    assert cw._get_column().n_comp == 1
-    assert list(cw._get_column().component_system.names) == ["Component 1"]
+    assert cw._components.value == ["Component 1", "Component 2"]
+    assert cw._get_column().n_comp == 2
+    assert list(cw._get_column().component_system.names) == ["Component 1", "Component 2"]
+
+
+def test_component_minimum_and_note_match_the_selected_template():
+    cw = ConfigurationWidget()  # defaults to Batch Elution
+    assert cw._components.min_components == 2
+    assert cw._component_note.layout.display == ""
+    assert "2 components" in cw._component_note.value
+
+    cw._model_picker.value = cw._registry["Pulse Feed (Single Component)"]
+    assert cw._components.min_components == 1
+    assert cw._component_note.layout.display == "none"
+
+    cw._model_picker.value = cw._registry["Load–Wash–Elute (LWE)"]
+    assert cw._components.min_components == 2
+    assert cw._component_note.layout.display == ""
 
 
 def test_renaming_components_rebuilds_column_with_new_names():
@@ -546,6 +564,8 @@ def test_pulse_feed_builds_a_process_for_a_cstr():
     cw = ConfigurationWidget()
     cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
     cw._model_picker.value = cw._registry["Pulse Feed (Single Component)"]
+    # Pulse Feed doesn't need the second component Batch Elution auto-added.
+    cw._components.value = ["Component 1"]
 
     assert type(cw.process).__name__ == "Process"
     assert cw.process.cycle_time == 6000.0
@@ -575,6 +595,8 @@ def test_pulse_feed_event_chart_shows_feed_concentration():
     cw = ConfigurationWidget()
     cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
     cw._model_picker.value = cw._registry["Pulse Feed (Single Component)"]
+    # Pulse Feed doesn't need the second component Batch Elution auto-added.
+    cw._components.value = ["Component 1"]
 
     assert [s["name"] for s in cw._event_chart.series] == ["Feed"]
     assert cw._event_chart.y_label == "Concentration / mol/m^3_IV"

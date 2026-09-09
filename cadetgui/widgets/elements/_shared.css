@@ -224,6 +224,13 @@
   color: var(--cg-focus);
 }
 
+.cadetgui-field-list-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+  border-color: var(--cg-border);
+  color: var(--cg-muted);
+}
+
 .cadetgui-field-list-add {
   width: fit-content;
 }
