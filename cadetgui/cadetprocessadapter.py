@@ -9,12 +9,16 @@ from CADETProcess.processModel import (
     ChromatographicColumnBase,
     ComponentSystem,
     Cstr,
+    FlowSheet,
     GeneralRateModel,
+    Inlet,
     Langmuir,
     Linear,
     LumpedRateModelWithoutPores,
     LumpedRateModelWithPores,
     NoBinding,
+    Outlet,
+    Process,
     StericMassAction,
 )
 
@@ -29,7 +33,7 @@ class FieldSpec:
     """Describes one form field: its kind, default, bounds, and validation."""
 
     name: str
-    kind: Literal["float", "float_list", "bool", "text"]
+    kind: Literal["float", "float_list", "bool", "text", "choice"]
     label: str | None = None
     default: Any = None
     transform: Callable | None = None
@@ -38,6 +42,8 @@ class FieldSpec:
     max: float | None = None
     units: str | None = None
     component_names: tuple[str, ...] | None = None
+    # "choice" only: (label, value) options for the dropdown.
+    options: tuple[tuple[str, Any], ...] | None = None
 
 
 def require_positive(x: Any) -> None:
@@ -58,6 +64,8 @@ def parse_float_list(v: Any) -> list[float]:
                 vals.append(float(tok))
     return vals
 
+
+CONCENTRATION_UNITS = "mol/m^3_IV"
 
 # Units: mol/m^3_IV (inlet.rst CONST_COEFF), s (solver.rst SECTION_TIMES),
 # flow_rate m^3/s by consistency with CADET-Core's other flow-rate fields.
@@ -82,6 +90,10 @@ PARAMS: dict[str, FieldSpec] = {
         "cycle_time", "float", "Cycle time", 6000.0,
         validate=require_positive, units="s",
     ),
+    "pulse_duration": FieldSpec(
+        "pulse_duration", "float", "Pulse duration", 60.0,
+        validate=require_positive, units="s",
+    ),
     "wash_duration": FieldSpec(
         "wash_duration", "float", "Wash duration", 10.0,
         validate=require_positive, units="s",
@@ -103,6 +115,12 @@ class ModelSpec:
     title: str
     fields: list[FieldSpec] = field(default_factory=list)
     build: Callable[[Mapping[str, Any]], Any] | None = None
+    # Script lines constructing `process` from `column`/`component_system`, for
+    # export_script(). None means the default `Cls(column=column, **values)`
+    # pattern (true for a CADET-Process model-builder like BatchElution/LWE);
+    # a model that wires its own flow sheet instead (e.g. Pulse Feed) provides
+    # its own.
+    export: Callable[[Mapping[str, Any]], list[str]] | None = None
 
 
 def _pick(keys: Sequence[str]) -> list[FieldSpec]:
@@ -110,14 +128,14 @@ def _pick(keys: Sequence[str]) -> list[FieldSpec]:
 
 
 def _concentration_field(
-    name: str, label: str, default_scalar: float, column: ChromatographicColumnBase
+    name: str, label: str, default_scalar: float, unit: Any
 ) -> FieldSpec:
-    """Per-component concentration field, sized/named from the column's ComponentSystem."""
-    names = tuple(column.component_system.names)
+    """Per-component concentration field, sized/named from the unit's ComponentSystem."""
+    names = tuple(unit.component_system.names)
     n_comp = len(names) or 1
     return FieldSpec(
         name, "float_list", label, [default_scalar] * n_comp,
-        transform=parse_float_list, units="mol/m^3_IV", component_names=names,
+        transform=parse_float_list, units=CONCENTRATION_UNITS, component_names=names,
     )
 
 
@@ -170,10 +188,89 @@ def lwe_spec(column: ChromatographicColumnBase) -> ModelSpec:
     return ModelSpec(title="Load–Wash–Elute (LWE)", fields=fields, build=_build)
 
 
+def pulse_feed_spec(unit: Any) -> ModelSpec:
+    """Build the Pulse Feed (Single Component) model's ModelSpec for the given unit.
+
+    Unlike Batch Elution/LWE, this isn't a CADET-Process model-builder class --
+    there is no predefined one for a plain feed-into-unit setup -- so it wires
+    the flow sheet and events directly. Works with any unit operation, not
+    just a `ChromatographicColumnBase` (e.g. `Cstr`, which isn't one).
+    """
+    names = tuple(unit.component_system.names)
+
+    def _c_feed(v: Mapping[str, Any]) -> list[float]:
+        c_feed = [0.0] * (len(names) or 1)
+        if v["component"] in names:
+            c_feed[names.index(v["component"])] = float(v["concentration"])
+        return c_feed
+
+    def _build(v: Mapping[str, Any]) -> Any:
+        component_system = unit.component_system
+        feed = Inlet(component_system, name="feed")
+        feed.flow_rate = float(v["flow_rate"])
+        outlet = Outlet(component_system, name="outlet")
+
+        flow_sheet = FlowSheet(component_system)
+        flow_sheet.add_unit(feed, feed_inlet=True)
+        flow_sheet.add_unit(unit)
+        flow_sheet.add_unit(outlet, product_outlet=True)
+        flow_sheet.add_connection(feed, unit)
+        flow_sheet.add_connection(unit, outlet)
+
+        process = Process(flow_sheet, "Pulse Feed")
+        process.cycle_time = float(v["cycle_time"])
+        process.add_duration("pulse_duration", float(v["pulse_duration"]))
+
+        c_feed = _c_feed(v)
+        process.add_event("pulse_on", "flow_sheet.feed.c", c_feed)
+        process.add_event("pulse_off", "flow_sheet.feed.c", [0.0] * len(c_feed))
+        process.add_event_dependency("pulse_off", ["pulse_on", "pulse_duration"], [1, 1])
+        return process
+
+    def _export(v: Mapping[str, Any]) -> list[str]:
+        c_feed = _c_feed(v)
+        c_off = [0.0] * len(c_feed)
+        return [
+            "",
+            "feed = Inlet(component_system, name='feed')",
+            f"feed.flow_rate = {float(v['flow_rate'])!r}",
+            "outlet = Outlet(component_system, name='outlet')",
+            "",
+            "flow_sheet = FlowSheet(component_system)",
+            "flow_sheet.add_unit(feed, feed_inlet=True)",
+            "flow_sheet.add_unit(column)",
+            "flow_sheet.add_unit(outlet, product_outlet=True)",
+            "flow_sheet.add_connection(feed, column)",
+            "flow_sheet.add_connection(column, outlet)",
+            "",
+            "process = Process(flow_sheet, 'Pulse Feed')",
+            f"process.cycle_time = {float(v['cycle_time'])!r}",
+            f"process.add_duration('pulse_duration', {float(v['pulse_duration'])!r})",
+            f"process.add_event('pulse_on', 'flow_sheet.feed.c', {c_feed!r})",
+            f"process.add_event('pulse_off', 'flow_sheet.feed.c', {c_off!r})",
+            "process.add_event_dependency('pulse_off', ['pulse_on', 'pulse_duration'], [1, 1])",
+        ]
+
+    fields = [
+        FieldSpec(
+            "component", "choice", "Component", names[0] if names else None,
+            options=tuple((n, n) for n in names),
+        ),
+        FieldSpec(
+            "concentration", "float", "Pulse concentration", 10.0, units=CONCENTRATION_UNITS,
+        ),
+        *_pick(["flow_rate", "pulse_duration", "cycle_time"]),
+    ]
+    return ModelSpec(
+        title="Pulse Feed (Single Component)", fields=fields, build=_build, export=_export
+    )
+
+
 # CLR/Flip-Flop/MRSSR: see ai-docs/REQUIREMENTS.md "Open decisions".
-MODEL_REGISTRY: dict[str, Callable[[ChromatographicColumnBase], ModelSpec]] = {
+MODEL_REGISTRY: dict[str, Callable[[Any], ModelSpec]] = {
     "Batch Elution": batch_elution_spec,
     "Load–Wash–Elute (LWE)": lwe_spec,
+    "Pulse Feed (Single Component)": pulse_feed_spec,
 }
 
 ColumnFactory = Callable[[ComponentSystem], ChromatographicColumnBase]

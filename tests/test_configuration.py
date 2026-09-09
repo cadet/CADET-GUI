@@ -540,3 +540,64 @@ def test_fixing_an_invalid_value_recommits_automatically():
     assert cw._model_form.is_valid
     assert cw._model_form.built is not None
     assert cw.process is cw._model_form.built
+
+
+def test_pulse_feed_builds_a_process_for_a_cstr():
+    cw = ConfigurationWidget()
+    cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
+    cw._model_picker.value = cw._registry["Pulse Feed (Single Component)"]
+
+    assert type(cw.process).__name__ == "Process"
+    assert cw.process.cycle_time == 6000.0
+    timeline = cw.process.parameter_timelines["flow_sheet.feed.c"]
+    assert timeline.value([0.0]).flatten().tolist() == [10.0]
+    assert timeline.value([70.0]).flatten().tolist() == [0.0]  # past the 60s pulse_duration
+
+
+def test_pulse_feed_component_picker_targets_only_the_selected_component():
+    cw = ConfigurationWidget()
+    cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
+    cw._components.value = ["Salt", "Protein"]
+    cw._model_picker.value = cw._registry["Pulse Feed (Single Component)"]
+
+    component = cw._model_form.element("component")
+    assert component.option_labels == ["Salt", "Protein"]
+    timeline = cw.process.parameter_timelines["flow_sheet.feed.c"]
+    assert timeline.value([0.0]).flatten().tolist() == [10.0, 0.0]
+
+    component.value = "Protein"
+
+    timeline = cw.process.parameter_timelines["flow_sheet.feed.c"]
+    assert timeline.value([0.0]).flatten().tolist() == [0.0, 10.0]
+
+
+def test_pulse_feed_event_chart_shows_feed_concentration():
+    cw = ConfigurationWidget()
+    cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
+    cw._model_picker.value = cw._registry["Pulse Feed (Single Component)"]
+
+    assert [s["name"] for s in cw._event_chart.series] == ["Feed"]
+    assert cw._event_chart.y_label == "Concentration / mol/m^3_IV"
+
+
+def test_pulse_feed_gets_sliders_for_its_scalar_fields_but_not_the_component_picker():
+    cw = ConfigurationWidget()
+    cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
+    cw._model_picker.value = cw._registry["Pulse Feed (Single Component)"]
+
+    assert set(cw._event_sliders) == {"concentration", "flow_rate", "pulse_duration", "cycle_time"}
+
+
+def test_pulse_feed_export_script_round_trips():
+    cw = ConfigurationWidget()
+    cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
+    cw._model_picker.value = cw._registry["Pulse Feed (Single Component)"]
+
+    script = cw.export_script()
+    ns: dict = {}
+    exec(compile(script, "<generated>", "exec"), ns)  # noqa: S102
+
+    assert ns["process"].cycle_time == cw.process.cycle_time
+    exported_timeline = ns["process"].parameter_timelines["flow_sheet.feed.c"]
+    original_timeline = cw.process.parameter_timelines["flow_sheet.feed.c"]
+    assert exported_timeline.value([0.0]).tolist() == original_timeline.value([0.0]).tolist()

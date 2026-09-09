@@ -6,6 +6,7 @@ import ipywidgets as W
 from CADETProcess.processModel import ComponentSystem
 
 from ...cadetprocessadapter import (
+    CONCENTRATION_UNITS,
     DEFAULT_BINDING_FACTORIES,
     DEFAULT_COLUMN_FACTORIES,
     MODEL_REGISTRY,
@@ -481,12 +482,16 @@ class ConfigurationWidget:
             quantities = {name.split(".")[-1] for name in process.parameter_timelines}
             if len(quantities) == 1:
                 quantity = next(iter(quantities))
-                quantity_label = quantity.replace("_", " ").capitalize()
-                self._event_chart.y_label = (
-                    f"{quantity_label} / {PARAMS['flow_rate'].units}"
-                    if quantity == "flow_rate"
-                    else quantity_label
-                )
+                quantity_units = {
+                    "flow_rate": PARAMS["flow_rate"].units,
+                    "c": CONCENTRATION_UNITS,
+                }
+                units = quantity_units.get(quantity)
+                if quantity == "c":
+                    label = "Concentration"
+                else:
+                    label = quantity.replace("_", " ").capitalize()
+                self._event_chart.y_label = f"{label} / {units}" if units else label
             else:
                 self._event_chart.y_label = "state"
             self._event_chart.series = series
@@ -515,12 +520,19 @@ class ConfigurationWidget:
         col_cls = type(column)
         bind_cls = type(binding_model)
         proc_cls = type(self.process)
+        model_spec = self._model_form.spec
 
-        lines = [
+        imports = [
             f"from {cs_cls.__module__} import {cs_cls.__name__}",
             f"from {col_cls.__module__} import {col_cls.__name__}",
             f"from {bind_cls.__module__} import {bind_cls.__name__}",
             f"from {proc_cls.__module__} import {proc_cls.__name__}",
+        ]
+        if model_spec.export is not None:
+            imports.append("from CADETProcess.processModel import FlowSheet, Inlet, Outlet")
+
+        lines = [
+            *imports,
             "",
             f"component_system = {cs_cls.__name__}({self._components.value!r})",
             "",
@@ -537,12 +549,16 @@ class ConfigurationWidget:
         for name, value in self._binding_form.collect_values().items():
             lines.append(f"column.binding_model.{name} = {value!r}")
 
-        lines.append("")
-        lines.append(f"process = {proc_cls.__name__}(")
-        lines.append("    column=column,")
-        for name, value in self._model_form.collect_values().items():
-            lines.append(f"    {name}={value!r},")
-        lines.append(")")
+        model_values = self._model_form.collect_values()
+        if model_spec.export is not None:
+            lines.extend(model_spec.export(model_values))
+        else:
+            lines.append("")
+            lines.append(f"process = {proc_cls.__name__}(")
+            lines.append("    column=column,")
+            for name, value in model_values.items():
+                lines.append(f"    {name}={value!r},")
+            lines.append(")")
 
         return "\n".join(lines)
 
