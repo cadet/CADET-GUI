@@ -44,7 +44,11 @@ def test_workbench_config_edits_still_flow_through_to_solution():
 
 
 def test_workbench_accepts_prebuilt_widgets():
-    from cadetgui.widgets.composite import ConfigurationWidget, DataImportWidget, SolutionWidget
+    from cadetgui.widgets.composite import (
+        ConfigurationWidget,
+        DataImportWidget,
+        SolutionWidget,
+    )
 
     cw = ConfigurationWidget()
     sw = SolutionWidget()

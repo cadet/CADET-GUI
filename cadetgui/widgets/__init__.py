@@ -1,6 +1,3 @@
-# =========================================
-# File: cadetgui/widgets/__init__.py
-# =========================================
 """Composable widgets for CADET-GUI.
 
 This subpackage provides:

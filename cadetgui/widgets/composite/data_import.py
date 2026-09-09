@@ -1,6 +1,3 @@
-# =========================================
-# File: cadetgui/widgets/composite/data_import.py
-# =========================================
 from __future__ import annotations
 
 import csv

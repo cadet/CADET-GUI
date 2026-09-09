@@ -1,6 +1,3 @@
-# =========================================
-# File: cadetgui/widgets/elements/__init__.py
-# =========================================
 """Atomic anywidget input controls — the target implementation.
 
 See ai-docs/ARCHITECTURE.md for the element contract these follow.

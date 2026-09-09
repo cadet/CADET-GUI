@@ -433,7 +433,7 @@ def test_cycle_time_slider_is_capped_at_300_minutes_by_default():
 
 def test_cycle_time_slider_cap_stretches_to_fit_an_existing_larger_value():
     cw = ConfigurationWidget()
-    cw._model_form.element("cycle_time").value = 400.0 * 60.0  # already above the 300min cap
+    cw._model_form.element("cycle_time").value = 400.0 * 60.0  # 400 min is above the 300 min cap
 
     cw._rebuild_event_sliders()  # normally triggered by a rebuild, called directly here
 
@@ -445,11 +445,11 @@ def test_switching_column_type_rebuilds_event_sliders_without_stale_links():
     cw = ConfigurationWidget()
     old_slider = cw._event_sliders["flow_rate"]
 
-    cw._column_picker.selected_index = 1  # GRM -> LRMP
+    cw._column_picker.selected_index = 1  # switch column from GRM (default) to LRMP
 
     new_slider = cw._event_sliders["flow_rate"]
     assert new_slider is not old_slider
-    old_slider.value = old_slider.value + 1.0  # must no longer affect the live form
+    old_slider.value = old_slider.value + 1.0  # stale slider is disconnected from the current form
     assert cw._model_form.element("flow_rate").value != old_slider.value
 
 

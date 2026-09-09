@@ -1,6 +1,3 @@
-# =========================================
-# File: cadetgui/widgets/forms/__init__.py
-# =========================================
 """Renders a ModelSpec into a form of anywidget Elements.
 
 See ai-docs/ARCHITECTURE.md's data-flow section for where this fits.

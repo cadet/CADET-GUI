@@ -39,12 +39,8 @@ function niceMinuteTicks(tMin, tMax, targetCount) {
 // as the form fields' renderUnit() (float_field.js etc.), ported to SVG
 // tspans since SVG text has no <sup>/<sub>. Duplicated, not imported --
 // every element ships its own view, no cross-file JS deps in this project.
-//
-// Uses baseline-shift (scoped to each tspan) rather than dy + an empty
-// "reset" tspan: an empty tspan carries no text position of its own, so
-// browsers don't reliably treat it as re-anchoring the baseline for the
-// plain text that follows -- the superscript shift was leaking into
-// everything after it (e.g. the "s" in "m^3/s" rendering raised too).
+// Uses baseline-shift per tspan, not dy + an empty reset tspan -- the
+// latter doesn't reliably re-anchor the baseline for trailing plain text.
 function renderUnitSvg(textEl, raw) {
   while (textEl.firstChild) textEl.removeChild(textEl.firstChild);
   if (!raw) return;

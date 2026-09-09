@@ -41,11 +41,9 @@
 }
 
 .cadetgui-field-label {
-  /* A genuinely fixed column, not just a floor: min-width alone lets a
-     long label ("Final wash duration") grow past it while a short one
-     ("Length") doesn't, so whatever follows starts at a different x per
-     row. flex: 0 0 80px pins the box to exactly 80px regardless of
-     content; overflow truncates instead of growing. */
+  /* Fixed column, not just a min-width floor: otherwise a long label
+     ("Final wash duration") grows past a short one ("Length"), so
+     whatever follows starts at a different x per row. */
   width: 140px;
   flex: 0 0 140px;
   overflow: hidden;
@@ -143,10 +141,9 @@
 }
 
 .cadetgui-field-bool .cadetgui-field-label {
-  /* Undo the fixed 80px column above: a checkbox's label comes *after*
-     the input (nothing follows it needing to line up), so it should size
-     to its own text like "Show Cycle Time in Minutes" instead of
-     truncating at 80px. */
+  /* Undo the fixed-width column above: a checkbox's label comes *after*
+     the input, with nothing following it that needs to line up, so it
+     should size to its own text instead of truncating. */
   width: auto;
   flex: 0 1 auto;
   overflow: visible;

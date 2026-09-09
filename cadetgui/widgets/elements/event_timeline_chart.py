@@ -1,6 +1,3 @@
-# =========================================
-# File: cadetgui/widgets/elements/event_timeline_chart.py
-# =========================================
 from __future__ import annotations
 
 from pathlib import Path

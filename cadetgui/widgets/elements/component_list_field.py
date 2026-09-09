@@ -1,6 +1,3 @@
-# =========================================
-# File: cadetgui/widgets/elements/component_list_field.py
-# =========================================
 from __future__ import annotations
 
 from pathlib import Path

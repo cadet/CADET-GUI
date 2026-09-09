@@ -1,6 +1,3 @@
-# =========================================
-# File: cadetgui/widgets/composite/run_history.py
-# =========================================
 from __future__ import annotations
 
 import datetime as dt

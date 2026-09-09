@@ -1,6 +1,3 @@
-# =========================================
-# File: cadetgui/widgets/composite/configuration.py
-# =========================================
 from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional
@@ -240,8 +237,8 @@ class ConfigurationWidget:
         column = self._get_column()
         if factory is None or column is None:
             return None
-        # Keyed by id(column) too: a binding model's component_system must be
-        # the same object as its column's, and each column gets its own.
+        # Keyed by id(column): a binding model's component_system must be the same
+        # object as its column's, and each column gets its own.
         cache_key = (factory, id(column))
         if cache_key not in self._binding_cache:
             self._binding_cache[cache_key] = factory(column.component_system)
@@ -329,15 +326,12 @@ class ConfigurationWidget:
         self._event_chart.series = []
 
     def _rebuild_event_sliders(self) -> None:
-        """Slider per scalar timing/flow field, spliced right next to its own field.
+        """Add a slider next to each scalar timing/flow field.
 
-        Only `float`-kind fields get a slider — the per-component
-        concentration fields stay list-editors, untouched. Each slider is
-        dlinked to its field's value, so a slider move flows through the
-        form's own auto-commit exactly like typing a new value would
-        (cheap: no solver call, just rebuilds the process) — `.process` and
-        listeners update the same way either way. `_redraw_event_plot`
-        then just redraws from the form's freshly committed build.
+        Only `float`-kind fields get a slider; per-component concentration
+        fields stay list-editors. Each slider is dlinked to its field's
+        value, so a slider move commits through the form exactly like typing
+        a new value would.
         """
         self._event_sliders = {}
         self._cycle_time_minutes_element = None
@@ -356,18 +350,12 @@ class ConfigurationWidget:
             el = self._model_form.element(f.name)
             default = float(el.value)
             if f.name == "cycle_time":
-                # Capped for now (product owner) rather than the usual
-                # default*5 -- 5x an hours-long cycle_time makes for a
-                # near-useless slider. max(default, ...) so the slider still
-                # covers an existing larger value instead of constructing
-                # invalid (value > max).
                 slider_max = max(default, _CYCLE_TIME_SLIDER_MAX_SECONDS)
             else:
                 slider_max = default * 5 if default > 0 else 1.0
-            # min=0 and step=default/100 put the default exactly on the
-            # slider's step grid -- otherwise the browser snaps the handle
-            # to the nearest step on render and reports that back, quietly
-            # overwriting the clean default via the link below.
+            # step=default/100 keeps the default on the slider's step grid;
+            # otherwise the browser snaps it to the nearest step on render and
+            # reports that back, silently overwriting the default.
             step = default / 100 if default > 0 else 0.01
             slider = W.FloatSlider(
                 value=default,
@@ -377,18 +365,13 @@ class ConfigurationWidget:
                 readout=False,  # the linked field already shows the value
                 layout=W.Layout(width="100%", max_width="200px", min_width="100px"),
             )
-            # dlink + rounding, not link: the browser's slider reports
-            # position as a float with drag-accumulated noise (e.g.
-            # 19620.00000000004), which a plain link would pass straight
-            # into the field unrounded.
+            # dlink+round, not link: slider drag reports float noise (e.g.
+            # 19620.00000000004) that a plain link would pass straight through.
             W.dlink((slider, "value"), (el, "value"), transform=_round_10sf)
             W.dlink((el, "value"), (slider, "value"), transform=_round_10sf)
             slider.observe(lambda _change: self._redraw_event_plot(), names="value")
             self._event_sliders[f.name] = slider
 
-        # Pair each field's row with its slider (and, for cycle_time, a
-        # minutes/seconds companion field) in place, rather than listing
-        # everything together below the whole form.
         new_children = []
         for child in self._model_form.root.children:
             matched = next(
@@ -406,10 +389,8 @@ class ConfigurationWidget:
                 extras.append(self._event_sliders[matched.name])
 
             if extras:
-                # wrap, not nowrap (ipywidgets HBox's default): on a narrow
-                # window the field row alone doesn't shrink below its own
-                # intrinsic width, so same-line extras had nowhere to go
-                # but overlap it -- let them drop to their own line instead.
+                # HBox defaults to nowrap, which would overlap the slider
+                # instead of wrapping it on a narrow window.
                 pair_row = W.HBox(
                     [child, *extras],
                     layout=W.Layout(flex_flow="row wrap", align_items="center"),
@@ -428,11 +409,7 @@ class ConfigurationWidget:
         `seconds_element` is the real field feeding `collect_values()` /
         CADET-Process and always stays in seconds; the companion field is
         dlinked to it in both directions so they stay in sync regardless of
-        which one is currently visible. Which one is visible is driven by
-        the single persistent `_cycle_time_unit_checkbox` in the Process
-        section's settings popover (not a per-row checkbox — that made
-        cycle_time's row wider than every other slider row, throwing off
-        their alignment).
+        which one is currently visible.
         """
         minutes_element = FloatField(
             label=seconds_element.label,
@@ -465,16 +442,10 @@ class ConfigurationWidget:
         self._cycle_time_minutes_element.layout.display = "" if show_minutes else "none"
 
     def _redraw_event_plot(self) -> None:
-        """Feed the interactive chart raw values, not a rendered plot.
+        """Feed the interactive chart raw values from `Process.parameter_timelines`.
 
-        Reuses the form's own auto-committed build rather than building
-        again here: the slider is dlinked to the field, so by the time this
-        observer runs (registered after the dlink), the form has already
-        auto-committed and `.built` is current. Pulls straight from
-        `Process.parameter_timelines` — the same data `plot_events()` uses
-        internally — rather than rendering a matplotlib figure and scraping
-        line data back out of it (the previous approach); `EventTimelineChart`
-        does its own interactive rendering client-side from this raw data.
+        Reuses the form's own already-committed build rather than building
+        again here.
         """
         if self._model_form is None or self._model_form.built is None:
             return
@@ -493,13 +464,9 @@ class ConfigurationWidget:
                 raw = timeline.value(times_s)
                 raw = raw.tolist() if hasattr(raw, "tolist") else list(raw)
                 n_cols = len(raw[0]) if raw and isinstance(raw[0], (list, tuple)) else 1
-                # Dotted CADET-Process paths like "flow_sheet.eluent.flow_rate"
-                # are precise but not what a reader wants in a legend --
-                # the unit-operation name (the second-to-last segment) is
-                # the actual identity readers care about ("Eluent"); the
-                # quantity (last segment) is common to every series here
-                # and belongs on the axis instead (below), not repeated
-                # per line.
+                # Legend shows the unit-op name ("Eluent"), not the full dotted
+                # path ("flow_sheet.eluent.flow_rate"); the quantity goes on
+                # the axis instead (below).
                 parts = name.split(".")
                 unit_op = parts[-2] if len(parts) >= 2 else name
                 display_name = unit_op.replace("_", " ").capitalize()
@@ -511,14 +478,6 @@ class ConfigurationWidget:
                     ]
                     series.append({"name": label, "times": times_min, "values": values})
 
-            # Quantity name (the shared last path segment, e.g. "flow_rate")
-            # goes on the axis instead of repeated in every series' name.
-            # Every CADET-Process event-driven parameter observed in this
-            # codebase so far is a flow rate (confirmed directly, not
-            # assumed) -- reuse the unit PARAMS['flow_rate'] already
-            # declares rather than inventing one here; anything else (a
-            # future template with a different, unverified quantity) shows
-            # the quantity name alone, no invented unit.
             quantities = {name.split(".")[-1] for name in process.parameter_timelines}
             if len(quantities) == 1:
                 quantity = next(iter(quantities))

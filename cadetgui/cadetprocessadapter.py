@@ -26,6 +26,8 @@ Transform = Callable[[Any], Any]
 
 @dataclass(frozen=True)
 class FieldSpec:
+    """Describes one form field: its kind, default, bounds, and validation."""
+
     name: str
     kind: Literal["float", "float_list", "bool", "text"]
     label: str | None = None
@@ -39,11 +41,13 @@ class FieldSpec:
 
 
 def require_positive(x: Any) -> None:
+    """Raise ValueError unless x is a positive number."""
     if float(x) <= 0:
         raise ValueError("Must be > 0.")
 
 
 def parse_float_list(v: Any) -> list[float]:
+    """Parse a comma/semicolon/whitespace-separated string (or sequence) of floats."""
     if isinstance(v, (list, tuple)):
         return [float(x) for x in v]
     s = str(v)
@@ -94,6 +98,8 @@ PARAMS: dict[str, FieldSpec] = {
 
 @dataclass
 class ModelSpec:
+    """A titled group of fields plus the build function that consumes their values."""
+
     title: str
     fields: list[FieldSpec] = field(default_factory=list)
     build: Callable[[Mapping[str, Any]], Any] | None = None
@@ -116,6 +122,8 @@ def _concentration_field(
 
 
 def batch_elution_spec(column: ChromatographicColumnBase) -> ModelSpec:
+    """Build the Batch Elution model's ModelSpec for the given column."""
+
     def _build(v: Mapping[str, Any]) -> Any:
         return BatchElution(
             column=column,
@@ -135,6 +143,8 @@ def batch_elution_spec(column: ChromatographicColumnBase) -> ModelSpec:
 
 
 def lwe_spec(column: ChromatographicColumnBase) -> ModelSpec:
+    """Build the Load-Wash-Elute model's ModelSpec for the given column."""
+
     def _build(v: Mapping[str, Any]) -> Any:
         return LWE(
             column=column,
@@ -170,29 +180,30 @@ ColumnFactory = Callable[[ComponentSystem], ChromatographicColumnBase]
 
 
 def make_grm(cs: ComponentSystem) -> ChromatographicColumnBase:
+    """Build a General Rate Model column for the given component system."""
     col = GeneralRateModel(cs, name="GRM")
     return col
 
 
 def make_lrmp(cs: ComponentSystem) -> ChromatographicColumnBase:
+    """Build a Lumped Rate Model With Pores column for the given component system."""
     col = LumpedRateModelWithPores(cs, name="LRMP")
     return col
 
 
 def make_lrm(cs: ComponentSystem) -> ChromatographicColumnBase:
+    """Build a Lumped Rate Model Without Pores column for the given component system."""
     col = LumpedRateModelWithoutPores(cs, name="LRM")
     return col
 
 
 def make_cstr(cs: ComponentSystem) -> ChromatographicColumnBase:
+    """Build a CSTR column for the given component system."""
     col = Cstr(cs, name="CSTR")
     return col
 
 
-# Register default factories here. Keys double as the dropdown's option
-# labels -- written out in full (not just the acronym), matching
-# DEFAULT_BINDING_FACTORIES' "Steric Mass Action (SMA)" and
-# MODEL_REGISTRY's "Load-Wash-Elute (LWE)".
+# Dict keys double as the dropdown's option labels, written out in full.
 DEFAULT_COLUMN_FACTORIES: Dict[str, ColumnFactory] = {
     "General Rate Model (GRM)": make_grm,
     "Lumped Rate Model With Pores (LRMP)": make_lrmp,
@@ -204,18 +215,22 @@ BindingFactory = Callable[[ComponentSystem], BindingBaseClass]
 
 
 def make_no_binding(cs: ComponentSystem) -> BindingBaseClass:
+    """Build a NoBinding model for the given component system."""
     return NoBinding(cs, name="NoBinding")
 
 
 def make_linear_binding(cs: ComponentSystem) -> BindingBaseClass:
+    """Build a Linear binding model for the given component system."""
     return Linear(cs, name="Linear")
 
 
 def make_langmuir_binding(cs: ComponentSystem) -> BindingBaseClass:
+    """Build a Langmuir binding model for the given component system."""
     return Langmuir(cs, name="Langmuir")
 
 
 def make_sma_binding(cs: ComponentSystem) -> BindingBaseClass:
+    """Build a Steric Mass Action binding model for the given component system."""
     return StericMassAction(cs, name="StericMassAction")
 
 
@@ -240,9 +255,11 @@ def _unique_preserve_order(names: Sequence[str]) -> list[str]:
     return out
 
 
-def _infer_kind(x) -> str:
-    if isinstance(x, (list, tuple)): return "float_list"
-    if isinstance(x, bool): return "bool"
+def _infer_kind(x: Any) -> str:
+    if isinstance(x, (list, tuple)):
+        return "float_list"
+    if isinstance(x, bool):
+        return "bool"
     return "float"
 
 
@@ -292,7 +309,7 @@ def _resolve_param(
     name: str,
     *,
     multiplex: Optional[Dict[str, bool]] = None,
-):
+) -> tuple[Any, str, Optional[Transform], dict[str, float], Optional[str]]:
     """Resolve one parameter's kind/bounds/units/default.
 
     Ground truth comes from `parameters/interface.json` via
@@ -338,12 +355,11 @@ def _resolve_param(
     return default, kind, transform, bounds, meta.get("unit")
 
 
-def _coerce_to_kind(kind: str, val):
+def _coerce_to_kind(kind: str, val: Any) -> Any:
     if kind == "float_list":
         return parse_float_list(val)
     if kind == "bool":
         return bool(val)
-    # default: float
     return float(val)
 
 
@@ -360,12 +376,9 @@ def build_parameter_config_spec(
     names = _unique_preserve_order(list(req))
     category, model_name = _category_and_model(obj)
 
-    # is_kinetic isn't in CADET-Process's own required_parameters (it has a
-    # non-None default, True), but every binding model with a real isotherm
-    # still needs it settable -- a GUI decision, not a CADET-Process one.
-    # `names` is only non-empty for binding models that actually have an
-    # isotherm (NoBinding's required_parameters is []), so this skips it
-    # there without hardcoding a class name.
+    # is_kinetic isn't in CADET-Process's own required_parameters, but every
+    # binding model with a real isotherm needs it settable. `names` is only
+    # non-empty for those (NoBinding's required_parameters is []).
     if category == "binding" and names:
         names.append("is_kinetic")
 
@@ -379,7 +392,9 @@ def build_parameter_config_spec(
         )
         kinds[name] = kind
         label = name.replace("_", " ").capitalize()
-        fs_kwargs = dict(name=name, kind=kind, label=label, default=default, transform=transform, **bounds)
+        fs_kwargs = dict(
+            name=name, kind=kind, label=label, default=default, transform=transform, **bounds
+        )
         if units is not None:
             fs_kwargs["units"] = units
         if kind == "float_list" and component_names:
@@ -397,5 +412,5 @@ def build_parameter_config_spec(
     return ModelSpec(
         title=f"Configure {obj.__class__.__name__}",
         fields=fields,
-        build=_apply,  # <- pass the function directly; it takes (values)
+        build=_apply,
     )
