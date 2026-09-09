@@ -461,13 +461,15 @@ def _coerce_to_kind(kind: str, val: Any) -> Any:
 
 
 def build_parameter_config_spec(
-    obj: Any, *, multiplex: Optional[Dict[str, bool]] = None
+    obj: Any, *, multiplex: Optional[Dict[str, bool]] = None, include_optional: bool = False
 ) -> ModelSpec:
     """Build a ModelSpec from any object exposing `required_parameters`.
 
     Generic over `obj` (column, binding model, ...) so the same function
     drives every form. `multiplex` only matters for
-    `MULTIPLEXABLE_COLUMN_PARAMS`.
+    `MULTIPLEXABLE_COLUMN_PARAMS`. `include_optional` also renders every
+    scalar/list parameter `obj` currently holds a value for, beyond
+    `required_parameters`.
     """
     req = getattr(obj, "required_parameters", None) or []
     names = _unique_preserve_order(list(req))
@@ -478,6 +480,16 @@ def build_parameter_config_spec(
     # non-empty for those (NoBinding's required_parameters is []).
     if category == "binding" and names:
         names.append("is_kinetic")
+
+    if include_optional:
+        # obj.parameters' values are frozen at construction time, not live --
+        # read each one fresh via getattr. Structured (dict-valued)
+        # parameters aren't renderable by this generic per-parameter form.
+        optional_names = [
+            p for p in getattr(obj, "parameters", {})
+            if p not in names and isinstance(getattr(obj, p, None), (int, float, bool, list, tuple))
+        ]
+        names.extend(optional_names)
 
     component_names = tuple(obj.component_system.names) if hasattr(obj, "component_system") else ()
     fields: list[FieldSpec] = []

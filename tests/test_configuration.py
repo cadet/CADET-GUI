@@ -294,10 +294,71 @@ def test_enabling_multiplex_switches_field_to_per_component():
     assert by_name["film_diffusion"].kind == "float"
 
 
-def test_multiplex_settings_hidden_for_column_without_any_applicable_param():
+def test_multiplex_checkboxes_hidden_for_column_without_any_applicable_param():
     cw = ConfigurationWidget()
     cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
-    assert cw._btn_settings.layout.display == "none"
+    # The gear itself stays visible -- "Show optional parameters" always applies.
+    assert cw._btn_settings.layout.display != "none"
+    assert all(cb.layout.display == "none" for cb in cw._multiplex_checkboxes.values())
+
+
+def test_show_optional_parameters_adds_and_removes_column_fields():
+    cw = ConfigurationWidget()
+    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
+    required_names = {f.name for f in cw._column_form.spec.fields}
+    assert "c" not in required_names  # optional fields hidden by default
+
+    cw._show_optional_checkbox.value = True
+    shown_names = {f.name for f in cw._column_form.spec.fields}
+    assert {"c", "cp", "flow_direction", "pore_accessibility"} <= shown_names
+    # still builds a real column with the optional fields' own defaults applied
+    assert cw._get_column() is not None
+
+    cw._show_optional_checkbox.value = False
+    assert {f.name for f in cw._column_form.spec.fields} == required_names
+
+
+def test_show_optional_parameters_skips_none_valued_and_non_scalar_fields():
+    cw = ConfigurationWidget()
+    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
+    cw._show_optional_checkbox.value = True
+
+    names = {f.name for f in cw._column_form.spec.fields}
+    assert "q" not in names  # None-valued (no bound states configured)
+    assert "surface_diffusion" not in names  # None-valued
+    assert "discretization" not in names  # nested solver-settings dict, not a scalar field
+
+
+def test_show_optional_parameters_does_not_apply_to_binding_form():
+    cw = ConfigurationWidget()
+    cw._binding_picker.value = cw._binding_registry["Steric Mass Action (SMA)"]
+    cw._show_optional_checkbox.value = True
+
+    names = {f.name for f in cw._binding_form.spec.fields}
+    assert "reference_liquid_phase_conc" not in names
+
+
+def test_show_optional_binding_parameters_adds_sma_reference_concentrations():
+    cw = ConfigurationWidget()
+    cw._binding_picker.value = cw._binding_registry["Steric Mass Action (SMA)"]
+    required_names = {f.name for f in cw._binding_form.spec.fields}
+
+    cw._show_optional_binding_checkbox.value = True
+    shown_names = {f.name for f in cw._binding_form.spec.fields}
+    assert {"reference_liquid_phase_conc", "reference_solid_phase_conc"} <= shown_names
+    assert cw._get_column() is not None  # still builds with the optional fields applied
+
+    cw._show_optional_binding_checkbox.value = False
+    assert {f.name for f in cw._binding_form.spec.fields} == required_names
+
+
+def test_show_optional_binding_parameters_does_not_apply_to_column_form():
+    cw = ConfigurationWidget()
+    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
+    cw._show_optional_binding_checkbox.value = True
+
+    names = {f.name for f in cw._column_form.spec.fields}
+    assert "c" not in names
 
 
 def test_multiplex_checkbox_visibility_matches_column_capabilities():

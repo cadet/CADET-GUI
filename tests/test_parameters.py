@@ -22,7 +22,8 @@ def test_cstr_has_no_shared_tubular_geometry():
     params = get_parameters("column", "Cstr")
     assert "length" not in params
     assert "diameter" not in params
-    assert params.keys() == {"init_liquid_volume"}
+    assert "axial_dispersion" not in params
+    assert "init_liquid_volume" in params
 
 
 def test_langmuir_capacity_is_component_dependent_but_sma_capacity_is_not():

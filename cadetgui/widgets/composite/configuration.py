@@ -76,20 +76,48 @@ class ConfigurationWidget:
         for name, checkbox in self._multiplex_checkboxes.items():
             checkbox.observe(self._make_on_multiplex_change(name), names="value")
 
+        self._show_optional_checkbox = W.Checkbox(
+            description="Show optional parameters", value=False, indent=False
+        )
+        self._show_optional_checkbox.observe(self._on_show_optional_change, names="value")
+
         self._btn_settings = W.Button(
-            icon="cog", tooltip="Column discretization settings",
+            icon="cog", tooltip="Column settings",
             layout=W.Layout(width="36px"),
         )
         self._btn_settings.on_click(self._on_toggle_settings)
         self._settings_box = W.VBox(
             [
                 W.HTML("<div class='cadetgui-section-title'>Settings</div>"),
+                self._show_optional_checkbox,
                 *self._multiplex_checkboxes.values(),
             ],
             layout=W.Layout(display="none"),
         )
         self._settings_box.add_class("cadetgui-section")
         self._settings_box.add_class("cadetgui-settings-box")
+
+        self._show_optional_binding_checkbox = W.Checkbox(
+            description="Show optional parameters", value=False, indent=False
+        )
+        self._show_optional_binding_checkbox.observe(
+            self._on_show_optional_binding_change, names="value"
+        )
+
+        self._btn_binding_settings = W.Button(
+            icon="cog", tooltip="Binding settings",
+            layout=W.Layout(width="36px"),
+        )
+        self._btn_binding_settings.on_click(self._on_toggle_binding_settings)
+        self._binding_settings_box = W.VBox(
+            [
+                W.HTML("<div class='cadetgui-section-title'>Settings</div>"),
+                self._show_optional_binding_checkbox,
+            ],
+            layout=W.Layout(display="none"),
+        )
+        self._binding_settings_box.add_class("cadetgui-section")
+        self._binding_settings_box.add_class("cadetgui-settings-box")
 
         self._cycle_time_unit_checkbox = W.Checkbox(
             description="Show Cycle Time in Minutes", value=False, indent=False
@@ -163,9 +191,17 @@ class ConfigurationWidget:
         column_section.add_class("cadetgui-section")
         column_section.add_class("cadetgui-section-half")
 
-        binding_section = W.VBox(
+        binding_header = W.HBox(
             [
                 W.HTML("<div class='cadetgui-section-title'>Binding Model</div>"),
+                self._btn_binding_settings,
+            ],
+            layout=W.Layout(justify_content="space-between", align_items="center"),
+        )
+        binding_section = W.VBox(
+            [
+                binding_header,
+                self._binding_settings_box,
                 self._binding_picker,
                 self._binding_form_box,
             ]
@@ -313,6 +349,10 @@ class ConfigurationWidget:
         shown = self._settings_box.layout.display != "none"
         self._settings_box.layout.display = "none" if shown else ""
 
+    def _on_toggle_binding_settings(self, _btn: Any) -> None:
+        shown = self._binding_settings_box.layout.display != "none"
+        self._binding_settings_box.layout.display = "none" if shown else ""
+
     def _on_toggle_process_settings(self, _btn: Any) -> None:
         shown = self._process_settings_box.layout.display != "none"
         self._process_settings_box.layout.display = "none" if shown else ""
@@ -325,6 +365,16 @@ class ConfigurationWidget:
             self._rebuild_forms()
 
         return _on_change
+
+    def _on_show_optional_change(self, change: dict) -> None:
+        if change.get("name") != "value":
+            return
+        self._rebuild_forms()
+
+    def _on_show_optional_binding_change(self, change: dict) -> None:
+        if change.get("name") != "value":
+            return
+        self._rebuild_forms()
 
     def _on_process_built(self, built: Any) -> None:
         self.process = built
@@ -346,12 +396,16 @@ class ConfigurationWidget:
         applicable = column_params & MULTIPLEXABLE_COLUMN_PARAMS
         for name, checkbox in self._multiplex_checkboxes.items():
             checkbox.layout.display = "" if name in applicable else "none"
-        self._btn_settings.layout.display = "" if applicable else "none"
-        if not applicable:
-            self._settings_box.layout.display = "none"
+        # "Show optional parameters" applies to every column model, unlike
+        # the multiplex checkboxes above -- the gear stays visible regardless
+        # of `applicable`.
 
         self._column_form = FormRenderer(
-            build_parameter_config_spec(column, multiplex=self._multiplex_state)
+            build_parameter_config_spec(
+                column,
+                multiplex=self._multiplex_state,
+                include_optional=self._show_optional_checkbox.value,
+            )
         )
         self._column_form_box.children = (self._column_form.root,)
 
@@ -359,7 +413,10 @@ class ConfigurationWidget:
             col.binding_model = built
 
         self._binding_form = FormRenderer(
-            build_parameter_config_spec(binding_model), on_built=_attach_binding
+            build_parameter_config_spec(
+                binding_model, include_optional=self._show_optional_binding_checkbox.value
+            ),
+            on_built=_attach_binding,
         )
         self._binding_form_box.children = (self._binding_form.root,)
 

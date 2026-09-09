@@ -88,6 +88,51 @@
               "dtype": "float", "component_dependent": true,
               "description": "Effective pore diffusion coefficient per component.",
               "source": "interface/unit_operations/particle_config.rst PORE_DIFFUSION; cadetAdapter.py unit_parameters_map writes PAR_DIFFUSION for GeneralRateModel -- same doc/code name mismatch pattern as COL_LENGTH/BED_LENGTH, flagged not resolved."
+            },
+            "c": {
+              "cp_name": "c", "co_name": "INIT_C",
+              "unit": "mol/m^3_IV", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Initial concentration in the bulk mobile phase, per component.",
+              "source": "interface/unit_operations/axial_flow_column_1D_config.rst INIT_C; cadetAdapter.py unit_parameters_map maps INIT_C -> c the same way for every column model, including Cstr."
+            },
+            "cp": {
+              "cp_name": "cp", "co_name": "INIT_CP",
+              "unit": "mol/m^3_MP", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Initial concentration in the particle liquid (pore) phase, per component. Only meaningful for models with an explicit particle pore phase (GRM, LRMP).",
+              "source": "interface/unit_operations/particle_config.rst INIT_CP."
+            },
+            "q": {
+              "cp_name": "q", "co_name": "INIT_Q",
+              "co_name_doc_variant": "INIT_CS",
+              "unit": "mol/m^3_SP", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Initial concentration in the solid (bound) phase, per component. Stays unset (None, hidden) until a real binding model -- not NoBinding -- actually gives the column bound states.",
+              "source": "interface/unit_operations/particle_config.rst INIT_CS (the doc name for what cadetAdapter.py's unit_parameters_map calls INIT_Q for every column model -- same doc/code naming mismatch pattern as COL_LENGTH/BED_LENGTH)."
+            },
+            "pore_accessibility": {
+              "cp_name": "pore_accessibility", "co_name": "PORE_ACCESSIBILITY",
+              "unit": null, "min": 0.0, "min_exclusive": true, "max": 1.0, "max_exclusive": false,
+              "dtype": "float", "component_dependent": true,
+              "description": "Fraction of pore volume accessible to each component (defaults to 1, i.e. fully accessible). Only meaningful for models with a particle pore phase (GRM, LRMP); CADET-Core's own docs say not to combine this with a binding model.",
+              "source": "interface/unit_operations/particle_config.rst PORE_ACCESSIBILITY."
+            },
+            "surface_diffusion": {
+              "cp_name": "surface_diffusion", "co_name": "PAR_SURFDIFFUSION",
+              "co_name_doc_variant": "SURFACE_DIFFUSION",
+              "unit": "m^2_SP/s", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Particle surface diffusion coefficient per bound state of each component. Only applied when CADET-Core's HAS_SURFACE_DIFFUSION flag is set, which the GUI doesn't currently expose -- this stays unset (None, hidden) here.",
+              "source": "interface/unit_operations/particle_config.rst SURFACE_DIFFUSION; cadetAdapter.py unit_parameters_map writes PAR_SURFDIFFUSION for GeneralRateModel -- same doc/code name mismatch pattern as COL_LENGTH/BED_LENGTH."
+            },
+            "flow_direction": {
+              "cp_name": "flow_direction", "co_name": null,
+              "co_name_note": "Not written directly -- CADET-Process flips the sign of the VELOCITY it writes based on this Switch rather than passing it through as its own CADET-Core field.",
+              "unit": null, "min": -1.0, "min_exclusive": false, "max": 1.0, "max_exclusive": false,
+              "dtype": "float", "component_dependent": false,
+              "description": "Flow direction: 1 = forward, -1 = backward. CADET-Process's own Switch descriptor only accepts these two exact values; the bounded numeric field this renders as doesn't restrict entries to just them, same as any other min/max-bounded field -- CADET-Process's setter still rejects anything else on assignment.",
+              "source": "CADETProcess/processModel/unitOperation.py TubularReactorBase.flow_direction = Switch(valid=[-1, 1], default=1); interface/unit_operations/axial_flow_column_1D_config.rst VELOCITY (the field this sign is ultimately applied to)."
             }
           }
         },
@@ -102,7 +147,12 @@
             "bed_porosity": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.bed_porosity" },
             "particle_porosity": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.particle_porosity" },
             "particle_radius": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.particle_radius" },
-            "film_diffusion": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.film_diffusion" }
+            "film_diffusion": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.film_diffusion" },
+            "c": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.c" },
+            "cp": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.cp" },
+            "q": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.q" },
+            "pore_accessibility": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.pore_accessibility" },
+            "flow_direction": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.flow_direction" }
           }
         },
         "LumpedRateModelWithoutPores": {
@@ -116,7 +166,10 @@
               "dtype": "float", "component_dependent": false,
               "description": "Total porosity (bed + particle combined into one lumped value; there are no explicit particles in this model).",
               "source": "interface/unit_operations/axial_flow_column_1D_config.rst TOTAL_POROSITY."
-            }
+            },
+            "c": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.c" },
+            "q": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.q" },
+            "flow_direction": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.flow_direction" }
           }
         },
         "Cstr": {
@@ -129,6 +182,22 @@
               "dtype": "float", "component_dependent": false,
               "description": "Initial liquid volume in the tank.",
               "source": "interface/unit_operations/cstr.rst INIT_LIQUID_VOLUME."
+            },
+            "c": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.c" },
+            "q": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.q" },
+            "flow_rate_filter": {
+              "cp_name": "flow_rate_filter", "co_name": "FLOWRATE_FILTER",
+              "unit": "m^3/s", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": false,
+              "description": "Flow rate of pure liquid (no components) leaving through the CSTR's filter, on top of its regular outlet flow.",
+              "source": "interface/unit_operations/cstr.rst FLOWRATE_FILTER."
+            },
+            "const_solid_volume": {
+              "cp_name": "const_solid_volume", "co_name": "CONST_SOLID_VOLUME",
+              "unit": "m^3", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": false,
+              "description": "Fixed solid-phase volume in the tank, for binding in a CSTR.",
+              "source": "interface/unit_operations/cstr.rst CONST_SOLID_VOLUME."
             }
           }
         }
@@ -250,6 +319,20 @@
               "dtype": "bool", "component_dependent": false,
               "description": "Kinetic (true) vs. quasi-stationary/rapid-equilibrium (false) adsorption. Not in CADET-Process's own required_parameters (it has a non-None default, True), so it never auto-renders -- build_parameter_config_spec adds it explicitly for binding models with a real isotherm.",
               "source": "CADETProcess/processModel/binding.py BindingBaseClass.is_kinetic (Bool, default True); interface/binding/multi_component_langmuir.rst IS_KINETIC."
+            },
+            "reference_liquid_phase_conc": {
+              "cp_name": "reference_liquid_phase_conc", "co_name": "SMA_REFC0",
+              "unit": "mol/m^3_MP", "min": 0.0, "min_exclusive": true, "max": null,
+              "dtype": "float", "component_dependent": false,
+              "description": "Reference liquid phase concentration, used to normalize the adsorption term.",
+              "source": "interface/binding/steric_mass_action.rst SMA_REFC0."
+            },
+            "reference_solid_phase_conc": {
+              "cp_name": "reference_solid_phase_conc", "co_name": "SMA_REFQ",
+              "unit": "mol/m^3_SP", "min": 0.0, "min_exclusive": true, "max": null,
+              "dtype": "float", "component_dependent": false,
+              "description": "Reference solid phase concentration, used to normalize the desorption term.",
+              "source": "interface/binding/steric_mass_action.rst SMA_REFQ."
             }
           }
         }
