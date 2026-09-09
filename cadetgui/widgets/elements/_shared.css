@@ -97,6 +97,26 @@
   border-color: var(--cg-danger);
 }
 
+/* Own class, not .cadetgui-field-input: a dropdown (Column/Binding Model,
+   Process Template) holds full written-out names ("General Rate Model
+   (GRM)"), not a short number/text value -- sharing the 100px input width
+   would truncate every option. */
+.cadetgui-field-select {
+  min-width: 260px;
+  padding: 4px 8px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  background: var(--cg-bg);
+  color: var(--cg-fg);
+  font: inherit;
+}
+
+.cadetgui-field-select:focus {
+  outline: none;
+  border-color: var(--cg-focus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cg-focus) 25%, transparent);
+}
+
 .cadetgui-field-error {
   color: var(--cg-danger);
   font-size: 12px;

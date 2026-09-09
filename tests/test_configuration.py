@@ -9,7 +9,12 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 def test_configuration_widget_renders_default_forms():
     cw = ConfigurationWidget()
-    assert cw._column_picker.option_labels == ["GRM", "LRMP", "LRM", "CSTR"]
+    assert cw._column_picker.option_labels == [
+        "General Rate Model (GRM)",
+        "Lumped Rate Model With Pores (LRMP)",
+        "Lumped Rate Model Without Pores (LRM)",
+        "Continuous Stirred Tank Reactor (CSTR)",
+    ]
     assert len(cw._column_form_box.children) == 1
     assert len(cw._model_form_box.children) == 1
 
@@ -149,7 +154,8 @@ def test_switching_column_type_keeps_binding_model_attachable():
     cw = ConfigurationWidget()
     cw._binding_picker.value = cw._binding_registry["Linear"]
 
-    cw._column_picker.value = cw._columns["LRMP"]  # different column, different ComponentSystem
+    # different column, different ComponentSystem
+    cw._column_picker.value = cw._columns["Lumped Rate Model With Pores (LRMP)"]
 
     assert cw._binding_form.built is not None
     assert cw._binding_form.status.value == ""
@@ -248,7 +254,7 @@ def test_no_binding_does_not_get_an_is_kinetic_field():
 
 def test_column_geometry_fields_default_to_scalar_non_multiplexed():
     cw = ConfigurationWidget()
-    cw._column_picker.value = cw._columns["GRM"]
+    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
 
     by_name = {f.name: f for f in cw._column_form.spec.fields}
     assert by_name["axial_dispersion"].kind == "float"
@@ -259,7 +265,7 @@ def test_column_geometry_fields_default_to_scalar_non_multiplexed():
 def test_enabling_multiplex_switches_field_to_per_component():
     cw = ConfigurationWidget()
     cw._components.value = ["Salt", "Protein"]
-    cw._column_picker.value = cw._columns["GRM"]
+    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
 
     cw._multiplex_checkboxes["axial_dispersion"].value = True
 
@@ -272,13 +278,14 @@ def test_enabling_multiplex_switches_field_to_per_component():
 
 def test_multiplex_settings_hidden_for_column_without_any_applicable_param():
     cw = ConfigurationWidget()
-    cw._column_picker.value = cw._columns["CSTR"]
+    cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
     assert cw._btn_settings.layout.display == "none"
 
 
 def test_multiplex_checkbox_visibility_matches_column_capabilities():
     cw = ConfigurationWidget()
-    cw._column_picker.value = cw._columns["LRM"]  # LumpedRateModelWithoutPores: no particles
+    # LumpedRateModelWithoutPores: no particles
+    cw._column_picker.value = cw._columns["Lumped Rate Model Without Pores (LRM)"]
     assert cw._multiplex_checkboxes["axial_dispersion"].layout.display == ""
     assert cw._multiplex_checkboxes["film_diffusion"].layout.display == "none"
     assert cw._multiplex_checkboxes["pore_diffusion"].layout.display == "none"
@@ -287,7 +294,7 @@ def test_multiplex_checkbox_visibility_matches_column_capabilities():
 def test_scalar_column_field_broadcasts_via_cadetprocess():
     cw = ConfigurationWidget()
     cw._components.value = ["Salt", "Protein", "Impurity"]
-    cw._column_picker.value = cw._columns["GRM"]
+    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
 
     column = cw._get_column()
     assert column.axial_dispersion == [column.axial_dispersion[0]] * 3
@@ -296,7 +303,7 @@ def test_scalar_column_field_broadcasts_via_cadetprocess():
 def test_multiplexed_column_field_keeps_distinct_per_component_values():
     cw = ConfigurationWidget()
     cw._components.value = ["Salt", "Protein"]
-    cw._column_picker.value = cw._columns["GRM"]
+    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
     cw._multiplex_checkboxes["axial_dispersion"].value = True
 
     cw._column_form._elements["axial_dispersion"].value = [1e-8, 2e-8]
@@ -416,7 +423,7 @@ def test_event_chart_clears_when_nothing_is_selectable():
 
 def test_event_chart_y_label_is_flow_rate_quantity_and_unit():
     cw = ConfigurationWidget()  # Batch Elution: every timeline is *.flow_rate
-    assert cw._event_chart.y_label == "Flow rate / (m^3)/s"
+    assert cw._event_chart.y_label == "Flow rate / m^3/s"
 
 
 def test_cycle_time_slider_is_capped_at_300_minutes_by_default():

@@ -9,7 +9,7 @@ function render({ model, el }) {
   wrap.appendChild(labelEl);
 
   const select = document.createElement("select");
-  select.className = "cadetgui-field-input";
+  select.className = "cadetgui-field-select";
 
   function syncSelection() {
     const idx = model.get("selected_index");

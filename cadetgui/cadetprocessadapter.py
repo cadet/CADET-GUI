@@ -189,13 +189,15 @@ def make_cstr(cs: ComponentSystem) -> ChromatographicColumnBase:
     return col
 
 
-# Register default factories here
+# Register default factories here. Keys double as the dropdown's option
+# labels -- written out in full (not just the acronym), matching
+# DEFAULT_BINDING_FACTORIES' "Steric Mass Action (SMA)" and
+# MODEL_REGISTRY's "Load-Wash-Elute (LWE)".
 DEFAULT_COLUMN_FACTORIES: Dict[str, ColumnFactory] = {
-    "GRM": make_grm,
-    "LRMP": make_lrmp,
-    "LRM": make_lrm,
-    "CSTR": make_cstr,
-
+    "General Rate Model (GRM)": make_grm,
+    "Lumped Rate Model With Pores (LRMP)": make_lrmp,
+    "Lumped Rate Model Without Pores (LRM)": make_lrm,
+    "Continuous Stirred Tank Reactor (CSTR)": make_cstr,
 }
 
 BindingFactory = Callable[[ComponentSystem], BindingBaseClass]
