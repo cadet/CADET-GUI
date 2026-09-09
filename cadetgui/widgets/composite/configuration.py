@@ -317,7 +317,7 @@ class ConfigurationWidget:
                 max=default * 5 if default > 0 else 1.0,
                 step=step,
                 readout=False,  # the linked field already shows the value
-                layout=W.Layout(width="220px"),
+                layout=W.Layout(width="100%", max_width="220px", min_width="120px"),
             )
             # dlink + rounding, not link: the browser's slider reports
             # position as a float with drag-accumulated noise (e.g.
@@ -340,7 +340,19 @@ class ConfigurationWidget:
                 ),
                 None,
             )
-            new_children.append(W.HBox([child, paired]) if paired is not None else child)
+            if paired is not None:
+                # wrap, not nowrap (ipywidgets HBox's default): on a narrow
+                # window the field row alone doesn't shrink below its own
+                # intrinsic width, so a same-line slider had nowhere to go
+                # but overlap it -- let the slider drop to its own line
+                # instead.
+                pair_row = W.HBox(
+                    [child, paired],
+                    layout=W.Layout(flex_flow="row wrap", align_items="center"),
+                )
+                new_children.append(pair_row)
+            else:
+                new_children.append(child)
         self._model_form.root.children = tuple(new_children)
 
         self._event_plot_label.layout.display = "" if self._event_sliders else "none"
