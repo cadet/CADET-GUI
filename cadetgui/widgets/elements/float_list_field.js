@@ -117,9 +117,16 @@ function render({ model, el }) {
     model.save_changes();
   }
 
-  function addRow(value, componentName) {
+  function addRow(value, componentName, showName) {
     const row = document.createElement("div");
     row.className = "cadetgui-field-list-row";
+
+    if (showName && componentName !== undefined) {
+      const nameEl = document.createElement("span");
+      nameEl.className = "cadetgui-field-component-name";
+      nameEl.textContent = componentName;
+      row.appendChild(nameEl);
+    }
 
     const input = document.createElement("input");
     input.type = "number";
@@ -145,27 +152,25 @@ function render({ model, el }) {
     unitEl.hidden = !model.get("units");
     row.appendChild(unitEl);
 
-    const names = model.get("component_names") || [];
-    if (componentName !== undefined && names.length > 1) {
-      const nameEl = document.createElement("span");
-      nameEl.className = "cadetgui-field-component-name";
-      nameEl.textContent = `[${componentName}]`;
-      row.appendChild(nameEl);
-    }
-
     rows.appendChild(row);
   }
 
   function syncFromModel() {
     rows.innerHTML = "";
     const names = model.get("component_names") || [];
+    const values = model.get("value") || [];
+    // Stack (label on top, rows indented below with a name to the left of
+    // each input) only when there's more than one row -- a single row
+    // stays a normal inline field, same alignment as everything else.
+    const rowCount = names.length > 0 ? names.length : Math.max(values.length, 1);
+    const stacked = rowCount > 1;
+    wrap.classList.toggle("cadetgui-field-list-stacked", stacked);
+
     if (names.length > 0) {
-      const values = model.get("value") || [];
-      names.forEach((name, i) => addRow(values[i] ?? 0, name));
+      names.forEach((name, i) => addRow(values[i] ?? 0, name, stacked));
       return;
     }
-    const values = model.get("value") || [];
-    (values.length ? values : [0]).forEach((v) => addRow(v));
+    (values.length ? values : [0]).forEach((v) => addRow(v, undefined, stacked));
   }
 
   const addBtn = document.createElement("button");

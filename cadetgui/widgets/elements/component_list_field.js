@@ -57,7 +57,11 @@ function render({ model, el }) {
   function syncFromModel() {
     rows.innerHTML = "";
     const names = model.get("value") || [];
-    (names.length ? names : ["Component 1"]).forEach((n) => addRow(n));
+    const list = names.length ? names : ["Component 1"];
+    list.forEach((n) => addRow(n));
+    // Same rule as FloatListField: only stack (label on top, rows
+    // indented below) once there's more than one row.
+    wrap.classList.toggle("cadetgui-field-list-stacked", list.length > 1);
     updateCounter();
   }
 
