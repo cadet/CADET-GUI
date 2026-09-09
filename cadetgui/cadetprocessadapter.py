@@ -357,6 +357,16 @@ def build_parameter_config_spec(
     req = getattr(obj, "required_parameters", None) or []
     names = _unique_preserve_order(list(req))
     category, model_name = _category_and_model(obj)
+
+    # is_kinetic isn't in CADET-Process's own required_parameters (it has a
+    # non-None default, True), but every binding model with a real isotherm
+    # still needs it settable -- a GUI decision, not a CADET-Process one.
+    # `names` is only non-empty for binding models that actually have an
+    # isotherm (NoBinding's required_parameters is []), so this skips it
+    # there without hardcoding a class name.
+    if category == "binding" and names:
+        names.append("is_kinetic")
+
     component_names = tuple(obj.component_system.names) if hasattr(obj, "component_system") else ()
     fields: list[FieldSpec] = []
     kinds: dict[str, str] = {}

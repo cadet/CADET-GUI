@@ -129,6 +129,7 @@ def test_switching_binding_model_rebuilds_its_form():
         "adsorption_rate",
         "desorption_rate",
         "capacity",
+        "is_kinetic",
     }
 
 
@@ -220,6 +221,29 @@ def test_binding_form_fields_get_component_names_matching_component_system():
     by_name = {f.name: f for f in cw._binding_form.spec.fields}
     assert by_name["adsorption_rate"].component_names == ("Salt", "Protein")
     assert by_name["desorption_rate"].component_names == ("Salt", "Protein")
+
+
+def test_binding_form_exposes_is_kinetic_defaulting_to_true():
+    cw = ConfigurationWidget()
+    cw._binding_picker.value = cw._binding_registry["Linear"]
+
+    element = cw._binding_form.element("is_kinetic")
+    assert element.value is True  # CADET-Process's own default
+    assert cw._get_column().binding_model.is_kinetic is True
+
+
+def test_unchecking_is_kinetic_commits_to_the_real_binding_model():
+    cw = ConfigurationWidget()
+    cw._binding_picker.value = cw._binding_registry["Langmuir"]
+
+    cw._binding_form.element("is_kinetic").value = False
+
+    assert cw._get_column().binding_model.is_kinetic is False
+
+
+def test_no_binding_does_not_get_an_is_kinetic_field():
+    cw = ConfigurationWidget()  # binding defaults to "None" -> NoBinding
+    assert "is_kinetic" not in {f.name for f in cw._binding_form.spec.fields}
 
 
 def test_column_geometry_fields_default_to_scalar_non_multiplexed():

@@ -159,6 +159,13 @@
               "dtype": "float", "component_dependent": true,
               "description": "Desorption rate constant.",
               "source": "interface/binding/linear.rst LIN_KD."
+            },
+            "is_kinetic": {
+              "cp_name": "is_kinetic", "co_name": "IS_KINETIC",
+              "unit": null, "min": null, "min_exclusive": false, "max": null,
+              "dtype": "bool", "component_dependent": false,
+              "description": "Kinetic (true) vs. quasi-stationary/rapid-equilibrium (false) adsorption. Not in CADET-Process's own required_parameters (it has a non-None default, True), so it never auto-renders -- build_parameter_config_spec adds it explicitly for binding models with a real isotherm.",
+              "source": "CADETProcess/processModel/binding.py BindingBaseClass.is_kinetic (Bool, default True); interface/binding/multi_component_langmuir.rst IS_KINETIC."
             }
           }
         },
@@ -186,6 +193,13 @@
               "dtype": "float", "component_dependent": true,
               "description": "Maximum adsorption capacity, per component. Unlike StericMassAction.capacity (a single scalar shared by all components), Langmuir's capacity is genuinely per-component.",
               "source": "interface/binding/multi_component_langmuir.rst MCL_QMAX; CADETProcess/processModel/binding.py Langmuir.capacity = SizedUnsignedList(size=\"n_comp\")."
+            },
+            "is_kinetic": {
+              "cp_name": "is_kinetic", "co_name": "IS_KINETIC",
+              "unit": null, "min": null, "min_exclusive": false, "max": null,
+              "dtype": "bool", "component_dependent": false,
+              "description": "Kinetic (true) vs. quasi-stationary/rapid-equilibrium (false) adsorption. Not in CADET-Process's own required_parameters (it has a non-None default, True), so it never auto-renders -- build_parameter_config_spec adds it explicitly for binding models with a real isotherm.",
+              "source": "CADETProcess/processModel/binding.py BindingBaseClass.is_kinetic (Bool, default True); interface/binding/multi_component_langmuir.rst IS_KINETIC."
             }
           }
         },
@@ -229,6 +243,13 @@
               "dtype": "float", "component_dependent": false,
               "description": "Stationary phase (ionic) capacity -- a single value shared by the whole resin, not per component. Unlike Langmuir.capacity (per-component), this is a scalar (length 1).",
               "source": "interface/binding/steric_mass_action.rst SMA_LAMBDA (Length: 1); CADETProcess/processModel/binding.py StericMassAction.capacity = UnsignedFloat()."
+            },
+            "is_kinetic": {
+              "cp_name": "is_kinetic", "co_name": "IS_KINETIC",
+              "unit": null, "min": null, "min_exclusive": false, "max": null,
+              "dtype": "bool", "component_dependent": false,
+              "description": "Kinetic (true) vs. quasi-stationary/rapid-equilibrium (false) adsorption. Not in CADET-Process's own required_parameters (it has a non-None default, True), so it never auto-renders -- build_parameter_config_spec adds it explicitly for binding models with a real isotherm.",
+              "source": "CADETProcess/processModel/binding.py BindingBaseClass.is_kinetic (Bool, default True); interface/binding/multi_component_langmuir.rst IS_KINETIC."
             }
           }
         }
