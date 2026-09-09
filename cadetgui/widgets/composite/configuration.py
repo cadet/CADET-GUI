@@ -275,9 +275,9 @@ class ConfigurationWidget:
         self._rebuild_event_sliders()
 
         self.status.value = (
-            "<em>Configure the column, binding model, and process, then Apply each"
-            " (in that order — the process picks up whatever's applied on column"
-            " and binding model at the time).</em>"
+            "<em>Fields apply automatically as you edit them"
+            " (column and binding model first, since the process picks up"
+            " whatever's currently set on them).</em>"
         )
 
     def _clear_event_section(self) -> None:
@@ -289,10 +289,12 @@ class ConfigurationWidget:
         """Slider per scalar timing/flow field, spliced right next to its own field.
 
         Only `float`-kind fields get a slider — the per-component
-        concentration fields stay list-editors, untouched. A slider move
-        rebuilds a throwaway process (cheap: no solver call) and redraws
-        `process.plot_events()`; it does not commit to `.process` or notify
-        listeners — only the form's own Apply button does that.
+        concentration fields stay list-editors, untouched. Each slider is
+        dlinked to its field's value, so a slider move flows through the
+        form's own auto-commit exactly like typing a new value would
+        (cheap: no solver call, just rebuilds the process) — `.process` and
+        listeners update the same way either way. `_redraw_event_plot`
+        then just redraws from the form's freshly committed build.
         """
         self._event_sliders = {}
         if self._model_form is None:
@@ -345,12 +347,14 @@ class ConfigurationWidget:
         self._redraw_event_plot()
 
     def _redraw_event_plot(self) -> None:
-        if self._model_form is None or not self._model_form.is_valid:
+        # Reuse the form's own auto-committed build rather than building
+        # again here: the slider is dlinked to the field, so by the time
+        # this observer runs (registered after the dlink), the form has
+        # already auto-committed and `.built` is current.
+        if self._model_form is None or self._model_form.built is None:
             return
         try:
-            values = self._model_form.collect_values()
-            preview = self._model_form.spec.build(values)
-            fig, axes = preview.plot_events(x_axis_in_minutes=True)
+            fig, axes = self._model_form.built.plot_events(x_axis_in_minutes=True)
         except Exception:
             return
         axes = list(axes) if hasattr(axes, "__iter__") else [axes]
@@ -394,7 +398,7 @@ class ConfigurationWidget:
             or self._model_form is None
         ):
             raise RuntimeError(
-                "Nothing built yet — Apply the column, binding model, and process forms first."
+                "Nothing built yet — pick a column, binding model, and process template first."
             )
 
         column = self._get_column()

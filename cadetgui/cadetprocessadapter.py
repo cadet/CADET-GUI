@@ -378,12 +378,8 @@ def build_parameter_config_spec(
         for name in names:
             if name not in values:
                 continue
-            try:
-                coerced = _coerce_to_kind(kinds[name], values[name])
-                setattr(obj, name, coerced)
-            except Exception:
-                # swallow and continue so one bad value doesn't block the rest
-                continue
+            coerced = _coerce_to_kind(kinds[name], values[name])
+            setattr(obj, name, coerced)
         return obj
 
     return ModelSpec(

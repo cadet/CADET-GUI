@@ -59,7 +59,7 @@ def element_for_field(f: FieldSpec) -> Element:
 
 
 class FormRenderer:
-    """Render a ModelSpec into a form of Elements; build an object on Apply."""
+    """Render a ModelSpec into a form of Elements; auto-commits on every valid change."""
 
     def __init__(
         self, spec: ModelSpec, *, on_built: Optional[Callable[[Any], None]] = None
@@ -70,19 +70,20 @@ class FormRenderer:
         self.status = W.HTML("<em>Ready.</em>")
 
         self._elements: Dict[str, Element] = {f.name: element_for_field(f) for f in spec.fields}
+        for element in self._elements.values():
+            element.observe(self._on_field_changed, names="value")
 
-        self._btn_apply = W.Button(description="Apply", button_style="success")
         self._btn_reset = W.Button(description="Reset")
-        self._btn_apply.on_click(self._on_apply)
         self._btn_reset.on_click(self._on_reset)
 
         header = W.HTML(f"<div class='cadetgui-panel-title'>{spec.title}</div>")
-        actions = W.HBox([self._btn_apply, self._btn_reset])
         rows = [self._elements[f.name] for f in spec.fields]
         self.status.add_class("cadetgui-status")
-        self.root = W.VBox([W.HTML(style_tag()), header, *rows, actions, self.status])
+        self.root = W.VBox([W.HTML(style_tag()), header, *rows, self._btn_reset, self.status])
         self.root.add_class("cadetgui-panel")
         self.root.add_class("cadetgui-section")
+
+        self._commit()
 
     @property
     def is_valid(self) -> bool:
@@ -101,10 +102,16 @@ class FormRenderer:
             values[f.name] = f.transform(raw) if f.transform else raw
         return values
 
-    def _on_apply(self, _btn: Any) -> None:
+    def _on_field_changed(self, change: dict) -> None:
+        if change.get("name") != "value":
+            return
+        self._commit()
+
+    def _commit(self) -> None:
         if not self.is_valid:
+            self.built = None
             self.status.value = (
-                "<span style='color:#b00020'>Fix invalid fields before applying.</span>"
+                "<span style='color:#b00020'>Fix the highlighted field(s) to continue.</span>"
             )
             return
         try:
@@ -112,7 +119,7 @@ class FormRenderer:
             if self.spec.build is None:
                 raise RuntimeError("Spec has no 'build' function.")
             self.built = self.spec.build(values)
-            self.status.value = "<em>Built successfully.</em>"
+            self.status.value = ""  # nothing to say when things are fine
             if self._on_built is not None:
                 self._on_built(self.built)
         except Exception as exc:  # noqa: BLE001
@@ -122,7 +129,7 @@ class FormRenderer:
     def _on_reset(self, _btn: Any) -> None:
         for f in self.spec.fields:
             self._elements[f.name].value = _coerced_default(f)
-        self.status.value = "<em>Reset to defaults.</em>"
+        self._commit()
 
     def display(self) -> None:
         """Render this form in a Jupyter cell."""

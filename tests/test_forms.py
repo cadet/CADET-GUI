@@ -60,22 +60,25 @@ def test_form_renders_one_element_per_field_with_defaults():
     assert form.is_valid
 
 
-def test_form_apply_builds_object_from_current_values():
+def test_form_builds_object_from_defaults_on_construction():
+    form = FormRenderer(make_spec())
+    assert form.built == {"rate": 1.0, "name": "col", "active": True, "levels": [1.0, 2.0]}
+    assert form.status.value == ""
+
+
+def test_form_auto_commits_on_a_valid_field_change():
     form = FormRenderer(make_spec())
     form._elements["rate"].value = 5.0
-    form._on_apply(None)
     assert form.built == {"rate": 5.0, "name": "col", "active": True, "levels": [1.0, 2.0]}
-    assert "built" in form.status.value.lower()
+    assert form.status.value == ""
 
 
-def test_form_apply_blocked_when_a_field_is_invalid():
+def test_form_commit_blocked_when_a_field_is_invalid():
     form = FormRenderer(make_spec())
     form._elements["rate"].value = -1.0
     assert not form.is_valid
-
-    form._on_apply(None)
     assert form.built is None
-    assert "invalid" in form.status.value.lower()
+    assert "invalid" in form.status.value.lower() or "fix" in form.status.value.lower()
 
 
 def test_form_reset_restores_defaults():
@@ -88,13 +91,12 @@ def test_form_reset_restores_defaults():
     assert form._elements["active"].value is True
 
 
-def test_form_apply_reports_build_exception_without_raising():
+def test_form_reports_build_exception_without_raising():
     def failing_build(values):
         raise RuntimeError("boom")
 
     fields = [FieldSpec("x", "float", default=1.0)]
     spec = ModelSpec(title="Fail", fields=fields, build=failing_build)
     form = FormRenderer(spec)
-    form._on_apply(None)
     assert form.built is None
     assert "boom" in form.status.value

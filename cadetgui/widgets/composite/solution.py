@@ -97,6 +97,9 @@ class SolutionWidget:
             return
 
         label = getattr(self.process, "name", type(self.process).__name__)
+        self._btn_run.disabled = True
+        self._btn_run.description = "Running..."
+        self.status.value = "<span class='cadetgui-spinner'></span><em>Running simulation…</em>"
         try:
             result = self._runner(self.process)
         except Exception as exc:  # noqa: BLE001
@@ -104,6 +107,9 @@ class SolutionWidget:
             self.history.record(label, error=str(exc))
             self.status.value = f"<span style='color:#b00020'>Simulation failed: {exc}</span>"
             return
+        finally:
+            self._btn_run.disabled = False
+            self._btn_run.description = "Run simulation"
 
         self.history.record(label, result=result)
         self._load_result(result)

@@ -7,6 +7,7 @@ import matplotlib
 
 matplotlib.use("Agg")  # headless test environment, no display needed
 
+from cadetgui.simulation import run_process as _default_runner
 from cadetgui.widgets.composite import (
     ConfigurationWidget,
     DataImportWidget,
@@ -30,9 +31,7 @@ def upload_csv(widget: DataImportWidget, filename: str, csv_text: str) -> None:
 
 
 def built_process():
-    cw = ConfigurationWidget()
-    cw._column_form._on_apply(None)
-    cw._model_form._on_apply(None)
+    cw = ConfigurationWidget()  # auto-commits its defaults on construction
     return cw.process
 
 
@@ -48,21 +47,20 @@ def test_solutionwidget_set_process_updates_label():
     assert "Batch Elution" in sw._process_label.value
 
 
-def test_solutionwidget_bind_to_config_tracks_future_builds():
+def test_solutionwidget_bind_to_config_tracks_future_field_changes():
     cw = ConfigurationWidget()
     sw = SolutionWidget()
     sw.bind_to_config(cw)
-    assert sw.process is None  # nothing built yet
+    assert sw.process is cw.process  # already auto-built by the time we bind
 
-    cw._column_form._on_apply(None)
-    cw._model_form._on_apply(None)
+    first_process = cw.process
+    cw._model_form.element("flow_rate").value = 5e-6
     assert sw.process is cw.process
+    assert sw.process is not first_process  # picked up the fresh auto-rebuild
 
 
 def test_solutionwidget_bind_to_config_picks_up_existing_process():
     cw = ConfigurationWidget()
-    cw._column_form._on_apply(None)
-    cw._model_form._on_apply(None)
 
     sw = SolutionWidget()
     sw.bind_to_config(cw)
@@ -74,6 +72,34 @@ def test_solutionwidget_run_without_process_shows_error():
     sw._on_run(None)
     assert sw.result is None
     assert "No process" in sw.status.value
+
+
+def test_solutionwidget_shows_spinner_and_disables_button_while_running():
+    sw = SolutionWidget(process=built_process())
+    seen = {}
+
+    def spying_runner(process):
+        seen["disabled"] = sw._btn_run.disabled
+        seen["description"] = sw._btn_run.description
+        seen["status"] = sw.status.value
+        return _default_runner(process)
+
+    sw._runner = spying_runner
+    sw._on_run(None)
+
+    assert seen["disabled"] is True
+    assert seen["description"] == "Running..."
+    assert "cadetgui-spinner" in seen["status"]
+    assert sw._btn_run.disabled is False  # reset once the run finishes
+    assert sw._btn_run.description == "Run simulation"
+
+
+def test_solutionwidget_resets_button_even_when_run_fails():
+    sw = SolutionWidget(process=object())  # not a real process -> runner raises
+    sw._on_run(None)
+
+    assert sw._btn_run.disabled is False
+    assert sw._btn_run.description == "Run simulation"
 
 
 def test_solutionwidget_run_populates_signals_and_plots():

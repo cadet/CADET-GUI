@@ -14,22 +14,19 @@ def test_configuration_widget_renders_default_forms():
     assert len(cw._model_form_box.children) == 1
 
 
-def test_configuration_widget_builds_process_on_both_applies():
+def test_configuration_widget_builds_process_automatically_with_defaults():
     cw = ConfigurationWidget()
-    cw._column_form._on_apply(None)
-    cw._model_form._on_apply(None)
 
     assert cw.process is not None
     assert type(cw.process).__name__ == "BatchElution"
 
 
-def test_configuration_widget_notifies_listeners_on_build():
+def test_configuration_widget_notifies_listeners_on_a_valid_field_change():
     cw = ConfigurationWidget()
     seen = []
     cw.add_listener(seen.append)
 
-    cw._column_form._on_apply(None)
-    cw._model_form._on_apply(None)
+    cw._model_form.element("flow_rate").value = 2e-6
 
     assert len(seen) == 1
     assert seen[0] is cw.process
@@ -58,19 +55,30 @@ def test_configuration_widget_rebuilds_column_on_component_change():
     assert original_column not in cw._column_cache.values()
 
 
-def test_export_script_raises_before_anything_is_built():
+def test_export_script_raises_when_nothing_has_been_built():
+    # With auto-commit, this state isn't reachable through the default
+    # registries (their defaults always build successfully) -- force it
+    # directly to keep the guard clause itself covered.
     cw = ConfigurationWidget()
+    cw.process = None
+    cw._column_form = None
+    cw._binding_form = None
+    cw._model_form = None
     try:
         cw.export_script()
         assert False, "should have raised"
     except RuntimeError as exc:
-        assert "Apply" in str(exc)
+        assert "column" in str(exc).lower()
 
 
-def test_export_script_button_shows_error_status_before_build():
+def test_export_script_button_shows_error_status_when_nothing_has_been_built():
     cw = ConfigurationWidget()
+    cw.process = None
+    cw._column_form = None
+    cw._binding_form = None
+    cw._model_form = None
     cw._on_export(None)
-    assert "Apply" in cw.status.value
+    assert "column" in cw.status.value.lower()
     assert cw._script_out.layout.display == "none"
 
 
@@ -78,8 +86,6 @@ def test_export_script_produces_executable_equivalent_process():
     import numpy as np
 
     cw = ConfigurationWidget()
-    cw._column_form._on_apply(None)
-    cw._model_form._on_apply(None)
 
     script = cw.export_script()
     ns = {}
@@ -103,8 +109,6 @@ def test_export_script_produces_executable_equivalent_process():
 
 def test_export_script_button_populates_textarea_on_success():
     cw = ConfigurationWidget()
-    cw._column_form._on_apply(None)
-    cw._model_form._on_apply(None)
 
     cw._on_export(None)
     assert "process = " in cw._script_out.value
@@ -128,10 +132,9 @@ def test_switching_binding_model_rebuilds_its_form():
     }
 
 
-def test_applying_binding_form_attaches_it_to_the_column():
+def test_selecting_binding_model_attaches_it_to_the_column():
     cw = ConfigurationWidget()
     cw._binding_picker.value = cw._binding_registry["Linear"]
-    cw._binding_form._on_apply(None)
 
     column = cw._get_column()
     assert type(column.binding_model).__name__ == "Linear"
@@ -144,13 +147,11 @@ def test_switching_column_type_keeps_binding_model_attachable():
     since-replaced column must not be reused as-is."""
     cw = ConfigurationWidget()
     cw._binding_picker.value = cw._binding_registry["Linear"]
-    cw._binding_form._on_apply(None)
 
     cw._column_picker.value = cw._columns["LRMP"]  # different column, different ComponentSystem
-    cw._binding_form._on_apply(None)  # must not raise / must not fail validation
 
     assert cw._binding_form.built is not None
-    assert "Built successfully" in cw._binding_form.status.value
+    assert cw._binding_form.status.value == ""
     column = cw._get_column()
     assert type(column.binding_model).__name__ == "Linear"
     assert column.binding_model.component_system is column.component_system
@@ -162,9 +163,6 @@ def test_export_script_includes_binding_model_and_round_trips():
 
     cw = ConfigurationWidget()
     cw._binding_picker.value = cw._binding_registry["Linear"]
-    cw._column_form._on_apply(None)
-    cw._binding_form._on_apply(None)
-    cw._model_form._on_apply(None)
 
     script = cw.export_script()
     assert "column.binding_model = Linear(" in script
@@ -202,12 +200,10 @@ def test_binding_model_scales_to_multiple_named_components():
     cw = ConfigurationWidget()
     cw._components.value = ["Salt", "Protein"]
     cw._binding_picker.value = cw._binding_registry["Linear"]
-    cw._column_form._on_apply(None)
-    cw._binding_form._on_apply(None)
 
     column = cw._get_column()
     assert column.binding_model.n_comp == 2
-    assert cw._binding_form.status.value == "<em>Built successfully.</em>"
+    assert cw._binding_form.status.value == ""
     # NOTE: applying the model form itself (batch_elution_spec/lwe_spec) is not
     # exercised with >1 component here — those specs hard-code single-value
     # concentration defaults (e.g. c_feed=[10.0]) that CADET-Process rejects
@@ -264,12 +260,11 @@ def test_multiplex_checkbox_visibility_matches_column_capabilities():
     assert cw._multiplex_checkboxes["pore_diffusion"].layout.display == "none"
 
 
-def test_scalar_column_field_broadcasts_via_cadetprocess_on_apply():
+def test_scalar_column_field_broadcasts_via_cadetprocess():
     cw = ConfigurationWidget()
     cw._components.value = ["Salt", "Protein", "Impurity"]
     cw._column_picker.value = cw._columns["GRM"]
 
-    cw._column_form._on_apply(None)
     column = cw._get_column()
     assert column.axial_dispersion == [column.axial_dispersion[0]] * 3
 
@@ -281,7 +276,6 @@ def test_multiplexed_column_field_keeps_distinct_per_component_values():
     cw._multiplex_checkboxes["axial_dispersion"].value = True
 
     cw._column_form._elements["axial_dispersion"].value = [1e-8, 2e-8]
-    cw._column_form._on_apply(None)
 
     column = cw._get_column()
     assert column.axial_dispersion == [1e-8, 2e-8]
@@ -301,9 +295,6 @@ def test_concentration_fields_are_sized_and_named_from_component_system():
 def test_export_script_reflects_a_renamed_single_component():
     cw = ConfigurationWidget()
     cw._components.value = ["MyProtein"]  # still one component, just renamed
-    cw._column_form._on_apply(None)
-    cw._binding_form._on_apply(None)
-    cw._model_form._on_apply(None)
 
     script = cw.export_script()
     assert "component_system = ComponentSystem(['MyProtein'])" in script
@@ -345,9 +336,8 @@ def test_editing_form_field_updates_the_linked_event_slider():
     assert cw._event_sliders["flow_rate"].value == element.value
 
 
-def test_moving_event_slider_after_column_applied_rebuilds_a_preview_process():
+def test_moving_event_slider_rebuilds_a_preview_process():
     cw = ConfigurationWidget()
-    cw._column_form._on_apply(None)
 
     seen = []
     original_build = cw._model_form.spec.build
@@ -359,9 +349,11 @@ def test_moving_event_slider_after_column_applied_rebuilds_a_preview_process():
     assert seen[0]["cycle_time"] == cw._event_sliders["cycle_time"].value
 
 
-def test_moving_event_slider_before_column_applied_does_not_crash():
+def test_moving_event_slider_with_invalid_column_field_does_not_crash():
     cw = ConfigurationWidget()
-    cw._event_sliders["cycle_time"].value += 1.0  # column still has unconfigured geometry
+    cw._column_form._elements["length"].value = -1.0  # CADET-Process rejects this on setattr
+
+    cw._event_sliders["cycle_time"].value += 1.0  # must not raise despite the column error
 
 
 def test_switching_column_type_rebuilds_event_sliders_without_stale_links():
@@ -374,3 +366,47 @@ def test_switching_column_type_rebuilds_event_sliders_without_stale_links():
     assert new_slider is not old_slider
     old_slider.value = old_slider.value + 1.0  # must no longer affect the live form
     assert cw._model_form.element("flow_rate").value != old_slider.value
+
+
+def test_invalid_field_value_is_not_committed_and_shows_an_inline_error():
+    cw = ConfigurationWidget()
+    element = cw._model_form.element("flow_rate")  # has validate=require_positive
+
+    element.value = -1.0
+
+    assert not element.is_valid
+    assert element.error  # shown inline under the field itself
+    assert not cw._model_form.is_valid
+    assert cw._model_form.built is None
+
+
+def test_invalid_field_value_leaves_the_last_good_process_in_place():
+    cw = ConfigurationWidget()
+    good_process = cw.process
+    assert good_process is not None
+
+    cw._model_form.element("flow_rate").value = -1.0  # invalid: blocked before committing
+
+    assert cw.process is good_process  # untouched -- Run/Export still work off it
+
+
+def test_cadetprocess_level_rejection_surfaces_as_a_status_error_without_crashing():
+    cw = ConfigurationWidget()
+
+    cw._column_form._elements["length"].value = -1.0  # no client-side validator for this field
+
+    assert "lower bound" in cw._column_form.status.value.lower()
+    assert cw._get_column().length != -1.0  # CADET-Process's own setter rejected it
+
+
+def test_fixing_an_invalid_value_recommits_automatically():
+    cw = ConfigurationWidget()
+    element = cw._model_form.element("flow_rate")
+    element.value = -1.0
+    assert cw._model_form.built is None
+
+    element.value = 3e-6
+
+    assert cw._model_form.is_valid
+    assert cw._model_form.built is not None
+    assert cw.process is cw._model_form.built
