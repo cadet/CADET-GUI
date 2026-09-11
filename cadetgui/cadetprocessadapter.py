@@ -524,3 +524,27 @@ def build_parameter_config_spec(
         fields=fields,
         build=_apply,
     )
+
+
+def classify_signal_ports(result: Any) -> list[tuple[str, tuple[str, str]]]:
+    """List (label, (unit, port)) solution signals, collapsed for Inlet/Outlet units.
+
+    An `Inlet`'s "inlet" port and an `Outlet`'s "outlet" port are CADET-Process
+    bookkeeping, not real signals -- identical to that same unit's other port
+    for every current template. Only the real port is offered, labeled
+    "Source"/"Sink" rather than the (there, meaningless) port name.
+    """
+    units = result.process.flow_sheet.units_dict
+    options: list[tuple[str, tuple[str, str]]] = []
+    for unit_name, ports in result.solution.items():
+        unit = units.get(unit_name)
+        if isinstance(unit, Inlet):
+            if "outlet" in ports:
+                options.append((f"{unit_name}: Source", (unit_name, "outlet")))
+        elif isinstance(unit, Outlet):
+            if "inlet" in ports:
+                options.append((f"{unit_name}: Sink", (unit_name, "inlet")))
+        else:
+            for port in ports:
+                options.append((f"{unit_name}: {port}", (unit_name, port)))
+    return options

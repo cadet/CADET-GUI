@@ -144,6 +144,19 @@ def test_signal_list_source_and_sink_options_point_at_the_real_port():
     assert options["outlet: Sink"] == ("outlet", "inlet")
 
 
+def test_classify_signal_ports_is_usable_standalone_from_the_adapter():
+    # SolutionWidget is a thin caller -- the classification itself lives in
+    # cadetprocessadapter.py (framework-agnostic, no ipywidgets import).
+    from cadetgui.cadetprocessadapter import classify_signal_ports
+    from cadetgui.simulation import run_process
+
+    process = built_process()
+    result = run_process(process)
+    options = dict(classify_signal_ports(result))
+    assert options["feed: Source"] == ("feed", "outlet")
+    assert options["column: inlet"] == ("column", "inlet")
+
+
 def test_solutionwidget_selection_persists_across_reruns():
     sw = SolutionWidget(process=built_process())
     sw._on_run(None)

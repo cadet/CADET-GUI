@@ -22,6 +22,7 @@ from ...configuration_store import (
     ConfigurationState,
     compute_hash,
     load_from_store,
+    load_h5,
     save_to_store,
 )
 from .._chrome import style_tag
@@ -86,7 +87,10 @@ class ConfigurationWidget:
         self._event_sliders: Dict[str, W.FloatSlider] = {}
         self._cycle_time_minutes_element: Optional[FloatField] = None
         self.config_name: str = _DEFAULT_CONFIG_NAME
-        self.config_hash: Optional[str] = None
+        # Set around _apply_state()'s picker/component writes so each one's own
+        # observer doesn't trigger its own full rebuild -- one rebuild for the
+        # whole restored selection instead of one per field touched.
+        self._suspend_rebuild = False
         # None = use configuration_store.default_store_dir(); set via the
         # "Storage folder" field below once the user picks one explicitly.
         self._store_dir: Optional[Path] = None
@@ -341,7 +345,7 @@ class ConfigurationWidget:
             self._rebuild_forms()
 
     def add_listener(self, fn: Callable[[Any], None]) -> None:
-        """Register a callback fired with `.process` on every successful build."""
+        """Register a callback fired with `.process` on every build or name change."""
         self._listeners.append(fn)
 
     def _notify(self) -> None:
@@ -422,22 +426,24 @@ class ConfigurationWidget:
             return True
         return False
 
+    def _toggle_box(self, box: W.Widget) -> bool:
+        """Show/hide `box` (a `display: none` VBox); return whether it is now shown."""
+        shown = box.layout.display == "none"
+        box.layout.display = "" if shown else "none"
+        return shown
+
     def _on_toggle_settings(self, _btn: Any) -> None:
-        shown = self._settings_box.layout.display != "none"
-        self._settings_box.layout.display = "none" if shown else ""
+        self._toggle_box(self._settings_box)
 
     def _on_toggle_binding_settings(self, _btn: Any) -> None:
-        shown = self._binding_settings_box.layout.display != "none"
-        self._binding_settings_box.layout.display = "none" if shown else ""
+        self._toggle_box(self._binding_settings_box)
 
     def _on_toggle_process_settings(self, _btn: Any) -> None:
-        shown = self._process_settings_box.layout.display != "none"
-        self._process_settings_box.layout.display = "none" if shown else ""
+        self._toggle_box(self._process_settings_box)
 
     def _on_toggle_save_load_details(self, _btn: Any) -> None:
-        shown = self._save_load_details_box.layout.display != "none"
-        self._save_load_details_box.layout.display = "none" if shown else ""
-        self._btn_toggle_save_load_details.description = "Show details" if shown else "Hide details"
+        shown = self._toggle_box(self._save_load_details_box)
+        self._btn_toggle_save_load_details.description = "Hide details" if shown else "Show details"
 
     def _make_on_multiplex_change(self, name: str) -> Callable[[dict], None]:
         def _on_change(change: dict) -> None:
@@ -460,7 +466,7 @@ class ConfigurationWidget:
 
     def _on_process_built(self, built: Any) -> None:
         self.process = built
-        self._refresh_config_hash()
+        self._refresh_hash_display()
         self._notify()
         self.status.value = "<em>Process built.</em>"
 
@@ -488,11 +494,15 @@ class ConfigurationWidget:
             model_values=self._model_form.collect_values(),
         )
 
-    def _refresh_config_hash(self) -> None:
+    @property
+    def config_hash(self) -> Optional[str]:
+        """Content hash of the current configuration, or None if nothing is built yet."""
         try:
-            self.config_hash = compute_hash(self._snapshot_state())
+            return compute_hash(self._snapshot_state())
         except RuntimeError:
-            self.config_hash = None
+            return None
+
+    def _refresh_hash_display(self) -> None:
         if self.config_hash is None:
             self._hash_display.value = "<em>No configuration built yet.</em>"
         else:
@@ -509,25 +519,29 @@ class ConfigurationWidget:
                 " that isn't registered here anymore."
             )
 
-        for param_name, enabled in state.multiplex_state.items():
-            checkbox = self._multiplex_checkboxes.get(param_name)
-            if checkbox is not None:
-                checkbox.value = enabled
-        self._show_optional_checkbox.value = state.show_optional_column
-        self._show_optional_binding_checkbox.value = state.show_optional_binding
+        self._suspend_rebuild = True
+        try:
+            for param_name, enabled in state.multiplex_state.items():
+                checkbox = self._multiplex_checkboxes.get(param_name)
+                if checkbox is not None:
+                    checkbox.value = enabled
+            self._show_optional_checkbox.value = state.show_optional_column
+            self._show_optional_binding_checkbox.value = state.show_optional_binding
+            self._components.value = list(state.components)
+            self._column_picker.value = column_factory
+            self._binding_picker.value = binding_factory
+            self._model_picker.value = template_factory
+        finally:
+            self._suspend_rebuild = False
 
-        self._components.value = list(state.components)
-        self._column_picker.value = column_factory
-        self._binding_picker.value = binding_factory
-        self._model_picker.value = template_factory
-
+        self._rebuild_forms()
         self._column_form.set_values(state.column_values)
         self._binding_form.set_values(state.binding_values)
         self._model_form.set_values(state.model_values)
 
         self.config_name = name
         self._name_field.value = name
-        self._refresh_config_hash()
+        self._refresh_hash_display()
 
     def import_from_store(self, hash_: str) -> None:
         """Load a configuration previously saved to the local store, by its hash."""
@@ -540,6 +554,8 @@ class ConfigurationWidget:
         self.save_status.value = f"<em>Imported '{name}' ({hash_}).</em>"
 
     def _rebuild_forms(self) -> None:
+        if self._suspend_rebuild:
+            return
         column = self._get_column()
         binding_model = self._get_binding_model()
         model_fn = self._model_picker.value
@@ -548,7 +564,7 @@ class ConfigurationWidget:
             self._binding_form_box.children = ()
             self._model_form_box.children = ()
             self._clear_event_section()
-            self._refresh_config_hash()
+            self._refresh_hash_display()
             return
 
         column_params = set(getattr(column, "required_parameters", None) or [])
@@ -587,7 +603,7 @@ class ConfigurationWidget:
         # `self._model_form = ...` assignment has completed -- so that first
         # call sees a stale (pre-rebuild) _model_form and can't snapshot yet.
         # Refresh again now that all three forms are actually assigned.
-        self._refresh_config_hash()
+        self._refresh_hash_display()
 
         self.status.value = (
             "<em>Fields apply automatically as you edit them"
@@ -856,6 +872,7 @@ class ConfigurationWidget:
         if change.get("name") != "value":
             return
         self.config_name = change["new"]
+        self._notify()  # e.g. the Simulation tab's process label tracks this too
 
     def _on_set_store_dir(self, _btn: Any) -> None:
         text = self._store_dir_field.value.strip()
@@ -873,21 +890,32 @@ class ConfigurationWidget:
         self._store_dir_field.value = str(path)
         self.save_status.value = f"<em>Configurations will be saved to {path}.</em>"
 
+    def name_error(self, action: str = "saving") -> Optional[str]:
+        """Error message if this configuration has no name yet for `action`, else None."""
+        if self.config_name.strip():
+            return None
+        return f"Give the configuration a name before {action}."
+
+    def persist_to_store(self) -> Path:
+        """Snapshot and save the current configuration to the store. Returns its path.
+
+        Raises RuntimeError if unnamed or nothing has been built yet.
+        """
+        error = self.name_error()
+        if error:
+            raise RuntimeError(error)
+        state = self._snapshot_state()
+        return save_to_store(
+            state, self.config_name, process=self.process, store_dir=self._store_dir
+        )
+
     def _on_save(self, _btn: Any) -> None:
-        if not self.config_name.strip():
-            self.save_status.value = (
-                "<span style='color:#b00020'>Give the configuration a name before saving.</span>"
-            )
-            return
         try:
-            state = self._snapshot_state()
-            path = save_to_store(
-                state, self.config_name, process=self.process, store_dir=self._store_dir
-            )
+            path = self.persist_to_store()
         except Exception as exc:  # noqa: BLE001
             self.save_status.value = f"<span style='color:#b00020'>{exc}</span>"
             return
-        self._refresh_config_hash()
+        self._refresh_hash_display()
         self.save_status.value = f"<em>Saved to {path}.</em>"
 
     def _on_file_upload_change(self, change: dict) -> None:
@@ -896,9 +924,6 @@ class ConfigurationWidget:
         item = self._file_upload.value[0]
         try:
             import tempfile
-            from pathlib import Path
-
-            from ...configuration_store import load_h5
 
             with tempfile.TemporaryDirectory() as tmp_dir:
                 tmp_path = Path(tmp_dir) / item["name"]

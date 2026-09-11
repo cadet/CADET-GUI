@@ -3,38 +3,14 @@ from __future__ import annotations
 from typing import Any, Callable, Optional
 
 import ipywidgets as W
-from CADETProcess.processModel import Inlet, Outlet
 
+from ...cadetprocessadapter import classify_signal_ports
 from ...simulation import run_process as _default_runner
 from .._chrome import style_tag
 from ..elements import ChoiceField
 from .run_history import RunHistoryWidget, RunRecord
 
 __all__ = ["SolutionWidget"]
-
-
-def _signal_options(result: Any) -> list[tuple[str, tuple[str, str]]]:
-    """List (label, (unit, port)) signal options, collapsed for Inlet/Outlet units.
-
-    An `Inlet`'s "inlet" port and an `Outlet`'s "outlet" port are CADET-Process
-    bookkeeping, not real signals -- confirmed identical to that same unit's
-    other port for every current template. Only the real port is offered,
-    labeled "Source"/"Sink" rather than the (there, meaningless) port name.
-    """
-    units = result.process.flow_sheet.units_dict
-    options: list[tuple[str, tuple[str, str]]] = []
-    for unit_name, ports in result.solution.items():
-        unit = units.get(unit_name)
-        if isinstance(unit, Inlet):
-            if "outlet" in ports:
-                options.append((f"{unit_name}: Source", (unit_name, "outlet")))
-        elif isinstance(unit, Outlet):
-            if "inlet" in ports:
-                options.append((f"{unit_name}: Sink", (unit_name, "inlet")))
-        else:
-            for port in ports:
-                options.append((f"{unit_name}: {port}", (unit_name, port)))
-    return options
 
 
 class SolutionWidget:
@@ -112,11 +88,6 @@ class SolutionWidget:
         """
         self._config_widget = config_widget
         config_widget.add_listener(self.set_process)
-        # Renaming doesn't rebuild the process (no add_listener notification),
-        # but the Simulation tab's label must still track it.
-        config_widget._name_field.observe(
-            lambda _change: self._update_process_label(), names="value"
-        )
         if getattr(config_widget, "process", None) is not None:
             self.set_process(config_widget.process)
 
@@ -155,13 +126,8 @@ class SolutionWidget:
         if self._config_widget is None:
             return None, None
         try:
-            from ...configuration_store import save_to_store
-
-            cw = self._config_widget
-            save_to_store(
-                cw._snapshot_state(), cw.config_name, process=cw.process, store_dir=cw._store_dir
-            )
-            return cw.config_name, cw.config_hash
+            self._config_widget.persist_to_store()
+            return self._config_widget.config_name, self._config_widget.config_hash
         except Exception:  # noqa: BLE001
             return None, None
 
@@ -170,18 +136,17 @@ class SolutionWidget:
         if self.process is None:
             self.status.value = "<span style='color:#b00020'>No process to run.</span>"
             return
-        if self._config_widget is not None and not self._config_widget.config_name.strip():
-            self.status.value = (
-                "<span style='color:#b00020'>Give the configuration a name before"
-                " running a simulation.</span>"
-            )
-            return
+        if self._config_widget is not None:
+            error = self._config_widget.name_error("running a simulation")
+            if error:
+                self.status.value = f"<span style='color:#b00020'>{error}</span>"
+                return
 
         label = self._display_name()
-        config_name, config_hash = self._tag_current_config()
         self._btn_run.disabled = True
         self._btn_run.description = "Running..."
         self.status.value = "<span class='cadetgui-spinner'></span><em>Running simulation…</em>"
+        config_name, config_hash = self._tag_current_config()
         try:
             result = self._runner(self.process)
         except Exception as exc:  # noqa: BLE001
@@ -218,7 +183,7 @@ class SolutionWidget:
 
     def _load_result(self, result: Any) -> None:
         self.result = result
-        self._signal_picker.set_options(_signal_options(result), keep_value=True)
+        self._signal_picker.set_options(classify_signal_ports(result), keep_value=True)
         self._plot_selected()
 
     def _on_clear(self, _btn: Any) -> None:

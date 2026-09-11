@@ -899,3 +899,39 @@ def test_save_load_section_is_the_first_section_in_the_panel():
     # index 0 is the injected style tag, index 1 the panel title
     save_load_section = children[2]
     assert "Save / Load Configuration" in save_load_section.children[0].value
+
+
+def test_name_error_reflects_whether_the_configuration_is_named():
+    cw = ConfigurationWidget()
+    assert cw.name_error() is None  # has the default name
+
+    cw._name_field.value = ""
+    error = cw.name_error("running a simulation")
+    assert error == "Give the configuration a name before running a simulation."
+
+
+def test_persist_to_store_raises_without_a_name():
+    cw = ConfigurationWidget()
+    cw._name_field.value = ""
+    try:
+        cw.persist_to_store()
+        assert False, "should have raised"
+    except RuntimeError as exc:
+        assert "name" in str(exc).lower()
+
+
+def test_persist_to_store_saves_and_returns_the_path(tmp_path):
+    cw = ConfigurationWidget()
+    cw._name_field.value = "Persisted Config"
+
+    path = cw.persist_to_store()
+
+    assert path == tmp_path / f"{cw.config_hash}.h5"
+    assert path.exists()
+
+
+def test_config_hash_is_computed_fresh_not_cached_stale():
+    cw = ConfigurationWidget()
+    first = cw.config_hash
+    cw._model_form.element("flow_rate").value = 8.8e-6
+    assert cw.config_hash != first  # no stale cached value survives a field edit

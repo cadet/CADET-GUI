@@ -77,6 +77,10 @@ class FormRenderer:
         self.built: Any = None
         self._on_built = on_built
         self.status = W.HTML("<em>Ready.</em>")
+        # Set around set_values()'s per-element writes so each one's own
+        # observer doesn't trigger its own commit -- one commit for the whole
+        # batch instead of one per field touched.
+        self._suspend_commit = False
 
         self._elements: Dict[str, Element] = {f.name: element_for_field(f) for f in spec.fields}
         for element in self._elements.values():
@@ -115,7 +119,8 @@ class FormRenderer:
         return values
 
     def _on_field_changed(self, _change: dict) -> None:
-        self._commit()
+        if not self._suspend_commit:
+            self._commit()
 
     def _commit(self) -> None:
         if not self.is_valid:
@@ -137,18 +142,20 @@ class FormRenderer:
             self.status.value = f"<span style='color:#b00020'>{exc}</span>"
 
     def _on_reset(self, _btn: Any) -> None:
-        for f in self.spec.fields:
-            self._elements[f.name].value = _coerced_default(f)
-        self._commit()
+        self.set_values({})
 
     def set_values(self, values: Mapping[str, Any]) -> None:
-        """Push a dict of field values into the rendered elements and commit.
+        """Push a dict of field values into the rendered elements and commit once.
 
         Any field name missing from `values` falls back to its own default.
         """
-        for f in self.spec.fields:
-            value = values[f.name] if f.name in values else _coerced_default(f)
-            self._elements[f.name].value = value
+        self._suspend_commit = True
+        try:
+            for f in self.spec.fields:
+                default = _coerced_default(f)
+                self._elements[f.name].value = values.get(f.name, default)
+        finally:
+            self._suspend_commit = False
         self._commit()
 
     def display(self) -> None:
