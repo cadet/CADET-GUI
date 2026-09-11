@@ -6,23 +6,23 @@ import ipywidgets as W
 
 from .._chrome import logo_data_uri, style_tag
 from .configuration import ConfigurationWidget
-from .data_import import DataImportWidget
+from .parameter_estimation import ParameterEstimationWidget
 from .solution import SolutionWidget
 
 __all__ = ["WorkbenchWidget"]
 
-_STEPS = ("Configuration", "Simulation", "Experimental Data")
+_STEPS = ("Configuration", "Simulation", "Parameter Estimation")
 
 
 class WorkbenchWidget:
-    """Top-level shell: a sidebar-navigated Configuration/Simulation/Data page.
+    """Top-level shell: a sidebar-navigated Configuration/Simulation/Estimation page.
 
     Builds and wires a `ConfigurationWidget`, `SolutionWidget`, and
-    `DataImportWidget` together (same bindings as
+    `ParameterEstimationWidget` together (same bindings as
     examples/configuration_and_solution.ipynb), showing exactly one at a time
     via a left sidebar instead of stacking all three inline. Each stays a
-    plain attribute (`.configuration`/`.solution`/`.data`) for scripting —
-    the shell is purely a navigation convenience, not a black box.
+    plain attribute (`.configuration`/`.solution`/`.parameter_estimation`) for
+    scripting — the shell is purely a navigation convenience, not a black box.
     """
 
     def __init__(
@@ -30,19 +30,19 @@ class WorkbenchWidget:
         *,
         configuration: Optional[ConfigurationWidget] = None,
         solution: Optional[SolutionWidget] = None,
-        data: Optional[DataImportWidget] = None,
+        parameter_estimation: Optional[ParameterEstimationWidget] = None,
     ) -> None:
         self.configuration = configuration or ConfigurationWidget()
         self.solution = solution or SolutionWidget()
-        self.data = data or DataImportWidget()
+        self.parameter_estimation = parameter_estimation or ParameterEstimationWidget()
 
         self.solution.bind_to_config(self.configuration)
-        self.solution.bind_to_data(self.data)
+        self.solution.bind_to_data(self.parameter_estimation.data)
 
         self._panes: Dict[str, W.Widget] = {
             "Configuration": self.configuration.root,
             "Simulation": self.solution.root,
-            "Experimental Data": self.data.root,
+            "Parameter Estimation": self.parameter_estimation.root,
         }
         for root in self._panes.values():
             root.layout.display = "none"

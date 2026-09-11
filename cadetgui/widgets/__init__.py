@@ -13,6 +13,7 @@ from .composite import (
     ConfigurationWidget,
     DataImportWidget,
     ExperimentalDataset,
+    ParameterEstimationWidget,
     RunHistoryWidget,
     RunRecord,
     SolutionWidget,
@@ -25,4 +26,5 @@ __all__ = [
     "RunRecord",
     "DataImportWidget",
     "ExperimentalDataset",
+    "ParameterEstimationWidget",
 ]

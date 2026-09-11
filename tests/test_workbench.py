@@ -19,7 +19,7 @@ def test_workbench_shows_only_the_configuration_pane_initially():
 
     assert wb.configuration.root.layout.display == ""
     assert wb.solution.root.layout.display == "none"
-    assert wb.data.root.layout.display == "none"
+    assert wb.parameter_estimation.root.layout.display == "none"
     assert wb._nav.index == 0
 
 
@@ -30,7 +30,7 @@ def test_workbench_nav_switches_the_visible_pane():
 
     assert wb.configuration.root.layout.display == "none"
     assert wb.solution.root.layout.display == ""
-    assert wb.data.root.layout.display == "none"
+    assert wb.parameter_estimation.root.layout.display == "none"
 
 
 def test_workbench_config_edits_still_flow_through_to_solution():
@@ -46,17 +46,17 @@ def test_workbench_config_edits_still_flow_through_to_solution():
 def test_workbench_accepts_prebuilt_widgets():
     from cadetgui.widgets.composite import (
         ConfigurationWidget,
-        DataImportWidget,
+        ParameterEstimationWidget,
         SolutionWidget,
     )
 
     cw = ConfigurationWidget()
     sw = SolutionWidget()
-    dw = DataImportWidget()
+    pw = ParameterEstimationWidget()
 
-    wb = WorkbenchWidget(configuration=cw, solution=sw, data=dw)
+    wb = WorkbenchWidget(configuration=cw, solution=sw, parameter_estimation=pw)
 
     assert wb.configuration is cw
     assert wb.solution is sw
-    assert wb.data is dw
+    assert wb.parameter_estimation is pw
     assert sw.process is cw.process
