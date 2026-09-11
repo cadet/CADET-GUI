@@ -121,10 +121,13 @@ def test_export_script_button_populates_textarea_on_success():
     assert "generated" in cw.status.value.lower()
 
 
-def test_binding_model_defaults_to_none_matching_cadetprocess_default():
+def test_binding_model_defaults_to_linear():
     cw = ConfigurationWidget()
-    assert cw._binding_picker.option_labels[0] == "None"
-    assert cw._binding_form.spec.fields == []  # NoBinding has no required_parameters
+    assert cw._binding_picker.option_labels[0] == "None"  # still first in the dropdown list
+    selected = cw._binding_picker.option_labels[cw._binding_picker.selected_index]
+    assert selected == "Linear"
+    names = {f.name for f in cw._binding_form.spec.fields}
+    assert names == {"adsorption_rate", "desorption_rate", "is_kinetic"}
 
 
 def test_switching_binding_model_rebuilds_its_form():
@@ -266,7 +269,8 @@ def test_unchecking_is_kinetic_commits_to_the_real_binding_model():
 
 
 def test_no_binding_does_not_get_an_is_kinetic_field():
-    cw = ConfigurationWidget()  # binding defaults to "None" -> NoBinding
+    cw = ConfigurationWidget()
+    cw._binding_picker.value = cw._binding_registry["None"]
     assert "is_kinetic" not in {f.name for f in cw._binding_form.spec.fields}
 
 
@@ -321,6 +325,7 @@ def test_show_optional_parameters_adds_and_removes_column_fields():
 def test_show_optional_parameters_skips_none_valued_and_non_scalar_fields():
     cw = ConfigurationWidget()
     cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
+    cw._binding_picker.value = cw._binding_registry["None"]  # q stays unset without a real isotherm
     cw._show_optional_checkbox.value = True
 
     names = {f.name for f in cw._column_form.spec.fields}

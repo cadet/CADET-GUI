@@ -368,6 +368,7 @@ _GUI_SEED_DEFAULTS: dict[tuple[str, Optional[str], str], float] = {
     ("column", None, "length"): 0.5,
     ("column", None, "axial_dispersion"): 1e-8,
     ("column", None, "bed_porosity"): 0.72,
+    ("column", None, "total_porosity"): 0.72,
     ("column", None, "particle_porosity"): 0.6,
     ("column", None, "particle_radius"): 5.0e-6,
     ("column", None, "film_diffusion"): 1e-3,
