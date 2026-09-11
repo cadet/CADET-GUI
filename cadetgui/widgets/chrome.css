@@ -1,0 +1,242 @@
+/* Shared chrome for composite/form widgets (FormRenderer, ConfigurationWidget,
+   SolutionWidget) — these compose plain ipywidgets containers, not anywidget
+   elements, so this gets injected via a <style> HTML child rather than an
+   anywidget `_css`. Same --cg-* token names as elements/_shared.css so both
+   layers read as one system. */
+
+.cadetgui-spinner {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin-right: 6px;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  vertical-align: -1px;
+  animation: cadetgui-spin 0.7s linear infinite;
+}
+
+@keyframes cadetgui-spin {
+  to { transform: rotate(360deg); }
+}
+
+.cadetgui-panel {
+  --cg-fg: #1f2937;
+  --cg-muted: #6b7280;
+  --cg-border: #d1d5db;
+  --cg-brand: #005b82; /* CADET logo navy -- fixed, not theme-swapped */
+  --cg-focus: #005b82;
+  --cg-danger: #dc2626;
+  --cg-success: #059669;
+  --cg-bg: #ffffff;
+  --cg-radius: 8px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--cg-fg);
+}
+
+@media (prefers-color-scheme: dark) {
+  .cadetgui-panel {
+    --cg-fg: #e5e7eb;
+    --cg-muted: #9ca3af;
+    --cg-border: #4b5563;
+    --cg-focus: #4fa8d1;
+    --cg-danger: #f87171;
+    --cg-success: #34d399;
+    --cg-bg: #1f2937;
+  }
+}
+
+.cadetgui-panel-title {
+  margin: 0 0 4px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--cg-border);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--cg-fg);
+}
+
+.cadetgui-toolbar {
+  gap: 10px 18px !important;
+  align-items: center !important;
+}
+
+.cadetgui-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cg-muted);
+}
+
+.cadetgui-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  background: color-mix(in srgb, var(--cg-border) 6%, transparent);
+}
+
+.cadetgui-row {
+  display: flex;
+  flex-flow: row wrap;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.cadetgui-row > .cadetgui-section-half {
+  flex: 1 1 340px;
+  min-width: 0;
+}
+
+.cadetgui-section.cadetgui-settings-box {
+  gap: 4px;
+  background: color-mix(in srgb, var(--cg-fg) 12%, var(--cg-bg));
+}
+
+.cadetgui-settings-box .cadetgui-section-title {
+  margin-bottom: 4px;
+}
+
+.cadetgui-status {
+  font-size: 12.5px;
+  color: var(--cg-muted);
+}
+
+.cadetgui-note {
+  font-size: 12.5px;
+  color: var(--cg-muted);
+  padding: 6px 10px;
+  border-left: 3px solid var(--cg-focus);
+  background: color-mix(in srgb, var(--cg-focus) 8%, transparent);
+  border-radius: 0 var(--cg-radius) var(--cg-radius) 0;
+}
+
+/* ipywidgets renders Button/Dropdown/etc. as .jupyter-widgets + a specific
+   widget class — target broadly so this covers plain ipywidgets controls used
+   for layout/actions (Button, BoundedIntText) inside our panels. */
+.cadetgui-panel .jupyter-widgets.jupyter-button {
+  border-radius: var(--cg-radius);
+  border: 1px solid var(--cg-border);
+  background: var(--cg-bg);
+  color: var(--cg-fg);
+  font: inherit;
+  font-size: 13px;
+  box-shadow: none;
+  transition: filter 0.1s ease;
+}
+
+.cadetgui-panel .jupyter-button:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.cadetgui-panel .jupyter-button.mod-success {
+  background: var(--cg-success);
+  border-color: var(--cg-success);
+  color: #ffffff;
+}
+
+.cadetgui-panel .jupyter-button.mod-danger {
+  background: var(--cg-danger);
+  border-color: var(--cg-danger);
+  color: #ffffff;
+}
+
+.cadetgui-panel input[type="number"],
+.cadetgui-panel input[type="text"] {
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  background: var(--cg-bg);
+  color: var(--cg-fg);
+  font: inherit;
+  padding: 4px 8px;
+}
+
+.cadetgui-script textarea {
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  background: var(--cg-bg);
+  color: var(--cg-fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  padding: 10px;
+}
+
+/* ---- WorkbenchWidget: top bar + sidebar shell ---- */
+
+.cadetgui-workbench {
+  gap: 0 !important;
+}
+
+.cadetgui-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border-radius: var(--cg-radius) var(--cg-radius) 0 0;
+  /* Fixed white, not var(--cg-bg): the logo PNG's ink is a fixed navy, so it
+     needs a fixed light backdrop in both themes -- a dark-mode --cg-bg would
+     wash out the wordmark, which can't recolor itself. */
+  background: #ffffff;
+  border-bottom: 3px solid var(--cg-brand);
+}
+
+.cadetgui-topbar img {
+  height: 26px;
+  display: block;
+}
+
+.cadetgui-topbar-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--cg-brand);
+  letter-spacing: 0.02em;
+}
+
+.cadetgui-workbench-body {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: flex-start;
+  border: 1px solid var(--cg-border);
+  border-top: none;
+  border-radius: 0 0 var(--cg-radius) var(--cg-radius);
+}
+
+.cadetgui-sidebar-nav {
+  flex: 0 0 180px;
+  padding: 14px 10px;
+  border-right: 1px solid var(--cg-border);
+  align-self: stretch;
+}
+
+/* ToggleButtons renders its own buttons in a row inside one wrapper div;
+   force that wrapper into a vertical stack instead of restyling the
+   picker itself -- keeps its built-in single-select/active-state behavior. */
+.cadetgui-sidebar-nav > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cadetgui-sidebar-nav .widget-toggle-button {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+}
+
+.cadetgui-sidebar-nav .widget-toggle-button.mod-active {
+  background: var(--cg-focus);
+  border-color: var(--cg-focus);
+  color: #ffffff;
+}
+
+.cadetgui-workbench-content {
+  flex: 1 1 480px;
+  min-width: 0;
+  padding: 16px;
+}

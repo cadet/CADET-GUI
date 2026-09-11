@@ -1,0 +1,437 @@
+{
+  "$comment": "Parameter metadata ground truth for CADET-GUI. Not GUI-specific: describes CADET-Process<->CADET-Core parameters as they actually are. GUI-layer decisions (which fields to render, how) belong in cadetprocessadapter.py, not here. Sourced from CADET-Core/doc/interface/{binding,unit_operations,solver.rst} and CADET-Process's CADETProcess/processModel/{binding,unitOperation}.py + CADETProcess/simulator/cadetAdapter.py (parameter maps), verified 2026-09-07 -- no invented units/ranges.",
+  "categories": {
+    "column": {
+      "$comment": "Shared TubularReactorBase parameters (length/diameter/axial_dispersion) apply to GeneralRateModel, LumpedRateModelWithPores, LumpedRateModelWithoutPores -- NOT Cstr, which has a different base class and volume-based geometry instead.",
+      "shared_parameters": {
+        "length": {
+          "cp_name": "length",
+          "co_name": "BED_LENGTH",
+          "co_name_code_variant": "COL_LENGTH",
+          "unit": "m",
+          "min": 0.0,
+          "min_exclusive": true,
+          "max": null,
+          "dtype": "float",
+          "component_dependent": false,
+          "description": "Column length.",
+          "source": "interface/unit_operations/axial_flow_column_1D_config.rst BED_LENGTH; cadetAdapter.py unit_parameters_map writes COL_LENGTH for the same CADET-Process attribute -- the two doc/code names for the same parameter, not verified which is current upstream, flagged rather than guessed."
+        },
+        "diameter": {
+          "cp_name": "diameter",
+          "co_name": null,
+          "co_name_note": "Not written directly -- CADETProcess derives CROSS_SECTION_AREA = pi/4 * diameter^2 (see TubularReactorBase.cross_section_area). diameter is a CADET-Process-only convenience attribute.",
+          "unit": "m",
+          "min": 0.0,
+          "min_exclusive": true,
+          "max": null,
+          "dtype": "float",
+          "component_dependent": false,
+          "description": "Column diameter (converted to cross-section area before reaching CADET-Core).",
+          "source": "CADETProcess/processModel/unitOperation.py TubularReactorBase.cross_section_area; interface/unit_operations/axial_flow_column_1D_config.rst CROSS_SECTION_AREA (unit m^2, range >0)."
+        },
+        "axial_dispersion": {
+          "cp_name": "axial_dispersion",
+          "co_name": "COL_DISPERSION",
+          "unit": "m^2/s",
+          "min": 0.0,
+          "min_exclusive": false,
+          "max": null,
+          "dtype": "float",
+          "component_dependent": true,
+          "description": "Axial dispersion coefficient.",
+          "source": "interface/unit_operations/axial_flow_column_1D_config.rst COL_DISPERSION."
+        }
+      },
+      "models": {
+        "GeneralRateModel": {
+          "co_unit_type": "GENERAL_RATE_MODEL",
+          "extends_shared_parameters": true,
+          "required_parameters": [
+            "bed_porosity", "particle_porosity", "pore_diffusion",
+            "particle_radius", "film_diffusion", "diameter", "length", "axial_dispersion"
+          ],
+          "own_parameters": {
+            "bed_porosity": {
+              "cp_name": "bed_porosity", "co_name": "COL_POROSITY",
+              "unit": null, "min": 0.0, "min_exclusive": true, "max": 1.0, "max_exclusive": false,
+              "dtype": "float", "component_dependent": false,
+              "description": "Interstitial (bed) porosity.",
+              "source": "interface/unit_operations/axial_flow_column_1D_config.rst COL_POROSITY."
+            },
+            "particle_porosity": {
+              "cp_name": "particle_porosity", "co_name": "PAR_POROSITY",
+              "unit": null, "min": 0.0, "min_exclusive": true, "max": 1.0, "max_exclusive": false,
+              "dtype": "float", "component_dependent": false,
+              "description": "Particle (intraparticle) porosity.",
+              "source": "interface/unit_operations/particle_config.rst PAR_POROSITY."
+            },
+            "particle_radius": {
+              "cp_name": "particle_radius", "co_name": "PAR_RADIUS",
+              "unit": "m", "min": 0.0, "min_exclusive": true, "max": null,
+              "dtype": "float", "component_dependent": false,
+              "description": "Particle radius.",
+              "source": "interface/unit_operations/particle_config.rst PAR_RADIUS."
+            },
+            "film_diffusion": {
+              "cp_name": "film_diffusion", "co_name": "FILM_DIFFUSION",
+              "unit": "m/s", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Film diffusion coefficient (mass transfer through the particle film) per component.",
+              "source": "interface/unit_operations/particle_config.rst FILM_DIFFUSION."
+            },
+            "pore_diffusion": {
+              "cp_name": "pore_diffusion",
+              "co_name": "PORE_DIFFUSION",
+              "co_name_code_variant": "PAR_DIFFUSION",
+              "unit": "m^2/s", "min": 0.0, "min_exclusive": true, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Effective pore diffusion coefficient per component.",
+              "source": "interface/unit_operations/particle_config.rst PORE_DIFFUSION; cadetAdapter.py unit_parameters_map writes PAR_DIFFUSION for GeneralRateModel -- same doc/code name mismatch pattern as COL_LENGTH/BED_LENGTH, flagged not resolved."
+            },
+            "c": {
+              "cp_name": "c", "co_name": "INIT_C",
+              "unit": "mol/m^3_IV", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Initial concentration in the bulk mobile phase, per component.",
+              "source": "interface/unit_operations/axial_flow_column_1D_config.rst INIT_C; cadetAdapter.py unit_parameters_map maps INIT_C -> c the same way for every column model, including Cstr."
+            },
+            "cp": {
+              "cp_name": "cp", "co_name": "INIT_CP",
+              "unit": "mol/m^3_MP", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Initial concentration in the particle liquid (pore) phase, per component. Only meaningful for models with an explicit particle pore phase (GRM, LRMP).",
+              "source": "interface/unit_operations/particle_config.rst INIT_CP."
+            },
+            "q": {
+              "cp_name": "q", "co_name": "INIT_Q",
+              "co_name_doc_variant": "INIT_CS",
+              "unit": "mol/m^3_SP", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Initial concentration in the solid (bound) phase, per component. Stays unset (None, hidden) until a real binding model -- not NoBinding -- actually gives the column bound states.",
+              "source": "interface/unit_operations/particle_config.rst INIT_CS (the doc name for what cadetAdapter.py's unit_parameters_map calls INIT_Q for every column model -- same doc/code naming mismatch pattern as COL_LENGTH/BED_LENGTH)."
+            },
+            "pore_accessibility": {
+              "cp_name": "pore_accessibility", "co_name": "PORE_ACCESSIBILITY",
+              "unit": null, "min": 0.0, "min_exclusive": true, "max": 1.0, "max_exclusive": false,
+              "dtype": "float", "component_dependent": true,
+              "description": "Fraction of pore volume accessible to each component (defaults to 1, i.e. fully accessible). Only meaningful for models with a particle pore phase (GRM, LRMP); CADET-Core's own docs say not to combine this with a binding model.",
+              "source": "interface/unit_operations/particle_config.rst PORE_ACCESSIBILITY."
+            },
+            "surface_diffusion": {
+              "cp_name": "surface_diffusion", "co_name": "PAR_SURFDIFFUSION",
+              "co_name_doc_variant": "SURFACE_DIFFUSION",
+              "unit": "m^2_SP/s", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Particle surface diffusion coefficient per bound state of each component. Only applied when CADET-Core's HAS_SURFACE_DIFFUSION flag is set, which the GUI doesn't currently expose -- this stays unset (None, hidden) here.",
+              "source": "interface/unit_operations/particle_config.rst SURFACE_DIFFUSION; cadetAdapter.py unit_parameters_map writes PAR_SURFDIFFUSION for GeneralRateModel -- same doc/code name mismatch pattern as COL_LENGTH/BED_LENGTH."
+            },
+            "flow_direction": {
+              "cp_name": "flow_direction", "co_name": null,
+              "co_name_note": "Not written directly -- CADET-Process flips the sign of the VELOCITY it writes based on this Switch rather than passing it through as its own CADET-Core field.",
+              "unit": null, "min": -1.0, "min_exclusive": false, "max": 1.0, "max_exclusive": false,
+              "dtype": "float", "component_dependent": false,
+              "description": "Flow direction: 1 = forward, -1 = backward. CADET-Process's own Switch descriptor only accepts these two exact values; the bounded numeric field this renders as doesn't restrict entries to just them, same as any other min/max-bounded field -- CADET-Process's setter still rejects anything else on assignment.",
+              "source": "CADETProcess/processModel/unitOperation.py TubularReactorBase.flow_direction = Switch(valid=[-1, 1], default=1); interface/unit_operations/axial_flow_column_1D_config.rst VELOCITY (the field this sign is ultimately applied to)."
+            }
+          }
+        },
+        "LumpedRateModelWithPores": {
+          "co_unit_type": "LUMPED_RATE_MODEL_WITH_PORES",
+          "extends_shared_parameters": true,
+          "required_parameters": [
+            "bed_porosity", "particle_porosity", "particle_radius",
+            "film_diffusion", "diameter", "length", "axial_dispersion"
+          ],
+          "own_parameters": {
+            "bed_porosity": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.bed_porosity" },
+            "particle_porosity": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.particle_porosity" },
+            "particle_radius": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.particle_radius" },
+            "film_diffusion": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.film_diffusion" },
+            "c": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.c" },
+            "cp": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.cp" },
+            "q": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.q" },
+            "pore_accessibility": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.pore_accessibility" },
+            "flow_direction": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.flow_direction" }
+          }
+        },
+        "LumpedRateModelWithoutPores": {
+          "co_unit_type": "LUMPED_RATE_MODEL_WITHOUT_PORES",
+          "extends_shared_parameters": true,
+          "required_parameters": ["total_porosity", "diameter", "length", "axial_dispersion"],
+          "own_parameters": {
+            "total_porosity": {
+              "cp_name": "total_porosity", "co_name": "TOTAL_POROSITY",
+              "unit": null, "min": 0.0, "min_exclusive": true, "max": 1.0, "max_exclusive": false,
+              "dtype": "float", "component_dependent": false,
+              "description": "Total porosity (bed + particle combined into one lumped value; there are no explicit particles in this model).",
+              "source": "interface/unit_operations/axial_flow_column_1D_config.rst TOTAL_POROSITY."
+            },
+            "c": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.c" },
+            "q": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.q" },
+            "flow_direction": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.flow_direction" }
+          }
+        },
+        "Cstr": {
+          "co_unit_type": "CSTR",
+          "required_parameters": ["init_liquid_volume"],
+          "own_parameters": {
+            "init_liquid_volume": {
+              "cp_name": "init_liquid_volume", "co_name": "INIT_LIQUID_VOLUME",
+              "unit": "m^3", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": false,
+              "description": "Initial liquid volume in the tank.",
+              "source": "interface/unit_operations/cstr.rst INIT_LIQUID_VOLUME."
+            },
+            "c": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.c" },
+            "q": { "$ref": "categories.column.models.GeneralRateModel.own_parameters.q" },
+            "flow_rate_filter": {
+              "cp_name": "flow_rate_filter", "co_name": "FLOWRATE_FILTER",
+              "unit": "m^3/s", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": false,
+              "description": "Flow rate of pure liquid (no components) leaving through the CSTR's filter, on top of its regular outlet flow.",
+              "source": "interface/unit_operations/cstr.rst FLOWRATE_FILTER."
+            },
+            "const_solid_volume": {
+              "cp_name": "const_solid_volume", "co_name": "CONST_SOLID_VOLUME",
+              "unit": "m^3", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": false,
+              "description": "Fixed solid-phase volume in the tank, for binding in a CSTR.",
+              "source": "interface/unit_operations/cstr.rst CONST_SOLID_VOLUME."
+            }
+          }
+        }
+      }
+    },
+    "binding": {
+      "$comment": "No shared_parameters section: unlike column models, the same CADET-Process attribute name (e.g. capacity) means a genuinely different thing per binding model -- for Langmuir it is per-component (length NCOMP), for StericMassAction it is a single scalar (length 1). Sharing a definition across models would silently misrepresent one of them, which is exactly the bug this file exists to avoid (see cadetgui's PARAM_SCHEMA / REQUIREMENTS.md item #12).",
+      "models": {
+        "NoBinding": {
+          "co_model_name": "NONE",
+          "required_parameters": [],
+          "own_parameters": {}
+        },
+        "Linear": {
+          "co_model_name": "LINEAR",
+          "required_parameters": ["adsorption_rate", "desorption_rate"],
+          "own_parameters": {
+            "adsorption_rate": {
+              "cp_name": "adsorption_rate", "co_name": "LIN_KA",
+              "unit": "m^3_MP/(m^3_SP*s)", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Adsorption rate constant.",
+              "source": "interface/binding/linear.rst LIN_KA."
+            },
+            "desorption_rate": {
+              "cp_name": "desorption_rate", "co_name": "LIN_KD",
+              "unit": "1/s", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Desorption rate constant.",
+              "source": "interface/binding/linear.rst LIN_KD."
+            },
+            "is_kinetic": {
+              "cp_name": "is_kinetic", "co_name": "IS_KINETIC",
+              "unit": null, "min": null, "min_exclusive": false, "max": null,
+              "dtype": "bool", "component_dependent": false,
+              "description": "Kinetic (true) vs. quasi-stationary/rapid-equilibrium (false) adsorption. Not in CADET-Process's own required_parameters (it has a non-None default, True), so it never auto-renders -- build_parameter_config_spec adds it explicitly for binding models with a real isotherm.",
+              "source": "CADETProcess/processModel/binding.py BindingBaseClass.is_kinetic (Bool, default True); interface/binding/multi_component_langmuir.rst IS_KINETIC."
+            }
+          }
+        },
+        "Langmuir": {
+          "co_model_name": "MULTI_COMPONENT_LANGMUIR",
+          "required_parameters": ["adsorption_rate", "desorption_rate", "capacity"],
+          "own_parameters": {
+            "adsorption_rate": {
+              "cp_name": "adsorption_rate", "co_name": "MCL_KA",
+              "unit": "m^3_MP/(mol*s)", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Adsorption rate constant. Unit differs from Linear/StericMassAction's adsorption_rate (mol-based here, volume-based there) -- do not share one definition across binding models.",
+              "source": "interface/binding/multi_component_langmuir.rst MCL_KA."
+            },
+            "desorption_rate": {
+              "cp_name": "desorption_rate", "co_name": "MCL_KD",
+              "unit": "1/s", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Desorption rate constant.",
+              "source": "interface/binding/multi_component_langmuir.rst MCL_KD."
+            },
+            "capacity": {
+              "cp_name": "capacity", "co_name": "MCL_QMAX",
+              "unit": "mol/m^3_SP", "min": 0.0, "min_exclusive": true, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Maximum adsorption capacity, per component. Unlike StericMassAction.capacity (a single scalar shared by all components), Langmuir's capacity is genuinely per-component.",
+              "source": "interface/binding/multi_component_langmuir.rst MCL_QMAX; CADETProcess/processModel/binding.py Langmuir.capacity = SizedUnsignedList(size=\"n_comp\")."
+            },
+            "is_kinetic": {
+              "cp_name": "is_kinetic", "co_name": "IS_KINETIC",
+              "unit": null, "min": null, "min_exclusive": false, "max": null,
+              "dtype": "bool", "component_dependent": false,
+              "description": "Kinetic (true) vs. quasi-stationary/rapid-equilibrium (false) adsorption. Not in CADET-Process's own required_parameters (it has a non-None default, True), so it never auto-renders -- build_parameter_config_spec adds it explicitly for binding models with a real isotherm.",
+              "source": "CADETProcess/processModel/binding.py BindingBaseClass.is_kinetic (Bool, default True); interface/binding/multi_component_langmuir.rst IS_KINETIC."
+            }
+          }
+        },
+        "StericMassAction": {
+          "co_model_name": "STERIC_MASS_ACTION",
+          "required_parameters": [
+            "adsorption_rate", "desorption_rate", "steric_factor", "characteristic_charge", "capacity"
+          ],
+          "own_parameters": {
+            "adsorption_rate": {
+              "cp_name": "adsorption_rate", "co_name": "SMA_KA",
+              "unit": "m^3_MP/(m^3_SP*s)", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Adsorption rate constant.",
+              "source": "interface/binding/steric_mass_action.rst SMA_KA."
+            },
+            "desorption_rate": {
+              "cp_name": "desorption_rate", "co_name": "SMA_KD",
+              "unit": "1/s", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Desorption rate constant.",
+              "source": "interface/binding/steric_mass_action.rst SMA_KD."
+            },
+            "characteristic_charge": {
+              "cp_name": "characteristic_charge", "co_name": "SMA_NU",
+              "unit": null, "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Characteristic charge (nu): number of resin sites the protein interacts with.",
+              "source": "interface/binding/steric_mass_action.rst SMA_NU."
+            },
+            "steric_factor": {
+              "cp_name": "steric_factor", "co_name": "SMA_SIGMA",
+              "unit": null, "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": true,
+              "description": "Steric factor (sigma): number of resin sites shielded by the bound protein.",
+              "source": "interface/binding/steric_mass_action.rst SMA_SIGMA."
+            },
+            "capacity": {
+              "cp_name": "capacity", "co_name": "SMA_LAMBDA",
+              "unit": "mol/m^3_SP", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": false,
+              "description": "Stationary phase (ionic) capacity -- a single value shared by the whole resin, not per component. Unlike Langmuir.capacity (per-component), this is a scalar (length 1).",
+              "source": "interface/binding/steric_mass_action.rst SMA_LAMBDA (Length: 1); CADETProcess/processModel/binding.py StericMassAction.capacity = UnsignedFloat()."
+            },
+            "is_kinetic": {
+              "cp_name": "is_kinetic", "co_name": "IS_KINETIC",
+              "unit": null, "min": null, "min_exclusive": false, "max": null,
+              "dtype": "bool", "component_dependent": false,
+              "description": "Kinetic (true) vs. quasi-stationary/rapid-equilibrium (false) adsorption. Not in CADET-Process's own required_parameters (it has a non-None default, True), so it never auto-renders -- build_parameter_config_spec adds it explicitly for binding models with a real isotherm.",
+              "source": "CADETProcess/processModel/binding.py BindingBaseClass.is_kinetic (Bool, default True); interface/binding/multi_component_langmuir.rst IS_KINETIC."
+            },
+            "reference_liquid_phase_conc": {
+              "cp_name": "reference_liquid_phase_conc", "co_name": "SMA_REFC0",
+              "unit": "mol/m^3_MP", "min": 0.0, "min_exclusive": true, "max": null,
+              "dtype": "float", "component_dependent": false,
+              "description": "Reference liquid phase concentration, used to normalize the adsorption term.",
+              "source": "interface/binding/steric_mass_action.rst SMA_REFC0."
+            },
+            "reference_solid_phase_conc": {
+              "cp_name": "reference_solid_phase_conc", "co_name": "SMA_REFQ",
+              "unit": "mol/m^3_SP", "min": 0.0, "min_exclusive": true, "max": null,
+              "dtype": "float", "component_dependent": false,
+              "description": "Reference solid phase concentration, used to normalize the desorption term.",
+              "source": "interface/binding/steric_mass_action.rst SMA_REFQ."
+            }
+          }
+        }
+      }
+    },
+    "solver": {
+      "$comment": "Not yet exposed anywhere in the GUI (REQUIREMENTS.md 'Next widgets' #8) -- populated here as the third category the product owner asked to distinguish, and to prove the schema generalizes beyond column/binding. Global per-simulation settings, none are component-dependent.",
+      "models": {
+        "SolverTimeIntegratorParameters": {
+          "co_group": "/solver/time_integrator",
+          "required_parameters": [],
+          "own_parameters": {
+            "abstol": {
+              "cp_name": "abstol", "co_name": "ABSTOL",
+              "unit": null, "min": 0.0, "min_exclusive": true, "max": null,
+              "dtype": "float", "component_dependent": false, "default": 1e-8,
+              "description": "Absolute tolerance in the solution of the original system.",
+              "source": "interface/solver.rst ABSTOL; CADETProcess/simulator/cadetAdapter.py SolverTimeIntegratorParameters.abstol."
+            },
+            "reltol": {
+              "cp_name": "reltol", "co_name": "RELTOL",
+              "unit": null, "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": false, "default": 1e-6,
+              "description": "Relative tolerance in the solution of the original system.",
+              "source": "interface/solver.rst RELTOL."
+            },
+            "algtol": {
+              "cp_name": "algtol", "co_name": "ALGTOL",
+              "unit": null, "min": 0.0, "min_exclusive": true, "max": null,
+              "dtype": "float", "component_dependent": false, "default": 1e-12,
+              "description": "Tolerance in the solution of the nonlinear consistency equations.",
+              "source": "interface/solver.rst ALGTOL."
+            },
+            "reltol_sens": {
+              "cp_name": "reltol_sens", "co_name": "RELTOL_SENS",
+              "unit": null, "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": false, "default": 1e-12,
+              "description": "Relative tolerance in the solution of the sensitivity systems.",
+              "source": "interface/solver.rst RELTOL_SENS."
+            },
+            "init_step_size": {
+              "cp_name": "init_step_size", "co_name": "INIT_STEP_SIZE",
+              "unit": "s", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": false, "default": 1e-6,
+              "description": "Initial time integrator step size (0.0: IDAS default).",
+              "source": "interface/solver.rst INIT_STEP_SIZE."
+            },
+            "max_steps": {
+              "cp_name": "max_steps", "co_name": "MAX_STEPS",
+              "unit": null, "min": 0, "min_exclusive": false, "max": null,
+              "dtype": "int", "component_dependent": false, "default": 1000000,
+              "description": "Maximum number of timesteps taken by IDAS (0: IDAS default = 500).",
+              "source": "interface/solver.rst MAX_STEPS."
+            },
+            "max_step_size": {
+              "cp_name": "max_step_size", "co_name": "MAX_STEP_SIZE",
+              "unit": "s", "min": 0.0, "min_exclusive": false, "max": null,
+              "dtype": "float", "component_dependent": false, "default": 0.0,
+              "description": "Maximum size of timesteps taken by IDAS (0.0: unlimited).",
+              "source": "interface/solver.rst MAX_STEP_SIZE."
+            },
+            "errortest_sens": {
+              "cp_name": "errortest_sens", "co_name": "ERRORTEST_SENS",
+              "unit": null, "min": null, "max": null,
+              "dtype": "bool", "component_dependent": false, "default": false,
+              "description": "Whether (forward) sensitivities take part in the local error test.",
+              "source": "interface/solver.rst ERRORTEST_SENS."
+            },
+            "max_newton_iter": {
+              "cp_name": "max_newton_iter", "co_name": "MAX_NEWTON_ITER",
+              "unit": null, "min": 0, "min_exclusive": false, "max": null,
+              "dtype": "int", "component_dependent": false, "default": 1000000,
+              "description": "Maximum number of Newton iterations per time step.",
+              "source": "interface/solver.rst MAX_NEWTON_ITER."
+            },
+            "max_errtest_fail": {
+              "cp_name": "max_errtest_fail", "co_name": "MAX_ERRTEST_FAIL",
+              "unit": null, "min": 0, "min_exclusive": false, "max": null,
+              "dtype": "int", "component_dependent": false, "default": 1000000,
+              "description": "Maximum number of local error test failures per time step.",
+              "source": "interface/solver.rst MAX_ERRTEST_FAIL."
+            },
+            "max_convtest_fail": {
+              "cp_name": "max_convtest_fail", "co_name": "MAX_CONVTEST_FAIL",
+              "unit": null, "min": 0, "min_exclusive": false, "max": null,
+              "dtype": "int", "component_dependent": false, "default": 1000000,
+              "description": "Maximum number of Newton convergence test failures per time step.",
+              "source": "interface/solver.rst MAX_CONVTEST_FAIL."
+            },
+            "max_newton_iter_sens": {
+              "cp_name": "max_newton_iter_sens", "co_name": "MAX_NEWTON_ITER_SENS",
+              "unit": null, "min": 0, "min_exclusive": false, "max": null,
+              "dtype": "int", "component_dependent": false, "default": 1000000,
+              "description": "Maximum number of Newton iterations in the forward sensitivity time step.",
+              "source": "interface/solver.rst MAX_NEWTON_ITER_SENS."
+            }
+          }
+        }
+      }
+    }
+  }
+}
