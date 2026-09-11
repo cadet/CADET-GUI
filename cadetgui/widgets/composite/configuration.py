@@ -143,10 +143,12 @@ class ConfigurationWidget:
         self._component_note = W.HTML(layout=W.Layout(display="none"))
         self._component_note.add_class("cadetgui-note")
         self._column_picker = ChoiceField(
-            label="Column Model:", options=list(self._columns.items())
+            label="Column Model:", options=list(self._columns.items()),
+            value=self._columns.get("Lumped Rate Model Without Pores (LRM)"),
         )
         self._binding_picker = ChoiceField(
-            label="Binding Model:", options=list(self._binding_registry.items())
+            label="Binding Model:", options=list(self._binding_registry.items()),
+            value=self._binding_registry.get("Linear"),
         )
         self._model_picker = ChoiceField(
             label="Process Template:", options=list(self._registry.items())
