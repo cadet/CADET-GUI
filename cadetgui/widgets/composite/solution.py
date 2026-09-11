@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable, Optional
 
 import ipywidgets as W
+from CADETProcess.processModel import Inlet, Outlet
 
 from ...simulation import run_process as _default_runner
 from .._chrome import style_tag
@@ -10,6 +11,30 @@ from ..elements import ChoiceField
 from .run_history import RunHistoryWidget, RunRecord
 
 __all__ = ["SolutionWidget"]
+
+
+def _signal_options(result: Any) -> list[tuple[str, tuple[str, str]]]:
+    """List (label, (unit, port)) signal options, collapsed for Inlet/Outlet units.
+
+    An `Inlet`'s "inlet" port and an `Outlet`'s "outlet" port are CADET-Process
+    bookkeeping, not real signals -- confirmed identical to that same unit's
+    other port for every current template. Only the real port is offered,
+    labeled "Source"/"Sink" rather than the (there, meaningless) port name.
+    """
+    units = result.process.flow_sheet.units_dict
+    options: list[tuple[str, tuple[str, str]]] = []
+    for unit_name, ports in result.solution.items():
+        unit = units.get(unit_name)
+        if isinstance(unit, Inlet):
+            if "outlet" in ports:
+                options.append((f"{unit_name}: Source", (unit_name, "outlet")))
+        elif isinstance(unit, Outlet):
+            if "inlet" in ports:
+                options.append((f"{unit_name}: Sink", (unit_name, "inlet")))
+        else:
+            for port in ports:
+                options.append((f"{unit_name}: {port}", (unit_name, port)))
+    return options
 
 
 class SolutionWidget:
@@ -29,10 +54,15 @@ class SolutionWidget:
         self.process = process
         self.result: Any = None
         self._data_widget: Optional[Any] = None
+        self._config_widget: Optional[Any] = None
 
         self._process_label = W.HTML()
         self._btn_run = W.Button(description="Run simulation", icon="play", button_style="success")
         self._btn_clear = W.Button(description="Clear", icon="trash")
+        self._btn_load_config = W.Button(
+            description="Load configuration", icon="upload",
+            layout=W.Layout(display="none"),
+        )
         self._signal_picker = ChoiceField(label="Signal:", options=[])
         self._plot_out = W.Output()
         self.status = W.HTML("<em>Ready.</em>")
@@ -40,6 +70,7 @@ class SolutionWidget:
 
         self._btn_run.on_click(self._on_run)
         self._btn_clear.on_click(self._on_clear)
+        self._btn_load_config.on_click(self._on_load_config)
         self._signal_picker.observe(self._on_signal_change, names="selected_index")
         self.history.add_listener(self._on_history_pick)
         self.status.add_class("cadetgui-status")
@@ -50,12 +81,15 @@ class SolutionWidget:
         )
         toolbar.add_class("cadetgui-toolbar")
 
+        history_row = W.HBox([self.history.root, self._btn_load_config])
+        history_row.add_class("cadetgui-toolbar")
+
         self.root = W.VBox(
             [
                 W.HTML(style_tag()),
                 W.HTML("<div class='cadetgui-panel-title'>Solution</div>"),
                 toolbar,
-                self.history.root,
+                history_row,
                 self._signal_picker,
                 self._plot_out,
                 self.status,
@@ -70,8 +104,19 @@ class SolutionWidget:
         self._update_process_label()
 
     def bind_to_config(self, config_widget: Any) -> None:
-        """Track a ConfigurationWidget's built process automatically."""
+        """Track a ConfigurationWidget's built process automatically.
+
+        Also remembers `config_widget` itself, so runs can be tagged with
+        their source configuration's name/hash and a past run can be
+        re-imported back into it (see `_on_run`/`_on_load_config`).
+        """
+        self._config_widget = config_widget
         config_widget.add_listener(self.set_process)
+        # Renaming doesn't rebuild the process (no add_listener notification),
+        # but the Simulation tab's label must still track it.
+        config_widget._name_field.observe(
+            lambda _change: self._update_process_label(), names="value"
+        )
         if getattr(config_widget, "process", None) is not None:
             self.set_process(config_widget.process)
 
@@ -80,20 +125,60 @@ class SolutionWidget:
         self._data_widget = data_widget
         data_widget.add_listener(self._plot_selected)
 
+    def _display_name(self) -> str:
+        """Return the label to show/record for the current process.
+
+        Uses the bound ConfigurationWidget's own name whenever one is bound
+        (never the process's internal `.name`/class name, e.g. "Batch
+        Elution" -- that's an implementation detail, not what the user
+        called their configuration). Falls back to the process's own name
+        only when no ConfigurationWidget is bound at all, since there's
+        nothing else to show in that case.
+        """
+        if self._config_widget is not None:
+            return self._config_widget.config_name
+        return getattr(self.process, "name", type(self.process).__name__)
+
     def _update_process_label(self) -> None:
         if self.process is None:
             self._process_label.value = "<em>No process set.</em>"
         else:
-            name = getattr(self.process, "name", type(self.process).__name__)
-            self._process_label.value = f"<strong>Process:</strong> {name}"
+            self._process_label.value = f"<strong>Process:</strong> {self._display_name()}"
+
+    def _tag_current_config(self) -> tuple[Optional[str], Optional[str]]:
+        """Auto-save the bound ConfigurationWidget's current state, best-effort.
+
+        Returns (config_name, config_hash) to tag a RunRecord with. Never
+        raises -- a store-write failure must not block an actual simulation
+        run, it just means that run's history entry has no re-importable hash.
+        """
+        if self._config_widget is None:
+            return None, None
+        try:
+            from ...configuration_store import save_to_store
+
+            cw = self._config_widget
+            save_to_store(
+                cw._snapshot_state(), cw.config_name, process=cw.process, store_dir=cw._store_dir
+            )
+            return cw.config_name, cw.config_hash
+        except Exception:  # noqa: BLE001
+            return None, None
 
     def _on_run(self, _btn: Any) -> None:
         self._plot_out.clear_output()
         if self.process is None:
             self.status.value = "<span style='color:#b00020'>No process to run.</span>"
             return
+        if self._config_widget is not None and not self._config_widget.config_name.strip():
+            self.status.value = (
+                "<span style='color:#b00020'>Give the configuration a name before"
+                " running a simulation.</span>"
+            )
+            return
 
-        label = getattr(self.process, "name", type(self.process).__name__)
+        label = self._display_name()
+        config_name, config_hash = self._tag_current_config()
         self._btn_run.disabled = True
         self._btn_run.description = "Running..."
         self.status.value = "<span class='cadetgui-spinner'></span><em>Running simulation…</em>"
@@ -101,18 +186,27 @@ class SolutionWidget:
             result = self._runner(self.process)
         except Exception as exc:  # noqa: BLE001
             self.result = None
-            self.history.record(label, error=str(exc))
+            self.history.record(
+                label, error=str(exc), config_name=config_name, config_hash=config_hash
+            )
             self.status.value = f"<span style='color:#b00020'>Simulation failed: {exc}</span>"
             return
         finally:
             self._btn_run.disabled = False
             self._btn_run.description = "Run simulation"
 
-        self.history.record(label, result=result)
+        self.history.record(label, result=result, config_name=config_name, config_hash=config_hash)
         self._load_result(result)
         self.status.value = "<em>Simulation finished.</em>"
 
+    def _on_load_config(self, _btn: Any) -> None:
+        run = self.history.selected
+        if run is None or run.config_hash is None or self._config_widget is None:
+            return
+        self._config_widget.import_from_store(run.config_hash)
+
     def _on_history_pick(self, run: RunRecord) -> None:
+        self._btn_load_config.layout.display = "" if run.config_hash else "none"
         self._plot_out.clear_output()
         if not run.ok:
             self.result = None
@@ -124,12 +218,7 @@ class SolutionWidget:
 
     def _load_result(self, result: Any) -> None:
         self.result = result
-        signals = [
-            (f"{unit}: {port}", (unit, port))
-            for unit, ports in result.solution.items()
-            for port in ports
-        ]
-        self._signal_picker.set_options(signals, keep_value=True)
+        self._signal_picker.set_options(_signal_options(result), keep_value=True)
         self._plot_selected()
 
     def _on_clear(self, _btn: Any) -> None:

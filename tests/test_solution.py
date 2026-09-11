@@ -4,9 +4,11 @@ import datetime as dt
 import warnings
 
 import matplotlib
+import pytest
 
 matplotlib.use("Agg")  # headless test environment, no display needed
 
+import cadetgui.configuration_store as configuration_store
 from cadetgui.simulation import run_process as _default_runner
 from cadetgui.widgets.composite import (
     ConfigurationWidget,
@@ -15,6 +17,12 @@ from cadetgui.widgets.composite import (
 )
 
 warnings.filterwarnings("ignore", category=UserWarning)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_store(tmp_path, monkeypatch):
+    """Redirect the configuration store to a tmp dir -- never touch the real one."""
+    monkeypatch.setattr(configuration_store, "default_store_dir", lambda: tmp_path)
 
 
 def upload_csv(widget: DataImportWidget, filename: str, csv_text: str) -> None:
@@ -112,6 +120,30 @@ def test_solutionwidget_run_populates_signals_and_plots():
     assert "finished" in sw.status.value.lower()
 
 
+def test_signal_list_collapses_inlet_and_outlet_units_to_one_entry_each():
+    # Batch Elution: two Inlet units (feed, eluent), one real column, one Outlet.
+    sw = SolutionWidget(process=built_process())
+    sw._on_run(None)
+
+    labels = sw._signal_picker.option_labels
+    assert labels == [
+        "feed: Source",
+        "eluent: Source",
+        "column: inlet",
+        "column: outlet",
+        "outlet: Sink",
+    ]
+
+
+def test_signal_list_source_and_sink_options_point_at_the_real_port():
+    sw = SolutionWidget(process=built_process())
+    sw._on_run(None)
+
+    options = dict(sw._signal_picker._options)
+    assert options["feed: Source"] == ("feed", "outlet")
+    assert options["outlet: Sink"] == ("outlet", "inlet")
+
+
 def test_solutionwidget_selection_persists_across_reruns():
     sw = SolutionWidget(process=built_process())
     sw._on_run(None)
@@ -204,3 +236,103 @@ def test_solutionwidget_replots_when_data_uploaded_after_run():
     upload_csv(di, "late.csv", "time,signal\n0,0.0\n1,1.0\n")  # must not raise
 
     assert di.datasets  # upload succeeded and triggered a listener-driven replot
+
+
+def test_solutionwidget_run_tags_history_with_config_name_and_hash():
+    cw = ConfigurationWidget()
+    cw._name_field.value = "My Config"
+    sw = SolutionWidget()
+    sw.bind_to_config(cw)
+
+    sw._on_run(None)
+
+    run = sw.history.selected
+    assert run.config_name == "My Config"
+    assert run.config_hash == cw.config_hash
+
+
+def test_solutionwidget_run_auto_saves_config_to_store():
+    cw = ConfigurationWidget()
+    cw._name_field.value = "Auto Saved Config"
+    sw = SolutionWidget()
+    sw.bind_to_config(cw)
+
+    sw._on_run(None)
+
+    name, state = configuration_store.load_from_store(cw.config_hash)
+    assert state == cw._snapshot_state()
+
+
+def test_solutionwidget_run_without_bound_config_leaves_history_untagged():
+    sw = SolutionWidget(process=built_process())
+    sw._on_run(None)
+
+    run = sw.history.selected
+    assert run.config_name is None
+    assert run.config_hash is None
+
+
+def test_solutionwidget_run_refuses_when_bound_config_has_no_name():
+    cw = ConfigurationWidget()
+    cw._name_field.value = ""  # cleared the default name
+    sw = SolutionWidget()
+    sw.bind_to_config(cw)
+
+    sw._on_run(None)
+
+    assert sw.history.runs == []
+    assert "name" in sw.status.value.lower()
+
+
+def test_solutionwidget_run_without_bound_config_does_not_require_a_name():
+    sw = SolutionWidget(process=built_process())  # no ConfigurationWidget bound
+    sw._on_run(None)
+
+    assert len(sw.history.runs) == 1
+
+
+def test_solutionwidget_process_label_shows_the_configuration_name_not_the_process_name():
+    cw = ConfigurationWidget()
+    sw = SolutionWidget()
+    sw.bind_to_config(cw)
+    assert "New Experiment" in sw._process_label.value  # the default name, not "Batch Elution"
+    assert "Batch Elution" not in sw._process_label.value
+
+    cw._name_field.value = "My Named Config"
+    assert "My Named Config" in sw._process_label.value
+    assert "Batch Elution" not in sw._process_label.value
+
+
+def test_solutionwidget_run_history_label_uses_the_configuration_name():
+    cw = ConfigurationWidget()
+    cw._name_field.value = "My Named Config"
+    sw = SolutionWidget()
+    sw.bind_to_config(cw)
+
+    sw._on_run(None)
+
+    assert sw.history.selected.label == "My Named Config"
+
+
+def test_solutionwidget_load_config_button_hidden_without_a_hash():
+    sw = SolutionWidget(process=built_process())
+    sw._on_run(None)  # no bound ConfigurationWidget -> no hash
+
+    assert sw._btn_load_config.layout.display == "none"
+
+
+def test_solutionwidget_load_config_button_reimports_the_run_configuration():
+    cw = ConfigurationWidget()
+    cw._name_field.value = "Reimport Test Config"
+    sw = SolutionWidget()
+    sw.bind_to_config(cw)
+    sw._on_run(None)
+    saved_hash = sw.history.selected.config_hash
+
+    cw._model_form.element("flow_rate").value = 9.9e-6
+    assert cw.config_hash != saved_hash
+
+    assert sw._btn_load_config.layout.display == ""
+    sw._on_load_config(None)
+
+    assert cw.config_hash == saved_hash

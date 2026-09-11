@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
 import ipywidgets as W
 from CADETProcess.processModel import ComponentSystem
@@ -17,13 +18,26 @@ from ...cadetprocessadapter import (
     lwe_spec,
     require_positive,
 )
+from ...configuration_store import (
+    ConfigurationState,
+    compute_hash,
+    load_from_store,
+    save_to_store,
+)
 from .._chrome import style_tag
-from ..elements import ChoiceField, ComponentListField, EventTimelineChart, FloatField
+from ..elements import (
+    ChoiceField,
+    ComponentListField,
+    EventTimelineChart,
+    FloatField,
+    TextField,
+)
 from ..forms import FormRenderer
 
 __all__ = ["ConfigurationWidget"]
 
 _CYCLE_TIME_SLIDER_MAX_SECONDS = 300.0 * 60.0
+_DEFAULT_CONFIG_NAME = "New Experiment"
 
 # These templates model a buffer/salt gradient against a load, which is
 # meaningless with a single component -- auto-add a second one on selection.
@@ -33,6 +47,14 @@ _TEMPLATES_REQUIRING_MULTIPLE_COMPONENTS = frozenset({batch_elution_spec, lwe_sp
 def _round_10sf(v: float) -> float:
     """Round to 10 significant figures, clearing browser-slider float noise."""
     return float(f"{v:.10g}")
+
+
+def _key_for_value(registry: Mapping[str, Any], value: Any) -> Optional[str]:
+    """Reverse-lookup a registry's human label for one of its factory values."""
+    for key, candidate in registry.items():
+        if candidate == value:
+            return key
+    return None
 
 
 class ConfigurationWidget:
@@ -63,6 +85,11 @@ class ConfigurationWidget:
         self._model_form: Optional[FormRenderer] = None
         self._event_sliders: Dict[str, W.FloatSlider] = {}
         self._cycle_time_minutes_element: Optional[FloatField] = None
+        self.config_name: str = _DEFAULT_CONFIG_NAME
+        self.config_hash: Optional[str] = None
+        # None = use configuration_store.default_store_dir(); set via the
+        # "Storage folder" field below once the user picks one explicitly.
+        self._store_dir: Optional[Path] = None
 
         self._multiplex_state: Dict[str, bool] = dict.fromkeys(MULTIPLEXABLE_COLUMN_PARAMS, False)
         self._multiplex_checkboxes: Dict[str, W.Checkbox] = {
@@ -166,6 +193,24 @@ class ConfigurationWidget:
         self._script_out = W.Textarea(layout=W.Layout(width="100%", height="220px", display="none"))
         self._script_out.add_class("cadetgui-script")
 
+        self._store_dir_field = TextField(label="Storage folder:", value="")
+        self._btn_set_store_dir = W.Button(description="Set folder", icon="folder-open")
+        self._store_dir_note = W.HTML(
+            "<em>Leave blank to use the default (~/.cadetgui/configurations).</em>"
+        )
+        self._store_dir_note.add_class("cadetgui-note")
+        self._name_field = TextField(label="Configuration name:", value=_DEFAULT_CONFIG_NAME)
+        self._hash_display = W.HTML("<em>No configuration built yet.</em>")
+        self._btn_save = W.Button(description="Save", icon="save")
+        self._file_upload = W.FileUpload(description="Import file", accept=".h5", multiple=False)
+        self._import_hash_field = TextField(label="Import by hash:", value="")
+        self._btn_import_hash = W.Button(description="Import", icon="download")
+        self._btn_toggle_save_load_details = W.Button(
+            description="Show details", icon="chevron-down"
+        )
+        self.save_status = W.HTML()
+        self.save_status.add_class("cadetgui-status")
+
         components_section = W.VBox(
             [
                 W.HTML("<div class='cadetgui-section-title'>Component System</div>"),
@@ -241,10 +286,34 @@ class ConfigurationWidget:
         )
         process_section.add_class("cadetgui-section")
 
+        self._save_load_details_box = W.VBox(
+            [
+                self._hash_display,
+                W.HTML("<hr>"),
+                W.HBox([self._store_dir_field, self._btn_set_store_dir]),
+                self._store_dir_note,
+                W.HTML("<hr>"),
+                self._file_upload,
+                W.HBox([self._import_hash_field, self._btn_import_hash]),
+            ],
+            layout=W.Layout(display="none"),
+        )
+        save_load_section = W.VBox(
+            [
+                W.HTML("<div class='cadetgui-section-title'>Save / Load Configuration</div>"),
+                self._name_field,
+                W.HBox([self._btn_save, self._btn_toggle_save_load_details]),
+                self.save_status,
+                self._save_load_details_box,
+            ]
+        )
+        save_load_section.add_class("cadetgui-section")
+
         self.root = W.VBox(
             [
                 W.HTML(style_tag()),
                 W.HTML("<div class='cadetgui-panel-title'>Configuration</div>"),
+                save_load_section,
                 components_section,
                 column_binding_row,
                 process_section,
@@ -260,6 +329,12 @@ class ConfigurationWidget:
         self._binding_picker.observe(self._on_selection_change, names="selected_index")
         self._model_picker.observe(self._on_model_selection_change, names="selected_index")
         self._btn_export.on_click(self._on_export)
+        self._name_field.observe(self._on_name_change, names="value")
+        self._btn_set_store_dir.on_click(self._on_set_store_dir)
+        self._btn_save.on_click(self._on_save)
+        self._file_upload.observe(self._on_file_upload_change, names="value")
+        self._btn_import_hash.on_click(self._on_import_hash_click)
+        self._btn_toggle_save_load_details.on_click(self._on_toggle_save_load_details)
 
         self._sync_component_minimum()
         if not self._maybe_autoadd_component():
@@ -359,6 +434,11 @@ class ConfigurationWidget:
         shown = self._process_settings_box.layout.display != "none"
         self._process_settings_box.layout.display = "none" if shown else ""
 
+    def _on_toggle_save_load_details(self, _btn: Any) -> None:
+        shown = self._save_load_details_box.layout.display != "none"
+        self._save_load_details_box.layout.display = "none" if shown else ""
+        self._btn_toggle_save_load_details.description = "Show details" if shown else "Hide details"
+
     def _make_on_multiplex_change(self, name: str) -> Callable[[dict], None]:
         def _on_change(change: dict) -> None:
             if change.get("name") != "value":
@@ -380,8 +460,84 @@ class ConfigurationWidget:
 
     def _on_process_built(self, built: Any) -> None:
         self.process = built
+        self._refresh_config_hash()
         self._notify()
         self.status.value = "<em>Process built.</em>"
+
+    def _snapshot_state(self) -> ConfigurationState:
+        """Capture the current selection + field values as the hashed save/import payload."""
+        if self._column_form is None or self._binding_form is None or self._model_form is None:
+            raise RuntimeError(
+                "Nothing built yet -- pick a column, binding model, and template first."
+            )
+        column_key = _key_for_value(self._columns, self._column_picker.value)
+        binding_key = _key_for_value(self._binding_registry, self._binding_picker.value)
+        template_key = _key_for_value(self._registry, self._model_picker.value)
+        if column_key is None or binding_key is None or template_key is None:
+            raise RuntimeError("Current selection isn't in a known registry -- can't snapshot it.")
+        return ConfigurationState(
+            components=list(self._components.value),
+            column_key=column_key,
+            binding_key=binding_key,
+            template_key=template_key,
+            multiplex_state=dict(self._multiplex_state),
+            show_optional_column=bool(self._show_optional_checkbox.value),
+            show_optional_binding=bool(self._show_optional_binding_checkbox.value),
+            column_values=self._column_form.collect_values(),
+            binding_values=self._binding_form.collect_values(),
+            model_values=self._model_form.collect_values(),
+        )
+
+    def _refresh_config_hash(self) -> None:
+        try:
+            self.config_hash = compute_hash(self._snapshot_state())
+        except RuntimeError:
+            self.config_hash = None
+        if self.config_hash is None:
+            self._hash_display.value = "<em>No configuration built yet.</em>"
+        else:
+            self._hash_display.value = f"<strong>Hash:</strong> <code>{self.config_hash}</code>"
+
+    def _apply_state(self, name: str, state: ConfigurationState) -> None:
+        """Reconstruct pickers/forms from a saved ConfigurationState."""
+        column_factory = self._columns.get(state.column_key)
+        binding_factory = self._binding_registry.get(state.binding_key)
+        template_factory = self._registry.get(state.template_key)
+        if column_factory is None or binding_factory is None or template_factory is None:
+            raise ValueError(
+                "Saved configuration references a column, binding model, or template"
+                " that isn't registered here anymore."
+            )
+
+        for param_name, enabled in state.multiplex_state.items():
+            checkbox = self._multiplex_checkboxes.get(param_name)
+            if checkbox is not None:
+                checkbox.value = enabled
+        self._show_optional_checkbox.value = state.show_optional_column
+        self._show_optional_binding_checkbox.value = state.show_optional_binding
+
+        self._components.value = list(state.components)
+        self._column_picker.value = column_factory
+        self._binding_picker.value = binding_factory
+        self._model_picker.value = template_factory
+
+        self._column_form.set_values(state.column_values)
+        self._binding_form.set_values(state.binding_values)
+        self._model_form.set_values(state.model_values)
+
+        self.config_name = name
+        self._name_field.value = name
+        self._refresh_config_hash()
+
+    def import_from_store(self, hash_: str) -> None:
+        """Load a configuration previously saved to the local store, by its hash."""
+        try:
+            name, state = load_from_store(hash_, store_dir=self._store_dir)
+            self._apply_state(name, state)
+        except Exception as exc:  # noqa: BLE001
+            self.save_status.value = f"<span style='color:#b00020'>{exc}</span>"
+            return
+        self.save_status.value = f"<em>Imported '{name}' ({hash_}).</em>"
 
     def _rebuild_forms(self) -> None:
         column = self._get_column()
@@ -392,6 +548,7 @@ class ConfigurationWidget:
             self._binding_form_box.children = ()
             self._model_form_box.children = ()
             self._clear_event_section()
+            self._refresh_config_hash()
             return
 
         column_params = set(getattr(column, "required_parameters", None) or [])
@@ -425,6 +582,12 @@ class ConfigurationWidget:
         self._model_form = FormRenderer(model_fn(column), on_built=self._on_process_built)
         self._model_form_box.children = (self._model_form.root,)
         self._rebuild_event_sliders()
+        # The model form's own on_built=_on_process_built fires from inside the
+        # FormRenderer(...) constructor call above, before this method's own
+        # `self._model_form = ...` assignment has completed -- so that first
+        # call sees a stale (pre-rebuild) _model_form and can't snapshot yet.
+        # Refresh again now that all three forms are actually assigned.
+        self._refresh_config_hash()
 
         self.status.value = (
             "<em>Fields apply automatically as you edit them"
@@ -688,6 +851,69 @@ class ConfigurationWidget:
         self._script_out.value = script
         self._script_out.layout.display = ""
         self.status.value = "<em>Script generated below.</em>"
+
+    def _on_name_change(self, change: dict) -> None:
+        if change.get("name") != "value":
+            return
+        self.config_name = change["new"]
+
+    def _on_set_store_dir(self, _btn: Any) -> None:
+        text = self._store_dir_field.value.strip()
+        if not text:
+            self._store_dir = None
+            self.save_status.value = "<em>Using the default storage folder.</em>"
+            return
+        try:
+            path = Path(text).expanduser().resolve()
+            path.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:  # noqa: BLE001
+            self.save_status.value = f"<span style='color:#b00020'>{exc}</span>"
+            return
+        self._store_dir = path
+        self._store_dir_field.value = str(path)
+        self.save_status.value = f"<em>Configurations will be saved to {path}.</em>"
+
+    def _on_save(self, _btn: Any) -> None:
+        if not self.config_name.strip():
+            self.save_status.value = (
+                "<span style='color:#b00020'>Give the configuration a name before saving.</span>"
+            )
+            return
+        try:
+            state = self._snapshot_state()
+            path = save_to_store(
+                state, self.config_name, process=self.process, store_dir=self._store_dir
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.save_status.value = f"<span style='color:#b00020'>{exc}</span>"
+            return
+        self._refresh_config_hash()
+        self.save_status.value = f"<em>Saved to {path}.</em>"
+
+    def _on_file_upload_change(self, change: dict) -> None:
+        if change.get("name") != "value" or not self._file_upload.value:
+            return
+        item = self._file_upload.value[0]
+        try:
+            import tempfile
+            from pathlib import Path
+
+            from ...configuration_store import load_h5
+
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                tmp_path = Path(tmp_dir) / item["name"]
+                tmp_path.write_bytes(bytes(item["content"]))
+                name, state = load_h5(tmp_path)
+            self._apply_state(name, state)
+        except Exception as exc:  # noqa: BLE001
+            self.save_status.value = f"<span style='color:#b00020'>{exc}</span>"
+            return
+        finally:
+            self._file_upload.value = ()
+        self.save_status.value = f"<em>Imported '{name}' from {item['name']}.</em>"
+
+    def _on_import_hash_click(self, _btn: Any) -> None:
+        self.import_from_store(self._import_hash_field.value.strip())
 
     def display(self) -> None:
         """Render this widget in a Jupyter cell."""

@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+import datetime as dt
 import warnings
 
+import cadetgui.configuration_store as configuration_store
+import pytest
 from cadetgui.widgets.composite import ConfigurationWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_store(tmp_path, monkeypatch):
+    """Redirect the configuration store to a tmp dir -- never touch the real one."""
+    monkeypatch.setattr(configuration_store, "default_store_dir", lambda: tmp_path)
 
 
 def test_configuration_widget_renders_default_forms():
@@ -689,3 +698,204 @@ def test_pulse_feed_export_script_round_trips():
     exported_timeline = ns["process"].parameter_timelines["flow_sheet.feed.c"]
     original_timeline = cw.process.parameter_timelines["flow_sheet.feed.c"]
     assert exported_timeline.value([0.0]).tolist() == original_timeline.value([0.0]).tolist()
+
+
+def test_config_hash_is_set_after_construction_and_changes_with_field_edits():
+    cw = ConfigurationWidget()
+    assert cw.config_hash is not None
+
+    first_hash = cw.config_hash
+    cw._model_form.element("flow_rate").value = 4.4e-6
+    assert cw.config_hash != first_hash
+
+
+def test_snapshot_and_apply_state_round_trips_a_mutated_configuration():
+    cw = ConfigurationWidget()
+    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
+    cw._binding_picker.value = cw._binding_registry["Langmuir"]
+    cw._column_form.element("length").value = 0.42
+    cw._model_form.element("flow_rate").value = 4.4e-6
+
+    state = cw._snapshot_state()
+
+    cw2 = ConfigurationWidget()  # a different widget entirely
+    cw2._apply_state("Imported", state)
+
+    assert cw2.config_name == "Imported"
+    assert cw2._name_field.value == "Imported"
+    assert cw2.config_hash == cw.config_hash
+    assert type(cw2._get_column()).__name__ == "GeneralRateModel"
+    assert type(cw2._get_binding_model()).__name__ == "Langmuir"
+    assert cw2._column_form.collect_values() == cw._column_form.collect_values()
+    assert cw2._model_form.collect_values() == cw._model_form.collect_values()
+
+
+def test_apply_state_rejects_an_unregistered_column_key():
+    cw = ConfigurationWidget()
+    state = cw._snapshot_state()
+    bad_state = configuration_store.ConfigurationState(
+        **{**state.__dict__, "column_key": "Some Removed Column"}
+    )
+    with pytest.raises(ValueError, match="isn't registered"):
+        cw._apply_state("x", bad_state)
+
+
+def test_save_button_writes_to_the_store_and_shows_the_path(tmp_path):
+    cw = ConfigurationWidget()
+    cw._name_field.value = "Saved Config"
+
+    cw._on_save(None)
+
+    assert str(tmp_path) in cw.save_status.value
+    name, state = configuration_store.load_from_store(cw.config_hash)
+    assert name == "Saved Config"
+    assert state == cw._snapshot_state()
+
+
+def test_import_from_store_restores_a_previously_saved_configuration():
+    cw = ConfigurationWidget()
+    cw._name_field.value = "Saved Config"
+    cw._model_form.element("flow_rate").value = 7.7e-6
+    cw._on_save(None)
+    saved_hash = cw.config_hash
+
+    cw2 = ConfigurationWidget()
+    cw2.import_from_store(saved_hash)
+
+    assert cw2.config_name == "Saved Config"
+    assert cw2.config_hash == saved_hash
+    assert "Imported" in cw2.save_status.value
+
+
+def test_import_from_store_with_unknown_hash_shows_an_error():
+    cw = ConfigurationWidget()
+    cw.import_from_store("deadbeef")
+    assert "deadbeef" in cw.save_status.value
+
+
+def test_import_hash_button_delegates_to_import_from_store():
+    cw = ConfigurationWidget()
+    cw._name_field.value = "Saved Config"
+    cw._on_save(None)
+    saved_hash = cw.config_hash
+
+    cw2 = ConfigurationWidget()
+    cw2._import_hash_field.value = saved_hash
+    cw2._on_import_hash_click(None)
+
+    assert cw2.config_hash == saved_hash
+
+
+def test_file_upload_imports_an_exported_configuration():
+    cw = ConfigurationWidget()
+    cw._name_field.value = "Uploaded Config"
+    cw._model_form.element("flow_rate").value = 2.2e-6
+
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "exported.h5"
+        state = cw._snapshot_state()
+        configuration_store.save_h5(state, "Uploaded Config", path, process=cw.process)
+        content = memoryview(path.read_bytes())
+
+    cw2 = ConfigurationWidget()
+    cw2._file_upload.value = (
+        {
+            "name": "exported.h5",
+            "type": "application/x-hdf5",
+            "size": len(content),
+            "last_modified": dt.datetime.now(),
+            "content": content,
+        },
+    )
+
+    assert cw2.config_name == "Uploaded Config"
+    assert cw2.config_hash == cw.config_hash
+    assert cw2._file_upload.value == ()  # cleared so the same file can be re-uploaded
+
+
+def test_store_dir_defaults_to_none_and_uses_the_default_store(tmp_path):
+    cw = ConfigurationWidget()
+    cw._name_field.value = "Default Store Config"
+    assert cw._store_dir is None
+
+    cw._on_save(None)
+    # default store dir is monkeypatched to tmp_path by the isolated_store fixture
+    assert (tmp_path / f"{cw.config_hash}.h5").exists()
+
+
+def test_setting_a_custom_store_dir_is_used_for_save_and_import(tmp_path):
+    custom = tmp_path / "my_configs" / "nested"
+    cw = ConfigurationWidget()
+    cw._name_field.value = "Custom Folder Config"
+    cw._store_dir_field.value = str(custom)
+
+    cw._on_set_store_dir(None)
+
+    assert cw._store_dir == custom
+    assert custom.is_dir()  # created on set, even before anything is saved
+
+    cw._on_save(None)
+    assert (custom / f"{cw.config_hash}.h5").exists()
+
+    cw2 = ConfigurationWidget()
+    cw2._store_dir_field.value = str(custom)
+    cw2._on_set_store_dir(None)
+    cw2.import_from_store(cw.config_hash)
+    assert cw2.config_name == "Custom Folder Config"
+
+
+def test_blank_store_dir_field_resets_to_the_default(tmp_path):
+    cw = ConfigurationWidget()
+    cw._store_dir_field.value = str(tmp_path / "custom")
+    cw._on_set_store_dir(None)
+    assert cw._store_dir is not None
+
+    cw._store_dir_field.value = ""
+    cw._on_set_store_dir(None)
+    assert cw._store_dir is None
+
+
+def test_invalid_store_dir_shows_an_error_and_does_not_change_store_dir(tmp_path):
+    blocked = tmp_path / "not_a_directory"
+    blocked.write_text("x")
+
+    cw = ConfigurationWidget()
+    cw._store_dir_field.value = str(blocked / "sub")
+    cw._on_set_store_dir(None)
+
+    assert cw._store_dir is None
+    assert "span style" in cw.save_status.value
+
+
+def test_save_without_a_name_is_refused(tmp_path):
+    cw = ConfigurationWidget()
+    cw._name_field.value = ""  # cleared the default name
+    cw._on_save(None)
+
+    assert "name" in cw.save_status.value.lower()
+    assert list(tmp_path.glob("*.h5")) == []  # nothing written to the store
+
+
+def test_save_load_details_are_collapsed_by_default_and_toggle():
+    cw = ConfigurationWidget()
+    assert cw._save_load_details_box.layout.display == "none"
+    assert cw._btn_toggle_save_load_details.description == "Show details"
+
+    cw._on_toggle_save_load_details(None)
+    assert cw._save_load_details_box.layout.display == ""
+    assert cw._btn_toggle_save_load_details.description == "Hide details"
+
+    cw._on_toggle_save_load_details(None)
+    assert cw._save_load_details_box.layout.display == "none"
+    assert cw._btn_toggle_save_load_details.description == "Show details"
+
+
+def test_save_load_section_is_the_first_section_in_the_panel():
+    cw = ConfigurationWidget()
+    children = cw.root.children
+    # index 0 is the injected style tag, index 1 the panel title
+    save_load_section = children[2]
+    assert "Save / Load Configuration" in save_load_section.children[0].value

@@ -20,6 +20,8 @@ class RunRecord:
     result: Any = None
     error: Optional[str] = None
     timestamp: dt.datetime = field(default_factory=dt.datetime.now)
+    config_name: Optional[str] = None
+    config_hash: Optional[str] = None
 
     @property
     def ok(self) -> bool:
@@ -50,9 +52,20 @@ class RunHistoryWidget:
         """Register a callback fired with the picked RunRecord on every selection."""
         self._listeners.append(fn)
 
-    def record(self, label: str, *, result: Any = None, error: Optional[str] = None) -> RunRecord:
+    def record(
+        self,
+        label: str,
+        *,
+        result: Any = None,
+        error: Optional[str] = None,
+        config_name: Optional[str] = None,
+        config_hash: Optional[str] = None,
+    ) -> RunRecord:
         """Add a run to the history and select it."""
-        run = RunRecord(label=label, result=result, error=error)
+        run = RunRecord(
+            label=label, result=result, error=error,
+            config_name=config_name, config_hash=config_hash,
+        )
         self.runs.append(run)
         options = [(self._describe(r), r) for r in self.runs]
         self._picker.set_options(options, keep_value=False)

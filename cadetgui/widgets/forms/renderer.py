@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Mapping, Optional
 
 import ipywidgets as W
 
@@ -139,6 +139,16 @@ class FormRenderer:
     def _on_reset(self, _btn: Any) -> None:
         for f in self.spec.fields:
             self._elements[f.name].value = _coerced_default(f)
+        self._commit()
+
+    def set_values(self, values: Mapping[str, Any]) -> None:
+        """Push a dict of field values into the rendered elements and commit.
+
+        Any field name missing from `values` falls back to its own default.
+        """
+        for f in self.spec.fields:
+            value = values[f.name] if f.name in values else _coerced_default(f)
+            self._elements[f.name].value = value
         self._commit()
 
     def display(self) -> None:

@@ -63,3 +63,19 @@ def test_describe_format_includes_index_and_status():
     assert label.startswith("#1")
     assert "MyProcess" in label
     assert label.endswith("ok")
+
+
+def test_record_carries_config_name_and_hash():
+    h = RunHistoryWidget()
+    run = h.record("first", result="r1", config_name="My Config", config_hash="abc123")
+
+    assert run.config_name == "My Config"
+    assert run.config_hash == "abc123"
+
+
+def test_record_without_config_leaves_hash_none():
+    h = RunHistoryWidget()
+    run = h.record("first", result="r1")
+
+    assert run.config_name is None
+    assert run.config_hash is None
