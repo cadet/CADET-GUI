@@ -62,7 +62,12 @@ def test_parameter_estimation_widget_nests_a_data_import_widget():
     pw = ParameterEstimationWidget()
 
     assert isinstance(pw.data, DataImportWidget)
-    assert pw.data.root in pw.root.children
+    # Nested one level deep, inside the "Experimental data" section -- not a
+    # direct child of `pw.root` itself.
+    nested_children = [
+        child for section in pw.root.children for child in getattr(section, "children", ())
+    ]
+    assert pw.data.root in nested_children
 
 
 def test_parameter_estimation_widget_accepts_a_prebuilt_data_widget():
@@ -284,6 +289,11 @@ def _uploaded_measurement_from(result, unit: str, port: str) -> str:
     return "\n".join(lines)
 
 
+def _set_maxiter(pw: ParameterEstimationWidget, value: int) -> None:
+    """Set Nelder-Mead's one knob field ("Max iterations") -- keeps tests fast."""
+    pw._knob_fields["Nelder-Mead"][0].value = value
+
+
 def _ready_to_run(cw, pw):
     pw._on_preview(None)
     unit, port = pw._signal_picker.value
@@ -291,7 +301,7 @@ def _ready_to_run(cw, pw):
     pw._dataset_picker.selected_index = 0
     pw._signal_picker.value = (unit, port)
     _add_param(pw, 0)
-    pw._maxiter_field.value = 20
+    _set_maxiter(pw, 20)
 
 
 def test_run_estimation_without_a_dataset_shows_a_guard_error():
@@ -489,7 +499,7 @@ def test_run_estimation_with_a_specific_component_selected_succeeds():
     pw._signal_picker.value = (unit, port)
     pw._component_picker.value = "Component 2"
     _add_param(pw, 0)
-    pw._maxiter_field.value = 15
+    _set_maxiter(pw, 15)
 
     pw._on_run(None)
 
@@ -651,3 +661,127 @@ def test_finish_run_shows_a_plain_message_for_a_cancelled_result_not_an_error():
     assert "cancelled" in pw.status.value.lower()
     assert "#b00020" not in pw.status.value  # not styled as an error
     assert pw._btn_cancel.layout.display == "none"
+
+
+def test_optimizer_picker_defaults_to_nelder_mead_and_switching_swaps_knob_boxes():
+    pw = ParameterEstimationWidget()
+
+    assert pw._optimizer_picker.value == "Nelder-Mead"
+    assert pw._knob_boxes["Nelder-Mead"].layout.display == ""
+    assert pw._knob_boxes["U-NSGA-III"].layout.display == "none"
+
+    pw._optimizer_picker.value = "U-NSGA-III"
+
+    assert pw._knob_boxes["Nelder-Mead"].layout.display == "none"
+    assert pw._knob_boxes["U-NSGA-III"].layout.display == ""
+
+
+def test_on_run_passes_the_selected_optimizer_and_its_knob_values(monkeypatch):
+    import cadetgui.widgets.composite.parameter_estimation as pe_widget
+
+    cw, pw = _bound_widgets()
+    _ready_to_run(cw, pw)
+    pw._optimizer_picker.value = "U-NSGA-III"
+    pop_size_field, n_max_gen_field = pw._knob_fields["U-NSGA-III"]
+    pop_size_field.value = 24
+    n_max_gen_field.value = 7
+    captured = {}
+
+    def _fake_run_estimation(*args, **kwargs):
+        captured.update(kwargs)
+        return EstimationResult({}, None, False, "stopped for the test")
+
+    monkeypatch.setattr(pe_widget, "run_estimation", _fake_run_estimation)
+
+    pw._on_run(None)
+
+    assert captured["optimizer_name"] == "U-NSGA-III"
+    assert captured["optimizer_kwargs"] == {"pop_size": 24, "n_max_gen": 7}
+
+
+def test_cancel_description_mentions_generation_for_a_population_based_optimizer():
+    _, pw = _bound_widgets()
+
+    pw._optimizer_picker.value = "U-NSGA-III"
+    pw._on_cancel(None)
+    assert "generation" in pw._btn_cancel.description.lower()
+
+    pw._btn_cancel.disabled = False
+    pw._optimizer_picker.value = "Nelder-Mead"
+    pw._on_cancel(None)
+    assert "generation" not in pw._btn_cancel.description.lower()
+
+
+class _FakeAnalyticsResults:
+    def __init__(self, n_gen: int, n_var: int):
+        self.populations = [None] * n_gen
+        self._n_var = n_var
+
+    def plot_convergence(self, ax):
+        ax[0].plot([1, 2, 3])
+
+    def plot_pairwise(self, ax):
+        pass
+
+    @property
+    def x(self):
+        return [[0.0] * self._n_var]
+
+
+def test_render_analytics_shows_convergence_and_hides_pairwise_for_one_parameter():
+    _, pw = _bound_widgets()
+    optimizer = type("Opt", (), {"results": _FakeAnalyticsResults(3, 1)})()
+
+    pw._render_analytics(optimizer)
+
+    assert pw._convergence_out.layout.display == ""
+    assert pw._convergence_out.value
+    assert pw._pairwise_out.layout.display == "none"  # 1 variable -- degenerate, skipped
+    assert pw._analytics_error.value == ""
+
+
+def test_render_analytics_shows_pairwise_for_two_parameters():
+    _, pw = _bound_widgets()
+    optimizer = type("Opt", (), {"results": _FakeAnalyticsResults(3, 2)})()
+
+    pw._render_analytics(optimizer)
+
+    assert pw._pairwise_out.layout.display == ""
+    assert pw._pairwise_out.value
+
+
+def test_render_analytics_skips_silently_before_the_first_generation():
+    _, pw = _bound_widgets()
+    optimizer = type("Opt", (), {"results": _FakeAnalyticsResults(0, 1)})()
+
+    pw._render_analytics(optimizer)
+
+    assert pw._convergence_out.layout.display == "none"
+    assert pw._convergence_out.value == b""
+
+
+def test_render_analytics_surfaces_errors_instead_of_staying_silent():
+    _, pw = _bound_widgets()
+
+    class _BoomResults(_FakeAnalyticsResults):
+        def plot_convergence(self, ax):
+            raise RuntimeError("synthetic analytics failure")
+
+    optimizer = type("Opt", (), {"results": _BoomResults(2, 1)})()
+
+    pw._render_analytics(optimizer)
+
+    assert "synthetic analytics failure" in pw._analytics_error.value
+
+
+@pytest.mark.slow
+def test_finish_run_renders_analytics_after_a_real_run():
+    cw, pw = _bound_widgets()
+    _ready_to_run(cw, pw)
+
+    pw._on_run(None)
+
+    assert pw._last_result is not None
+    assert pw._last_result.success
+    assert pw._convergence_out.layout.display == ""
+    assert pw._convergence_out.value

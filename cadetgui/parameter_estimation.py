@@ -10,7 +10,7 @@ import numpy.typing as npt
 from CADETProcess.calibration import apply_beer_lambert, normalize_area
 from CADETProcess.comparison import Comparator
 from CADETProcess.comparison.difference import SSE
-from CADETProcess.optimization import NelderMead, OptimizationProblem
+from CADETProcess.optimization import U_NSGA3, NelderMead, OptimizationProblem
 from CADETProcess.processModel import ComponentSystem
 from CADETProcess.reference import ReferenceIO
 from CADETProcess.simulator import Cadet
@@ -21,6 +21,9 @@ from .simulation import run_process
 __all__ = [
     "FittableParameter",
     "EstimationResult",
+    "OptimizerKnob",
+    "OptimizerSpec",
+    "OPTIMIZERS",
     "list_fittable_parameters",
     "build_reference",
     "calibrate_reference",
@@ -209,6 +212,54 @@ def simulate_at(
     return run_process(working_process)
 
 
+@dataclass(frozen=True)
+class OptimizerKnob:
+    """One optimizer-specific numeric setting, e.g. Nelder-Mead's `maxiter`."""
+
+    attr: str  # kwarg name passed to the optimizer's constructor
+    label: str  # widget field label
+    default: int
+
+
+@dataclass(frozen=True)
+class OptimizerSpec:
+    """One entry in `OPTIMIZERS` -- everything needed to build and configure it."""
+
+    factory: Callable[..., Any]
+    knobs: tuple[OptimizerKnob, ...]
+    # Mirrors the optimizer class's own `is_population_based` (`OptimizerBase`
+    # attribute) -- surfaced separately so callers don't need to construct an
+    # instance just to read it (e.g. for a "this may take a while to cancel"
+    # UX note: population-based optimizers evaluate a whole population before
+    # the per-generation cancellation check is next reached, see
+    # `_install_cancel_hook`).
+    is_population_based: bool
+
+
+# Adding another optimizer later is one more entry here -- nothing else in
+# this module or in the widget hardcodes "Nelder-Mead"/"U-NSGA-III"; both
+# read `OPTIMIZERS` generically. `pop_size`/`n_max_gen` default to `0`,
+# which is falsy -- `PymooInterface` (CADETProcess/optimization/
+# pymooAdapter.py) already treats an unset/falsy value as "size this
+# automatically" via its own `scale_problem_size` heuristic, so `0` here
+# means "let CADET-Process decide," not "population of zero."
+OPTIMIZERS: dict[str, OptimizerSpec] = {
+    "Nelder-Mead": OptimizerSpec(
+        factory=NelderMead,
+        knobs=(OptimizerKnob("maxiter", "Max iterations", 1000),),
+        is_population_based=False,
+    ),
+    "U-NSGA-III": OptimizerSpec(
+        factory=U_NSGA3,
+        knobs=(
+            OptimizerKnob("pop_size", "Population size", 0),
+            OptimizerKnob("n_max_gen", "Max generations", 0),
+        ),
+        is_population_based=True,
+    ),
+}
+
+
 class EstimationCancelled(Exception):
     """Raised by the per-generation hook `_install_cancel_hook` installs.
 
@@ -230,37 +281,38 @@ def _install_cancel_hook(optimizer: Any, cancel_event: threading.Event) -> None:
     started doesn't work either -- `SciPyInterface._run` reads it once into
     a plain dict scipy owns from then on, not a live reference.
 
-    What *does* work: `NelderMead.get_callback()` builds the plain function
-    object scipy calls directly after every generation -- outside the
-    evaluation pipeline's exception handling entirely, since scipy invokes
-    it itself, not through CADET-Process's DAG. Instance-patching this one
-    bound method (shadows the class method for this `optimizer` only) wraps
-    it with a check that raises before delegating to the original --
-    confirmed this exception really does propagate out of `optimize()`.
+    What *does* work, for *every* optimizer, not just scipy-based ones:
+    `OptimizerBase.run_post_processing` (defined once, shared by every
+    adapter) is called directly, as plain Python, once per generation --
+    from inside scipy's own callback for `SciPyInterface` subclasses
+    (`NelderMead`, ...), and from inside CADET-Process's own hand-rolled
+    generation loop for `PymooInterface` subclasses (`U_NSGA3`, ...).
+    Confirmed by reading `OptimizerBase.optimize()`: nothing wraps the call
+    to `_run` in a try/except (a `log.log_exceptions(...)`-wrapped version
+    is constructed but its result is discarded -- dead code), so an
+    exception raised here propagates all the way out of `.optimize()`
+    regardless of which optimizer subclass is running. Verified live for
+    both `NelderMead` and `U_NSGA3`: this exact mechanism aborted a real
+    `.optimize()` call for each. Solver-agnostic by construction -- a future
+    optimizer added to `OPTIMIZERS` gets working cancellation for free as
+    long as it's an ordinary `OptimizerBase` subclass (true for every
+    built-in CADET-Process optimizer; `run_post_processing` isn't something
+    each adapter reimplements).
 
-    One sharp edge along the way: scipy's own `_wrap_callback` (`scipy/
-    optimize/_optimize.py`) picks the calling convention by inspecting the
-    callback's *signature* -- `set(sig.parameters) == {"intermediate_result"}`
-    selects the modern `callback(intermediate_result=...)` form CADET-
-    Process's own callback expects; anything else (a generic `*args,
-    **kwargs` wrapper included) falls back to the legacy `callback(xk)` form,
-    silently passing a bare ndarray where CADET-Process's callback expects an
-    `OptimizeResult` and breaking it (confirmed: `'numpy.ndarray' object has
-    no attribute 'x'`). The wrapper below matches that exact signature.
+    (This replaces an earlier version that instance-patched the
+    `SciPyInterface`-only `get_callback()` method -- worked for NelderMead,
+    but `PymooInterface` has no such method at all, and it also required
+    matching scipy's own callback-signature-inspection exactly, a fragility
+    this simpler hook doesn't have.)
     """
-    original_get_callback = optimizer.get_callback
+    original = optimizer.run_post_processing
 
-    def _wrapped_get_callback(optimization_problem: Any) -> Callable:
-        inner = original_get_callback(optimization_problem)
+    def _wrapped(*args: Any, **kwargs: Any) -> Any:
+        if cancel_event.is_set():
+            raise EstimationCancelled("Estimation cancelled by user.")
+        return original(*args, **kwargs)
 
-        def _callback(intermediate_result: Any) -> Any:
-            if cancel_event.is_set():
-                raise EstimationCancelled("Estimation cancelled by user.")
-            return inner(intermediate_result=intermediate_result)
-
-        return _callback
-
-    optimizer.get_callback = _wrapped_get_callback
+    optimizer.run_post_processing = _wrapped
 
 
 @dataclass(frozen=True)
@@ -284,8 +336,9 @@ def run_estimation(
     selected_indices: Sequence[int],
     reference: ReferenceIO,
     solution_path: str,
-    maxiter: int,
     *,
+    optimizer_name: str,
+    optimizer_kwargs: Mapping[str, int],
     starts: Sequence[float],
     component_name: Optional[str] = None,
     on_optimizer_ready: Optional[Callable[[Any], None]] = None,
@@ -297,11 +350,25 @@ def run_estimation(
     the real configuration through an explicit, user-approved write-back
     (PRODUCT_VISION.md §16.4: never silently overwrite the source model).
 
+    `optimizer_name` selects an entry from `OPTIMIZERS`; `optimizer_kwargs`
+    are passed straight to that entry's `factory(**optimizer_kwargs)` (e.g.
+    `{"maxiter": 1000}` for Nelder-Mead, `{"pop_size": 200, "n_max_gen": 50}`
+    for U-NSGA-III) -- this function itself is fully optimizer-agnostic
+    beyond this one construction step; `OptimizationProblem`/variable
+    registration/the `optimize()` call are identical regardless of which
+    optimizer runs (confirmed: `OptimizerBase.optimize()` is never
+    overridden by any concrete optimizer).
+
     `starts` gives the optimizer's initial guess, positionally parallel to
     `selected_indices` -- deliberately not implied by `params[i].current_value`,
     since a starting guess is a property of the estimation run, not of the
     live configuration (confirmed: `OptimizationProblem.add_variable()` has no
-    per-variable starting-value concept, only `optimize()`'s `x0`).
+    per-variable starting-value concept, only `optimize()`'s `x0`). For a
+    population-based optimizer like U-NSGA-III, `x0` seeds one individual of
+    the initial population rather than a single starting point -- the rest is
+    filled in by CADET-Process's own `create_initial_values` polytope
+    sampling (confirmed by reading `PymooInterface._run`), so no special
+    handling is needed here for that case either.
 
     `component_name`, when given, restricts the comparison to that one
     simulated component (`SSE(..., components=[component_name])`) -- the right
@@ -347,7 +414,7 @@ def run_estimation(
     problem.add_evaluator(simulator)
     problem.add_objective(comparator, n_objectives=comparator.n_metrics, requires=[simulator])
 
-    optimizer = NelderMead(maxiter=maxiter)
+    optimizer = OPTIMIZERS[optimizer_name].factory(**optimizer_kwargs)
     if cancel_event is not None:
         _install_cancel_hook(optimizer, cancel_event)
     if on_optimizer_ready is not None:

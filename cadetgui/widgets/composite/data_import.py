@@ -75,7 +75,6 @@ class DataImportWidget:
         self.root = W.VBox(
             [
                 W.HTML(style_tag()),
-                W.HTML("<div class='cadetgui-panel-title'>Experimental data</div>"),
                 toolbar,
                 self._preview_out,
                 self.status,

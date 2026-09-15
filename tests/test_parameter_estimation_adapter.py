@@ -134,7 +134,8 @@ def test_run_estimation_with_no_selection_does_not_run():
 
     # `reference` is never touched when nothing is selected -- None is fine here.
     result = run_estimation(
-        process, column, params, [], None, "outlet.inlet", maxiter=5, starts=[]
+        process, column, params, [], None, "outlet.inlet",
+        optimizer_name="Nelder-Mead", optimizer_kwargs={"maxiter": 5}, starts=[],
     )
 
     assert result.success is False
@@ -161,12 +162,18 @@ def test_run_estimation_uses_explicit_starts_as_x0(monkeypatch):
             captured["x0"] = x0
             raise RuntimeError("stop before an actual solve")
 
-    monkeypatch.setattr(pe, "NelderMead", _FakeOptimizer)
+    # `OPTIMIZERS["Nelder-Mead"].factory` already captured the real class by
+    # the time this test runs -- patching the module-level `pe.NelderMead`
+    # name wouldn't affect it, the registry entry itself must be replaced.
+    monkeypatch.setitem(
+        pe.OPTIMIZERS, "Nelder-Mead",
+        pe.OptimizerSpec(factory=_FakeOptimizer, knobs=(), is_population_based=False),
+    )
 
     starts = [0.42]
     run_estimation(
         process, column, params, [porosity_idx], reference, "outlet.inlet",
-        maxiter=5, starts=starts,
+        optimizer_name="Nelder-Mead", optimizer_kwargs={"maxiter": 5}, starts=starts,
     )
 
     assert captured["x0"] == starts
@@ -193,11 +200,15 @@ def test_run_estimation_calls_on_optimizer_ready_before_optimizing(monkeypatch):
             assert seen.get("optimizer") is self
             raise RuntimeError("stop before an actual solve")
 
-    monkeypatch.setattr(pe, "NelderMead", _FakeOptimizer)
+    monkeypatch.setitem(
+        pe.OPTIMIZERS, "Nelder-Mead",
+        pe.OptimizerSpec(factory=_FakeOptimizer, knobs=(), is_population_based=False),
+    )
 
     run_estimation(
         process, column, params, [porosity_idx], reference, "outlet.inlet",
-        maxiter=5, starts=[0.5], on_optimizer_ready=lambda opt: seen.update(optimizer=opt),
+        optimizer_name="Nelder-Mead", optimizer_kwargs={"maxiter": 5}, starts=[0.5],
+        on_optimizer_ready=lambda opt: seen.update(optimizer=opt),
     )
 
     assert isinstance(seen["optimizer"], _FakeOptimizer)
@@ -247,7 +258,42 @@ def test_run_estimation_recovers_a_perturbed_parameter_without_touching_the_orig
     porosity_idx = next(i for i, p in enumerate(params) if p.name == "total_porosity")
 
     result = run_estimation(
-        process, column, params, [porosity_idx], reference, "outlet.inlet", maxiter=30,
+        process, column, params, [porosity_idx], reference, "outlet.inlet",
+        optimizer_name="Nelder-Mead", optimizer_kwargs={"maxiter": 30},
+        starts=[original_porosity],
+    )
+
+    assert result.success
+    assert np.isclose(result.fitted[porosity_idx], original_porosity, atol=0.05)
+    assert result.fitted_process is not process
+    assert column.total_porosity == original_porosity  # the live object is untouched
+
+
+@pytest.mark.slow
+def test_run_estimation_recovers_a_parameter_with_u_nsga_iii():
+    # Same recovery exercise as the Nelder-Mead version above, but through
+    # the population-based optimizer -- confirms run_estimation is genuinely
+    # optimizer-agnostic (same OptimizationProblem/variable registration/
+    # optimize() call, only the OPTIMIZERS[...] factory differs) rather than
+    # something that happens to work for Nelder-Mead specifically.
+    cw = built_widget()
+    process, column = cw.process, cw._column_form.built
+    original_porosity = column.total_porosity
+
+    baseline = run_process(process)
+    sol = baseline.solution.outlet.inlet
+    total = sol.solution.sum(axis=1)
+    reference = build_reference("measured", sol.time / 60.0, total)
+
+    params = list_fittable_parameters(
+        "column", cw._column_form.spec.fields, cw._column_form.collect_values()
+    )
+    porosity_idx = next(i for i, p in enumerate(params) if p.name == "total_porosity")
+
+    result = run_estimation(
+        process, column, params, [porosity_idx], reference, "outlet.inlet",
+        optimizer_name="U-NSGA-III",
+        optimizer_kwargs={"pop_size": 16, "n_max_gen": 30},
         starts=[original_porosity],
     )
 
@@ -279,7 +325,8 @@ def test_run_estimation_with_a_component_name_ignores_other_components():
 
     result = run_estimation(
         process, column, params, [porosity_idx], reference, "outlet.inlet",
-        maxiter=30, starts=[original_porosity], component_name="Component 2",
+        optimizer_name="Nelder-Mead", optimizer_kwargs={"maxiter": 30},
+        starts=[original_porosity], component_name="Component 2",
     )
 
     assert result.success
@@ -287,12 +334,28 @@ def test_run_estimation_with_a_component_name_ignores_other_components():
 
 
 @pytest.mark.slow
-def test_run_estimation_stops_early_when_cancelled():
+@pytest.mark.parametrize(
+    "optimizer_name,optimizer_kwargs,max_elapsed",
+    [
+        # Nelder-Mead evaluates one candidate per iteration, so cancel fires
+        # within roughly one simulation.
+        ("Nelder-Mead", {"maxiter": 500}, 15),
+        # U-NSGA-III evaluates its whole population before the per-generation
+        # cancel check is next reached (confirmed: PymooInterface._run calls
+        # `algorithm.evaluator.eval(problem, pop)` for the entire population
+        # before `run_post_processing`) -- a small pop_size keeps this test
+        # fast while still exercising that real latency, not just Nelder-Mead's.
+        ("U-NSGA-III", {"pop_size": 8, "n_max_gen": 200}, 30),
+    ],
+)
+def test_run_estimation_stops_early_when_cancelled(optimizer_name, optimizer_kwargs, max_elapsed):
     # Real optimize() call, real cancellation, no mocking -- confirms the
-    # cancel hook actually aborts scipy's Nelder-Mead loop rather than just
-    # being ignored (verified live: raising from inside an evaluator or an
-    # OptimizationProblem.add_callback() callback does *not* abort it --
-    # CADET-Process's evaluation pipeline swallows those by design).
+    # solver-agnostic cancel hook (patches `run_post_processing`, shared by
+    # every OptimizerBase subclass) actually aborts the run for *both*
+    # optimizer families, not just Nelder-Mead specifically. Raising from
+    # inside an evaluator or an OptimizationProblem.add_callback() callback
+    # does *not* abort either one -- CADET-Process's evaluation pipeline
+    # swallows those by design, confirmed separately.
     cw = built_widget()
     process, column = cw.process, cw._column_form.built
 
@@ -317,7 +380,7 @@ def test_run_estimation_stops_early_when_cancelled():
     start_time = time.monotonic()
     result = run_estimation(
         process, column, params, [porosity_idx], reference, "outlet.inlet",
-        maxiter=500,  # would run far longer than the cancel delay if not stopped
+        optimizer_name=optimizer_name, optimizer_kwargs=optimizer_kwargs,
         starts=[0.3],  # deliberately far from the optimum, needs many iterations
         cancel_event=cancel_event,
     )
@@ -326,5 +389,5 @@ def test_run_estimation_stops_early_when_cancelled():
     assert result.cancelled
     assert not result.success
     assert "cancelled" in result.message.lower()
-    assert elapsed < 15  # stopped promptly, not after running the full 500 iterations
+    assert elapsed < max_elapsed  # stopped promptly, not after the full run
     assert column.total_porosity == 0.72  # the live object is still untouched

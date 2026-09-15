@@ -12,6 +12,7 @@ from CADETProcess.plotting import get_fig_size
 from ... import configuration_store
 from ...cadetprocessadapter import classify_signal_ports
 from ...parameter_estimation import (
+    OPTIMIZERS,
     CalibrationMethod,
     EstimationResult,
     FittableParameter,
@@ -44,6 +45,10 @@ class ParameterEstimationWidget:
     tab shows only the raw simulation, this tab owns the comparison view.
     """
 
+    _PARAM_NAME_WIDTH = "300px"
+    _PARAM_FIELD_WIDTH = "110px"
+    _PARAM_REMOVE_WIDTH = "36px"
+
     def __init__(self, *, data: Optional[DataImportWidget] = None) -> None:
         self.data = data or DataImportWidget()
         self._config_widget: Optional[Any] = None
@@ -74,8 +79,9 @@ class ParameterEstimationWidget:
         self._progress: dict[str, Any] = {"optimizer": None}
         # Set by "Cancel" -- checked once per generation inside run_estimation
         # (`cancel_event`), the only point that actually stops a running
-        # Nelder-Mead: see `cadetgui.parameter_estimation._install_cancel_hook`
-        # for why raising from an evaluator or an `add_callback` doesn't work.
+        # optimizer for any of them (Nelder-Mead, U-NSGA-III, ...): see
+        # `cadetgui.parameter_estimation._install_cancel_hook` for why raising
+        # from an evaluator or an `add_callback` doesn't work.
         self._cancel_event = threading.Event()
 
         self._base_process_picker = ChoiceField(
@@ -86,9 +92,26 @@ class ParameterEstimationWidget:
         self._dataset_picker = ChoiceField(label="Experimental dataset:", options=[])
         self._component_picker = ChoiceField(label="Signal represents:", options=[])
         self._signal_picker = ChoiceField(label="Signal:", options=[])
-        # Matches CADET-Process's own NelderMead default (scipyAdapter.py) --
-        # 50 was too low even for a single fitted parameter, let alone several.
-        self._maxiter_field = W.IntText(value=1000, description="Max iterations:")
+        self._optimizer_picker = ChoiceField(
+            label="Optimizer:", options=[(name, name) for name in OPTIMIZERS]
+        )
+        # One knob box per OPTIMIZERS entry, built generically from its
+        # `knobs` tuple -- adding another optimizer to the registry needs no
+        # change here, its fields just show up automatically. Only the
+        # selected optimizer's box is visible at a time (`_on_optimizer_change`),
+        # same show/hide pattern as the calibration-method fields below.
+        # Matches CADET-Process's own NelderMead default (`maxiter=1000`,
+        # `scipyAdapter.py`) -- 50 was too low even for a single fitted
+        # parameter, let alone several; `0` for a U-NSGA-III knob means "let
+        # CADET-Process size it automatically" (see `OPTIMIZERS`'s docstring).
+        self._knob_fields: dict[str, list[W.IntText]] = {
+            name: [W.IntText(value=knob.default, description=knob.label) for knob in spec.knobs]
+            for name, spec in OPTIMIZERS.items()
+        }
+        self._knob_boxes: dict[str, W.HBox] = {
+            name: W.HBox(fields, layout=W.Layout(display="none", flex_flow="row wrap"))
+            for name, fields in self._knob_fields.items()
+        }
         self._calibration_picker = ChoiceField(
             label="Calibration:",
             options=[
@@ -109,6 +132,20 @@ class ParameterEstimationWidget:
         )
         self._param_add_picker = ChoiceField(label="Add parameter:", options=[])
         self._btn_add_param = W.Button(description="Add", icon="plus")
+        # Fixed column widths -- every row (and the header) uses the exact
+        # same ones, so start/lb/ub actually line up regardless of how long
+        # a given parameter's own label is. Previously each row was a plain
+        # HBox sized to its own content, so longer parameter names pushed
+        # that row's fields out of line with every other row's.
+        self._param_header = W.HBox(
+            [
+                W.HTML("<b>Parameter</b>", layout=W.Layout(width=self._PARAM_NAME_WIDTH)),
+                W.HTML("<b>Start</b>", layout=W.Layout(width=self._PARAM_FIELD_WIDTH)),
+                W.HTML("<b>Lower bound</b>", layout=W.Layout(width=self._PARAM_FIELD_WIDTH)),
+                W.HTML("<b>Upper bound</b>", layout=W.Layout(width=self._PARAM_FIELD_WIDTH)),
+                W.HTML("", layout=W.Layout(width=self._PARAM_REMOVE_WIDTH)),
+            ]
+        )
         self._param_box = W.VBox([])
         self._btn_run = W.Button(description="Run estimation", icon="magic", button_style="success")
         self._btn_cancel = W.Button(
@@ -147,6 +184,19 @@ class ParameterEstimationWidget:
         self._plot_out = W.Image(
             format="png", layout=W.Layout(width="400px", display="none")
         )
+        # Post-run analytics, from CADET-Process's own OptimizationResults --
+        # not something we compute ourselves. `plot_convergence` (best/avg
+        # objective vs. evaluations) always makes sense; `plot_pairwise`
+        # (histograms + scatter of the fitted variables across the final
+        # population) only if more than one parameter was fitted, same guard
+        # CADET-Process's own `results.plot_figures()` uses.
+        self._analytics_error = W.HTML(value="")
+        self._convergence_out = W.Image(
+            format="png", layout=W.Layout(width="400px", display="none")
+        )
+        self._pairwise_out = W.Image(
+            format="png", layout=W.Layout(width="500px", display="none")
+        )
         self.status = W.HTML("<em>Ready.</em>")
         self.status.add_class("cadetgui-status")
 
@@ -158,6 +208,7 @@ class ParameterEstimationWidget:
         self._btn_preview.on_click(self._on_preview)
         self._base_process_picker.observe(self._on_base_process_change, names="selected_index")
         self._signal_picker.observe(self._on_signal_change, names="selected_index")
+        self._optimizer_picker.observe(self._on_optimizer_change, names="selected_index")
         self._calibration_picker.observe(self._on_calibration_change, names="selected_index")
         self._dataset_picker.observe(self._on_reference_input_change, names="selected_index")
         self._component_picker.observe(self._on_reference_input_change, names="selected_index")
@@ -172,14 +223,14 @@ class ParameterEstimationWidget:
         )
         base_process_row.add_class("cadetgui-toolbar")
 
-        toolbar = W.HBox(
-            [
-                self._dataset_picker, self._component_picker,
-                self._signal_picker, self._maxiter_field, self._live_plot_checkbox,
-            ],
+        # "Signal represents" and calibration are both about *interpreting
+        # the imported measurement* -- they belong with the data import, not
+        # mixed in among run controls (maxiter, live plot, ...).
+        dataset_row = W.HBox(
+            [self._dataset_picker, self._component_picker],
             layout=W.Layout(flex_flow="row wrap"),
         )
-        toolbar.add_class("cadetgui-toolbar")
+        dataset_row.add_class("cadetgui-toolbar")
 
         calibration_row = W.HBox(
             [self._calibration_picker, self._beer_lambert_box, self._normalize_area_box],
@@ -187,37 +238,78 @@ class ParameterEstimationWidget:
         )
         calibration_row.add_class("cadetgui-toolbar")
 
+        data_section = W.VBox(
+            [
+                W.HTML("<div class='cadetgui-panel-title'>Experimental data</div>"),
+                self.data.root,
+                dataset_row,
+                calibration_row,
+            ]
+        )
+        data_section.add_class("cadetgui-panel")
+        data_section.add_class("cadetgui-section")
+
         add_param_row = W.HBox(
             [self._param_add_picker, self._btn_add_param],
             layout=W.Layout(flex_flow="row wrap"),
         )
         add_param_row.add_class("cadetgui-toolbar")
 
-        fit_section = W.VBox(
+        param_space_section = W.VBox(
             [
-                W.HTML("<div class='cadetgui-panel-title'>Fit parameters</div>"),
-                base_process_row,
-                toolbar,
-                calibration_row,
+                W.HTML("<div class='cadetgui-panel-title'>Configure parameter space</div>"),
                 add_param_row,
+                self._param_header,
                 self._param_box,
+            ]
+        )
+        param_space_section.add_class("cadetgui-panel")
+        param_space_section.add_class("cadetgui-section")
+
+        # Default-selected optimizer's knob box starts visible; the rest stay
+        # hidden until picked -- same as the calibration-method fields.
+        self._knob_boxes[self._optimizer_picker.value].layout.display = ""
+
+        run_toolbar = W.HBox(
+            [self._signal_picker, self._live_plot_checkbox],
+            layout=W.Layout(flex_flow="row wrap"),
+        )
+        run_toolbar.add_class("cadetgui-toolbar")
+
+        optimizer_row = W.HBox(
+            [self._optimizer_picker, *self._knob_boxes.values()],
+            layout=W.Layout(flex_flow="row wrap"),
+        )
+        optimizer_row.add_class("cadetgui-toolbar")
+
+        run_section = W.VBox(
+            [
+                W.HTML("<div class='cadetgui-panel-title'>Run estimation</div>"),
+                base_process_row,
+                run_toolbar,
+                optimizer_row,
                 W.HBox([self._btn_run, self._btn_cancel, self._btn_accept, self._elapsed_label]),
                 self._live_plot_error,
                 self._live_plot_out,
                 self._fit_table,
                 self._plot_out,
+                W.HTML("<div class='cadetgui-panel-title'>Convergence &amp; correlation</div>"),
+                self._analytics_error,
+                self._convergence_out,
+                self._pairwise_out,
                 self.status,
             ]
         )
-        fit_section.add_class("cadetgui-panel")
-        fit_section.add_class("cadetgui-section")
+        run_section.add_class("cadetgui-panel")
+        run_section.add_class("cadetgui-section")
 
         self.root = W.VBox(
             [
                 W.HTML(style_tag()),
                 W.HTML("<div class='cadetgui-panel-title'>Parameter estimation</div>"),
-                self.data.root,
-                fit_section,
+                data_section,
+                param_space_section,
+                run_section,
             ]
         )
         self.root.add_class("cadetgui-panel")
@@ -245,6 +337,13 @@ class ParameterEstimationWidget:
         if hash_ is not None and self._config_widget is not None:
             self._config_widget.import_from_store(hash_)
         self._on_preview(None)
+
+    def _on_optimizer_change(self, change: dict) -> None:
+        if change.get("name") != "selected_index":
+            return
+        selected = self._optimizer_picker.value
+        for name, box in self._knob_boxes.items():
+            box.layout.display = "" if name == selected else "none"
 
     def _on_calibration_change(self, change: dict) -> None:
         if change.get("name") != "selected_index":
@@ -443,9 +542,18 @@ class ParameterEstimationWidget:
         self._param_add_picker.set_options(options)
 
     def _refresh_added_rows(self) -> None:
-        """Rebuild the fit-parameter rows from `_added_keys` + `_param_state`."""
+        """Rebuild the fit-parameter rows from `_added_keys` + `_param_state`.
+
+        Every row (and `_param_header`, built once in `__init__`) uses the
+        exact same fixed column widths, so start/lb/ub actually line up
+        regardless of how long any one parameter's own label is -- unlike a
+        plain HBox sized to its own content, which put each row's fields at
+        a different x position depending on that row's label length.
+        """
         by_key = self._params_by_key()
-        width = W.Layout(width="100px")
+        name_layout = W.Layout(width=self._PARAM_NAME_WIDTH, overflow="hidden")
+        field_layout = W.Layout(width=self._PARAM_FIELD_WIDTH)
+        remove_layout = W.Layout(width=self._PARAM_REMOVE_WIDTH)
         self._lb_fields = []
         self._ub_fields = []
         self._start_fields = []
@@ -458,23 +566,17 @@ class ParameterEstimationWidget:
             state = self._param_state.setdefault(
                 key, {"lb": p.lb, "ub": p.ub, "start": p.current_value}
             )
-            lb_field = W.FloatText(value=state["lb"], layout=width)
-            ub_field = W.FloatText(value=state["ub"], layout=width)
-            start_field = W.FloatText(value=state["start"], layout=width)
-            remove_btn = W.Button(icon="times", layout=W.Layout(width="32px"))
+            lb_field = W.FloatText(value=state["lb"], layout=field_layout)
+            ub_field = W.FloatText(value=state["ub"], layout=field_layout)
+            start_field = W.FloatText(value=state["start"], layout=field_layout)
+            remove_btn = W.Button(icon="times", layout=remove_layout)
             remove_btn.on_click(self._make_remove_handler(key))
             self._lb_fields.append(lb_field)
             self._ub_fields.append(ub_field)
             self._start_fields.append(start_field)
             self._remove_buttons.append(remove_btn)
-            rows.append(
-                W.HBox([
-                    W.Label(f"{p.label} = {p.current_value:.4g}"),
-                    W.Label("start:"), start_field,
-                    W.Label("lb:"), lb_field, W.Label("ub:"), ub_field,
-                    remove_btn,
-                ])
-            )
+            name_label = W.Label(f"{p.label} = {p.current_value:.4g}", layout=name_layout)
+            rows.append(W.HBox([name_label, start_field, lb_field, ub_field, remove_btn]))
         self._param_box.children = tuple(rows)
 
     def _on_add_param(self, _btn: Any) -> None:
@@ -531,6 +633,11 @@ class ParameterEstimationWidget:
         self._live_plot_out.value = b""
         self._live_plot_out.layout.display = "none"
         self._live_plot_error.value = ""
+        self._convergence_out.value = b""
+        self._convergence_out.layout.display = "none"
+        self._pairwise_out.value = b""
+        self._pairwise_out.layout.display = "none"
+        self._analytics_error.value = ""
         self._btn_accept.layout.display = "none"
         self._last_result = None
         self._elapsed_label.value = ""
@@ -555,6 +662,14 @@ class ParameterEstimationWidget:
         process = self._config_widget.process
         column = self._config_widget._column_form.built
 
+        optimizer_name = self._optimizer_picker.value
+        optimizer_kwargs = {
+            knob.attr: field.value
+            for knob, field in zip(
+                OPTIMIZERS[optimizer_name].knobs, self._knob_fields[optimizer_name]
+            )
+        }
+
         self._btn_run.disabled = True
         self._btn_run.description = "Running..."
         self._btn_cancel.layout.display = ""
@@ -575,7 +690,10 @@ class ParameterEstimationWidget:
         # `_run_done`, which the ticker's own loop is waiting on.
         worker = threading.Thread(
             target=self._run_estimation_worker,
-            args=(process, column, params, selected, reference, unit, port, starts),
+            args=(
+                process, column, params, selected, reference, unit, port, starts,
+                optimizer_name, optimizer_kwargs,
+            ),
             daemon=True,
         )
         ticker = threading.Thread(
@@ -589,12 +707,12 @@ class ParameterEstimationWidget:
     def _run_estimation_worker(
         self, process: Any, column: Any, params: list[FittableParameter],
         selected: list[int], reference: Any, unit: str, port: str,
-        starts: list[float],
+        starts: list[float], optimizer_name: str, optimizer_kwargs: dict[str, int],
     ) -> None:
         try:
             result = run_estimation(
-                process, column, params, selected, reference,
-                f"{unit}.{port}", self._maxiter_field.value,
+                process, column, params, selected, reference, f"{unit}.{port}",
+                optimizer_name=optimizer_name, optimizer_kwargs=optimizer_kwargs,
                 starts=starts, component_name=self._component_picker.value,
                 on_optimizer_ready=lambda opt: self._progress.update(optimizer=opt),
                 cancel_event=self._cancel_event,
@@ -688,7 +806,15 @@ class ParameterEstimationWidget:
     def _on_cancel(self, _btn: Any) -> None:
         self._cancel_event.set()
         self._btn_cancel.disabled = True
-        self._btn_cancel.description = "Cancelling…"
+        optimizer_name = self._optimizer_picker.value
+        if OPTIMIZERS[optimizer_name].is_population_based:
+            # Population-based optimizers evaluate their whole population
+            # before the per-generation cancel check is next reached (see
+            # `_install_cancel_hook`'s docstring) -- set the right
+            # expectation instead of looking stuck.
+            self._btn_cancel.description = "Cancelling… (finishing generation)"
+        else:
+            self._btn_cancel.description = "Cancelling…"
 
     def _finish_run(self, result: EstimationResult, start_time: float) -> None:
         self._btn_run.disabled = False
@@ -698,6 +824,10 @@ class ParameterEstimationWidget:
         self._btn_cancel.description = "Cancel"
         self._elapsed_label.value = ""
         elapsed = time.monotonic() - start_time
+
+        optimizer = self._progress.get("optimizer")
+        if optimizer is not None:
+            self._render_analytics(optimizer)
 
         if result.cancelled:
             self.status.value = f"<em>{result.message} ({elapsed:.0f}s)</em>"
@@ -717,6 +847,41 @@ class ParameterEstimationWidget:
         self._display_result = run_process(result.fitted_process)
         self._redraw_overlay()
         self._btn_accept.layout.display = ""
+
+    def _render_analytics(self, optimizer: Any) -> None:
+        """Show CADET-Process's own post-run analytics from `optimizer.results`.
+
+        Not something computed here -- `OptimizationResults.plot_convergence`/
+        `.plot_pairwise` (confirmed, not assumed: neither correlation,
+        confidence, nor uncertainty output exists anywhere else in
+        CADET-Process's optimization module, so these two are genuinely what
+        there is to surface). Best-effort: a failure here must be visible,
+        not swallowed -- same rule as `_redraw_live_plot`'s fix earlier.
+        """
+        try:
+            results = optimizer.results
+            if len(results.populations) == 0:
+                return  # nothing ran yet (e.g. cancelled before generation 1)
+
+            fig1 = self._new_figure(figsize=self._FIGSIZE)
+            ax1 = fig1.subplots(nrows=1, ncols=1, squeeze=False).reshape(-1)
+            results.plot_convergence(ax=ax1)
+            self._display_figure(self._convergence_out, fig1)
+
+            # Mirrors CADET-Process's own `results.plot_figures()` guard --
+            # a single variable's pairwise grid is a degenerate 1x1 plot.
+            n_var = len(results.x[0])
+            if n_var > 1:
+                width, _ = self._FIGSIZE
+                fig2 = self._new_figure(figsize=(width * n_var * 0.8, width * n_var * 0.8))
+                ax2 = fig2.subplots(nrows=n_var, ncols=n_var, squeeze=False)
+                results.plot_pairwise(ax=ax2)
+                self._display_figure(self._pairwise_out, fig2)
+            self._analytics_error.value = ""
+        except Exception as exc:  # noqa: BLE001 -- best-effort, but visibly
+            self._analytics_error.value = (
+                f"<span style='color:#b00020'>Analytics error: {exc}</span>"
+            )
 
     def _render_fit_table(self, result: EstimationResult) -> None:
         rows = "".join(
