@@ -216,7 +216,7 @@ def test_solutionwidget_picking_a_failed_run_shows_its_error():
 
 def test_solutionwidget_run_tags_history_with_config_name_and_hash():
     cw = ConfigurationWidget()
-    cw._name_field.value = "My Config"
+    cw.persistence._name_field.value = "My Config"
     sw = SolutionWidget()
     sw.bind_to_config(cw)
 
@@ -229,7 +229,7 @@ def test_solutionwidget_run_tags_history_with_config_name_and_hash():
 
 def test_solutionwidget_run_auto_saves_config_to_store():
     cw = ConfigurationWidget()
-    cw._name_field.value = "Auto Saved Config"
+    cw.persistence._name_field.value = "Auto Saved Config"
     sw = SolutionWidget()
     sw.bind_to_config(cw)
 
@@ -250,7 +250,7 @@ def test_solutionwidget_run_without_bound_config_leaves_history_untagged():
 
 def test_solutionwidget_run_refuses_when_bound_config_has_no_name():
     cw = ConfigurationWidget()
-    cw._name_field.value = ""  # cleared the default name
+    cw.persistence._name_field.value = ""  # cleared the default name
     sw = SolutionWidget()
     sw.bind_to_config(cw)
 
@@ -274,14 +274,14 @@ def test_solutionwidget_process_label_shows_the_configuration_name_not_the_proce
     assert "New Experiment" in sw._process_label.value  # the default name, not "Batch Elution"
     assert "Batch Elution" not in sw._process_label.value
 
-    cw._name_field.value = "My Named Config"
+    cw.persistence._name_field.value = "My Named Config"
     assert "My Named Config" in sw._process_label.value
     assert "Batch Elution" not in sw._process_label.value
 
 
 def test_solutionwidget_run_history_label_uses_the_configuration_name():
     cw = ConfigurationWidget()
-    cw._name_field.value = "My Named Config"
+    cw.persistence._name_field.value = "My Named Config"
     sw = SolutionWidget()
     sw.bind_to_config(cw)
 
@@ -299,7 +299,7 @@ def test_solutionwidget_load_config_button_hidden_without_a_hash():
 
 def test_solutionwidget_load_config_button_reimports_the_run_configuration():
     cw = ConfigurationWidget()
-    cw._name_field.value = "Reimport Test Config"
+    cw.persistence._name_field.value = "Reimport Test Config"
     sw = SolutionWidget()
     sw.bind_to_config(cw)
     sw._on_run(None)

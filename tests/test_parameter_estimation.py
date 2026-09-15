@@ -52,10 +52,10 @@ def upload_csv(widget: DataImportWidget, filename: str, csv_text: str) -> None:
 
 
 def _add_param(pw: ParameterEstimationWidget, index: int) -> None:
-    """Add `pw._params[index]` to the fit via the real Add-parameter flow."""
-    key = pw._param_key(pw._params[index])
-    pw._param_add_picker.value = key
-    pw._on_add_param(None)
+    """Add `pw.param_space.params[index]` to the fit via the real Add-parameter flow."""
+    key = pw.param_space._param_key(pw.param_space.params[index])
+    pw.param_space._param_add_picker.value = key
+    pw.param_space._on_add_param(None)
 
 
 def test_parameter_estimation_widget_nests_a_data_import_widget():
@@ -83,33 +83,33 @@ def test_bind_to_config_populates_the_add_parameter_picker():
 
     pw.bind_to_config(cw)
 
-    assert len(pw._params) > 0
-    assert len(pw._param_add_picker.option_labels) == len(pw._params)
-    assert pw._added_keys == []  # nothing added by default
+    assert len(pw.param_space.params) > 0
+    assert len(pw.param_space._param_add_picker.option_labels) == len(pw.param_space.params)
+    assert pw.param_space._added_keys == []  # nothing added by default
 
 
 def test_config_field_changes_rebuild_the_add_parameter_picker():
     pw = ParameterEstimationWidget()
     cw = ConfigurationWidget()
     pw.bind_to_config(cw)
-    before = len(pw._param_add_picker.option_labels)
+    before = len(pw.param_space._param_add_picker.option_labels)
 
     cw._model_form.element("flow_rate").value = 5e-6  # any committed change
 
-    assert len(pw._param_add_picker.option_labels) == before  # rebuilt, same shape, no crash
+    assert len(pw.param_space._param_add_picker.option_labels) == before  # rebuilt, same shape, no crash
 
 
 def test_adding_a_parameter_removes_it_from_the_add_picker_and_adds_a_row():
     pw = ParameterEstimationWidget()
     cw = ConfigurationWidget()
     pw.bind_to_config(cw)
-    before = len(pw._param_add_picker.option_labels)
+    before = len(pw.param_space._param_add_picker.option_labels)
 
     _add_param(pw, 0)
 
-    assert pw._added_keys == [pw._param_key(pw._params[0])]
-    assert len(pw._param_box.children) == 1
-    assert len(pw._param_add_picker.option_labels) == before - 1
+    assert pw.param_space._added_keys == [pw.param_space._param_key(pw.param_space.params[0])]
+    assert len(pw.param_space._param_box.children) == 1
+    assert len(pw.param_space._param_add_picker.option_labels) == before - 1
 
 
 def test_removing_a_parameter_puts_it_back_in_the_add_picker():
@@ -117,13 +117,13 @@ def test_removing_a_parameter_puts_it_back_in_the_add_picker():
     cw = ConfigurationWidget()
     pw.bind_to_config(cw)
     _add_param(pw, 0)
-    before = len(pw._param_add_picker.option_labels)
+    before = len(pw.param_space._param_add_picker.option_labels)
 
-    pw._remove_buttons[0].click()
+    pw.param_space._remove_buttons[0].click()
 
-    assert pw._added_keys == []
-    assert len(pw._param_box.children) == 0
-    assert len(pw._param_add_picker.option_labels) == before + 1
+    assert pw.param_space._added_keys == []
+    assert len(pw.param_space._param_box.children) == 0
+    assert len(pw.param_space._param_add_picker.option_labels) == before + 1
 
 
 def test_unrelated_config_edits_preserve_edited_start_lb_ub_for_an_added_parameter():
@@ -131,16 +131,16 @@ def test_unrelated_config_edits_preserve_edited_start_lb_ub_for_an_added_paramet
     cw = ConfigurationWidget()
     pw.bind_to_config(cw)
     _add_param(pw, 0)
-    pw._start_fields[0].value = 0.123
-    pw._lb_fields[0].value = 0.01
-    pw._ub_fields[0].value = 0.99
+    pw.param_space._start_fields[0].value = 0.123
+    pw.param_space._lb_fields[0].value = 0.01
+    pw.param_space._ub_fields[0].value = 0.99
 
     cw._model_form.element("flow_rate").value = 5e-6  # unrelated committed change
 
-    assert len(pw._added_keys) == 1  # still added
-    assert pw._start_fields[0].value == 0.123
-    assert pw._lb_fields[0].value == 0.01
-    assert pw._ub_fields[0].value == 0.99
+    assert len(pw.param_space._added_keys) == 1  # still added
+    assert pw.param_space._start_fields[0].value == 0.123
+    assert pw.param_space._lb_fields[0].value == 0.01
+    assert pw.param_space._ub_fields[0].value == 0.99
 
 
 def test_start_field_defaults_to_the_current_config_value_for_a_new_parameter():
@@ -150,7 +150,7 @@ def test_start_field_defaults_to_the_current_config_value_for_a_new_parameter():
 
     _add_param(pw, 0)
 
-    assert pw._start_fields[0].value == pw._params[0].current_value
+    assert pw.param_space._start_fields[0].value == pw.param_space.params[0].current_value
 
 
 def test_bind_to_config_populates_the_component_picker_with_components_and_total():
@@ -247,7 +247,7 @@ def test_saving_a_configuration_and_refreshing_lists_it_as_a_base_process():
     pw = ParameterEstimationWidget()
     cw = ConfigurationWidget()
     pw.bind_to_config(cw)
-    cw._name_field.value = "Saved Base"
+    cw.persistence._name_field.value = "Saved Base"
     cw.persist_to_store()
 
     pw._refresh_store_options()
@@ -259,7 +259,7 @@ def test_picking_a_saved_base_process_loads_it_into_the_configuration_and_previe
     pw = ParameterEstimationWidget()
     cw = ConfigurationWidget()
     pw.bind_to_config(cw)
-    cw._name_field.value = "Saved Base"
+    cw.persistence._name_field.value = "Saved Base"
     saved_hash = cw.config_hash
     cw.persist_to_store()
     pw._refresh_store_options()
@@ -337,9 +337,9 @@ def test_run_estimation_without_an_added_parameter_shows_a_guard_error():
 def test_run_estimation_with_a_start_value_outside_its_bounds_shows_a_guard_error():
     cw, pw = _bound_widgets()
     _ready_to_run(cw, pw)
-    pw._lb_fields[0].value = 0.0
-    pw._ub_fields[0].value = 1e-5
-    pw._start_fields[0].value = 1.0000001  # far outside [0, 1e-5]
+    pw.param_space._lb_fields[0].value = 0.0
+    pw.param_space._ub_fields[0].value = 1e-5
+    pw.param_space._start_fields[0].value = 1.0000001  # far outside [0, 1e-5]
 
     pw._on_run(None)
 
@@ -373,7 +373,7 @@ def test_accept_writes_fitted_values_into_the_live_configuration_only_on_click()
 
     pw._on_accept(None)
 
-    fitted_name = pw._params[0].name  # index 0 is always a scalar column field
+    fitted_name = pw.param_space.params[0].name  # index 0 is always a scalar column field
     assert cw._column_form.collect_values()[fitted_name] == pytest.approx(
         pw._last_result.fitted[0]
     )
@@ -452,7 +452,7 @@ def test_run_estimation_passes_the_start_fields_as_starts(monkeypatch):
 
     cw, pw = _bound_widgets()
     _ready_to_run(cw, pw)
-    pw._start_fields[0].value = 0.123  # deliberately not the config's current value
+    pw.param_space._start_fields[0].value = 0.123  # deliberately not the config's current value
     captured = {}
 
     def _fake_run_estimation(*args, **kwargs):
@@ -544,7 +544,7 @@ def test_progress_tick_skips_the_live_plot_when_the_checkbox_is_off(monkeypatch)
     pw._progress["optimizer"] = _FakeOptimizer(_FakeResults(1, [0.5], [[1.0]]))
     pw._live_plot_checkbox.value = False
 
-    pw._progress_tick(0.0, None, None, pw._params, [0], None, "outlet", "inlet", 0)
+    pw._progress_tick(0.0, None, None, pw.param_space.params, [0], None, "outlet", "inlet", 0)
 
     assert calls == []
 
@@ -567,7 +567,7 @@ def test_progress_tick_redraws_the_live_plot_when_the_checkbox_is_on_and_a_gener
     pw._live_plot_checkbox.value = True
 
     last_n_gen = pw._progress_tick(
-        0.0, cw.process, cw._column_form.built, pw._params, [0], None, unit, port, 0
+        0.0, cw.process, cw._column_form.built, pw.param_space.params, [0], None, unit, port, 0
     )
 
     assert calls == [1]
@@ -584,7 +584,7 @@ def test_progress_tick_does_not_redraw_twice_for_the_same_generation(monkeypatch
     pw._progress["optimizer"] = _FakeOptimizer(_FakeResults(1, [0.5], [[1.0]]))
     pw._live_plot_checkbox.value = True
 
-    last_n_gen = pw._progress_tick(0.0, None, None, pw._params, [0], None, "outlet", "inlet", 1)
+    last_n_gen = pw._progress_tick(0.0, None, None, pw.param_space.params, [0], None, "outlet", "inlet", 1)
 
     assert calls == []  # n_gen (1) == last_n_gen (1) -- nothing new since last tick
     assert last_n_gen == 1
@@ -604,7 +604,7 @@ def test_redraw_live_plot_shows_the_error_instead_of_staying_silently_blank(monk
     monkeypatch.setattr(pe_widget, "simulate_at", _boom)
     optimizer = _FakeOptimizer(_FakeResults(1, [0.5], [[1.0]]))
 
-    pw._redraw_live_plot(optimizer, None, None, pw._params, [0], None, "outlet", "inlet")
+    pw._redraw_live_plot(optimizer, None, None, pw.param_space.params, [0], None, "outlet", "inlet")
 
     assert "synthetic failure for the test" in pw._live_plot_error.value
 

@@ -24,8 +24,10 @@ from ...parameter_estimation import (
 )
 from ...simulation import run_process
 from .._chrome import style_tag
+from .._mpl_figure import display_figure, new_figure
 from ..elements import ChoiceField
 from .data_import import DataImportWidget
+from .parameter_space import ParameterSpaceEditor
 
 __all__ = ["ParameterEstimationWidget"]
 
@@ -45,30 +47,13 @@ class ParameterEstimationWidget:
     tab shows only the raw simulation, this tab owns the comparison view.
     """
 
-    _PARAM_NAME_WIDTH = "300px"
-    _PARAM_FIELD_WIDTH = "110px"
-    _PARAM_REMOVE_WIDTH = "36px"
-
     def __init__(self, *, data: Optional[DataImportWidget] = None) -> None:
         self.data = data or DataImportWidget()
         self._config_widget: Optional[Any] = None
-        self._params: list[FittableParameter] = []
-        # Ordered keys ((owner, name, component_index), see `_param_key`) of
-        # the parameters currently added to the fit -- replaces a per-row
-        # checkbox with an explicit "Add parameter" picker (mirrors
-        # `ComponentListField`'s add/remove pattern), since picking from a
-        # long list of fittable parameters by scanning checkboxes doesn't
-        # scale once a model has many of them.
-        self._added_keys: list[tuple[str, str, Optional[int]]] = []
-        # Per-parameter lb/ub/start, keyed the same way -- survives a row
-        # being removed and re-added, and survives `_on_config_changed`
-        # rebuilds (via `_snapshot_row_state`), same "don't silently reset
-        # what the user already typed" rule as everywhere else in this widget.
-        self._param_state: dict[tuple[str, str, Optional[int]], dict[str, float]] = {}
-        self._lb_fields: list[W.FloatText] = []
-        self._ub_fields: list[W.FloatText] = []
-        self._start_fields: list[W.FloatText] = []
-        self._remove_buttons: list[W.Button] = []
+        # Owns the "Add parameter" picker + rows (each with its own start/lb/ub
+        # fields); its own row state survives a config edit or a row being
+        # removed and re-added -- see ParameterSpaceEditor.set_params.
+        self.param_space = ParameterSpaceEditor()
         self._last_result: Optional[EstimationResult] = None
         # The SimulationResults currently shown in the overlay -- the raw
         # preview until a fit succeeds, then the fitted run, until the next
@@ -84,13 +69,16 @@ class ParameterEstimationWidget:
         # from an evaluator or an `add_callback` doesn't work.
         self._cancel_event = threading.Event()
 
+        # "Run estimation" section: base-process picker + Preview button.
         self._base_process_picker = ChoiceField(
             label="Base process:", options=[("Current configuration", None)]
         )
         self._btn_refresh_store = W.Button(description="Refresh", icon="refresh")
         self._btn_preview = W.Button(description="Preview", icon="eye")
+        # "Experimental data" section: dataset picker + "Signal represents" row.
         self._dataset_picker = ChoiceField(label="Experimental dataset:", options=[])
         self._component_picker = ChoiceField(label="Signal represents:", options=[])
+        # "Run estimation" section: which simulated port to fit against.
         self._signal_picker = ChoiceField(label="Signal:", options=[])
         self._optimizer_picker = ChoiceField(
             label="Optimizer:", options=[(name, name) for name in OPTIMIZERS]
@@ -112,6 +100,8 @@ class ParameterEstimationWidget:
             name: W.HBox(fields, layout=W.Layout(display="none", flex_flow="row wrap"))
             for name, fields in self._knob_fields.items()
         }
+        # "Experimental data" section: calibration method + its own fields
+        # (only one of the two boxes below is shown at a time).
         self._calibration_picker = ChoiceField(
             label="Calibration:",
             options=[
@@ -130,23 +120,7 @@ class ParameterEstimationWidget:
         self._normalize_area_box = W.HBox(
             [self._target_area_field], layout=W.Layout(display="none")
         )
-        self._param_add_picker = ChoiceField(label="Add parameter:", options=[])
-        self._btn_add_param = W.Button(description="Add", icon="plus")
-        # Fixed column widths -- every row (and the header) uses the exact
-        # same ones, so start/lb/ub actually line up regardless of how long
-        # a given parameter's own label is. Previously each row was a plain
-        # HBox sized to its own content, so longer parameter names pushed
-        # that row's fields out of line with every other row's.
-        self._param_header = W.HBox(
-            [
-                W.HTML("<b>Parameter</b>", layout=W.Layout(width=self._PARAM_NAME_WIDTH)),
-                W.HTML("<b>Start</b>", layout=W.Layout(width=self._PARAM_FIELD_WIDTH)),
-                W.HTML("<b>Lower bound</b>", layout=W.Layout(width=self._PARAM_FIELD_WIDTH)),
-                W.HTML("<b>Upper bound</b>", layout=W.Layout(width=self._PARAM_FIELD_WIDTH)),
-                W.HTML("", layout=W.Layout(width=self._PARAM_REMOVE_WIDTH)),
-            ]
-        )
-        self._param_box = W.VBox([])
+        # Run/Cancel/Accept button row + the elapsed-time label next to it.
         self._btn_run = W.Button(description="Run estimation", icon="magic", button_style="success")
         self._btn_cancel = W.Button(
             description="Cancel", icon="stop", button_style="danger",
@@ -160,6 +134,8 @@ class ParameterEstimationWidget:
             description="Live plot", value=False, indent=False
         )
         self._elapsed_label = W.HTML(value="")
+        # Live-fit panel: current-best-vs-reference + objective-history plot,
+        # redrawn every tick while "Live plot" is checked (see _redraw_live_plot).
         # `W.Image` (a plain `.value` trait holding PNG bytes), not `W.Output`
         # -- `Output`'s capture-based `display()` doesn't reliably route from
         # a background thread in a real Jupyter kernel (confirmed: elapsed
@@ -180,6 +156,8 @@ class ParameterEstimationWidget:
             format="png", layout=W.Layout(width="700px", display="none")
         )
         self._live_plot_error = W.HTML(value="")
+        # Result table (parameter/before/fitted) + the reference-vs-simulated
+        # overlay plot, both shown after a Preview or a finished run.
         self._fit_table = W.HTML()
         self._plot_out = W.Image(
             format="png", layout=W.Layout(width="400px", display="none")
@@ -197,13 +175,13 @@ class ParameterEstimationWidget:
         self._pairwise_out = W.Image(
             format="png", layout=W.Layout(width="500px", display="none")
         )
+        # Status line at the bottom of the "Run estimation" section.
         self.status = W.HTML("<em>Ready.</em>")
         self.status.add_class("cadetgui-status")
 
         self._btn_run.on_click(self._on_run)
         self._btn_cancel.on_click(self._on_cancel)
         self._btn_accept.on_click(self._on_accept)
-        self._btn_add_param.on_click(self._on_add_param)
         self._btn_refresh_store.on_click(lambda _btn: self._refresh_store_options())
         self._btn_preview.on_click(self._on_preview)
         self._base_process_picker.observe(self._on_base_process_change, names="selected_index")
@@ -249,18 +227,10 @@ class ParameterEstimationWidget:
         data_section.add_class("cadetgui-panel")
         data_section.add_class("cadetgui-section")
 
-        add_param_row = W.HBox(
-            [self._param_add_picker, self._btn_add_param],
-            layout=W.Layout(flex_flow="row wrap"),
-        )
-        add_param_row.add_class("cadetgui-toolbar")
-
         param_space_section = W.VBox(
             [
                 W.HTML("<div class='cadetgui-panel-title'>Configure parameter space</div>"),
-                add_param_row,
-                self._param_header,
-                self._param_box,
+                self.param_space.root,
             ]
         )
         param_space_section.add_class("cadetgui-panel")
@@ -325,7 +295,7 @@ class ParameterEstimationWidget:
         self._dataset_picker.set_options([(d.label, d) for d in self.data.datasets])
 
     def _refresh_store_options(self) -> None:
-        store_dir = getattr(self._config_widget, "_store_dir", None)
+        store_dir = self._config_widget.persistence.store_dir if self._config_widget else None
         saved = configuration_store.list_store(store_dir=store_dir)
         options = [("Current configuration", None)] + [(name, hash_) for name, hash_ in saved]
         self._base_process_picker.set_options(options, keep_value=True)
@@ -398,58 +368,11 @@ class ParameterEstimationWidget:
         )
         return reference, dataset.label
 
-    @staticmethod
-    def _new_figure(**kwargs: Any) -> Any:
-        """Build a matplotlib Figure with its own Agg canvas -- never touches `pyplot`.
-
-        `_redraw_overlay`/`_redraw_live_plot` can run on a background thread
-        (the ticker -- see `_on_run`), and `pyplot`'s figure/backend state is
-        global and generally not thread-safe (confirmed: a plain `plt.
-        subplots()` call from a non-main thread crashes under an interactive
-        backend like TkAgg, e.g. `RuntimeError: main thread is not in main
-        loop`). Building the Figure directly and attaching `FigureCanvasAgg`
-        sidesteps `pyplot` (and therefore the active backend) entirely --
-        works the same regardless of thread or ambient backend. Must always
-        be paired with passing the resulting Axes into anything that would
-        otherwise create its own figure (e.g. `solution.plot(ax=...)`, never
-        bare `solution.plot()` -- the latter calls `plt.subplots()` internally).
-        """
-        from matplotlib.backends.backend_agg import FigureCanvasAgg
-        from matplotlib.figure import Figure
-
-        fig = Figure(**kwargs)
-        FigureCanvasAgg(fig)
-        return fig
-
-    @staticmethod
-    def _display_figure(output: W.Image, fig: Any) -> None:
-        """Render `fig` into `output.value` as PNG bytes.
-
-        A direct trait assignment, not `Output`'s capture-based `display()` --
-        confirmed (real Jupyter kernel, not just this sandbox) that the latter
-        does not reliably route from a background thread: `_elapsed_label`/
-        `status`/`_fit_table` (all plain trait updates) updated fine from the
-        ticker thread, but every `Output`-based plot render silently never
-        appeared. `W.Image.value` is a plain bytes trait -- the same kind of
-        update as those, so it works from any thread the same way.
-        """
-        import io
-
-        buf = io.BytesIO()
-        # No CSS width/max-width on the `Image` widgets (see the
-        # constructor's note) -- displayed size is exactly the PNG's own
-        # pixel dimensions, so dpi controls both sharpness and how big it
-        # actually appears. 150 keeps `_FIGSIZE` ("1_col", ~3.5x2.4in) at a
-        # normal embedded-plot size while staying sharp.
-        fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
-        output.value = buf.getvalue()
-        output.layout.display = ""  # reveal it -- see the constructor's note on why
-
     # Matches CADET-Process's own "1_col" default (`CADETProcess.plotting.
     # figure_layouts`) -- `solution.plot()` used this by default before this
     # widget started always passing its own `ax` (required for thread safety,
-    # see `_new_figure`); without picking it explicitly here too, the figure
-    # silently grew to matplotlib's much larger default size instead.
+    # see `_mpl_figure.new_figure`); without picking it explicitly here too,
+    # the figure silently grew to matplotlib's much larger default size instead.
     _FIGSIZE = get_fig_size("1_col")
 
     def _redraw_overlay(self) -> None:
@@ -463,7 +386,7 @@ class ParameterEstimationWidget:
         except Exception:  # noqa: BLE001
             reference, dataset_label = None, None
 
-        fig = self._new_figure(figsize=self._FIGSIZE)
+        fig = new_figure(figsize=self._FIGSIZE)
         ax = fig.add_subplot(111)
         solution.plot(ax=ax)
         if reference is not None:
@@ -477,7 +400,7 @@ class ParameterEstimationWidget:
                 linestyle="--", color="black", linewidth=2, label=label,
             )
             ax.legend()
-        self._display_figure(self._plot_out, fig)
+        display_figure(self._plot_out, fig)
 
     def _on_config_changed(self, _process: Any) -> None:
         cw = self._config_widget
@@ -489,15 +412,7 @@ class ParameterEstimationWidget:
             ) + list_fittable_parameters(
                 "binding", cw._binding_form.spec.fields, cw._binding_form.collect_values()
             )
-        self._snapshot_row_state()
-        valid_keys = {self._param_key(p) for p in new_params}
-        # Drop any added parameter whose identity no longer exists (e.g. a
-        # binding model change removed it) -- everything else about the
-        # selection (order, lb/ub/start) survives via `_param_state`.
-        self._added_keys = [k for k in self._added_keys if k in valid_keys]
-        self._params = new_params
-        self._refresh_added_rows()
-        self._refresh_add_picker_options()
+        self.param_space.set_params(new_params)
         self._refresh_component_options()
 
     def _refresh_component_options(self) -> None:
@@ -513,92 +428,6 @@ class ParameterEstimationWidget:
             return
         self._component_picker.set_options(options, keep_value=True)
 
-    @staticmethod
-    def _param_key(p: FittableParameter) -> tuple[str, str, Optional[int]]:
-        return (p.owner, p.name, p.component_index)
-
-    def _params_by_key(self) -> dict[tuple[str, str, Optional[int]], FittableParameter]:
-        return {self._param_key(p): p for p in self._params}
-
-    def _snapshot_row_state(self) -> None:
-        """Save each currently-rendered row's live field values into `_param_state`.
-
-        Must run *before* `_added_keys` is mutated (append/remove/prune) --
-        it zips the live fields against `_added_keys` as it stood when those
-        fields were last built, so mutating the list first would silently
-        pair each row's values with the wrong key.
-        """
-        for key, lb, ub, start in zip(
-            self._added_keys, self._lb_fields, self._ub_fields, self._start_fields
-        ):
-            self._param_state[key] = {"lb": lb.value, "ub": ub.value, "start": start.value}
-
-    def _refresh_add_picker_options(self) -> None:
-        options = [
-            (f"{p.label} = {p.current_value:.4g}", key)
-            for key, p in self._params_by_key().items()
-            if key not in self._added_keys
-        ]
-        self._param_add_picker.set_options(options)
-
-    def _refresh_added_rows(self) -> None:
-        """Rebuild the fit-parameter rows from `_added_keys` + `_param_state`.
-
-        Every row (and `_param_header`, built once in `__init__`) uses the
-        exact same fixed column widths, so start/lb/ub actually line up
-        regardless of how long any one parameter's own label is -- unlike a
-        plain HBox sized to its own content, which put each row's fields at
-        a different x position depending on that row's label length.
-        """
-        by_key = self._params_by_key()
-        name_layout = W.Layout(width=self._PARAM_NAME_WIDTH, overflow="hidden")
-        field_layout = W.Layout(width=self._PARAM_FIELD_WIDTH)
-        remove_layout = W.Layout(width=self._PARAM_REMOVE_WIDTH)
-        self._lb_fields = []
-        self._ub_fields = []
-        self._start_fields = []
-        self._remove_buttons = []
-        rows = []
-        for key in self._added_keys:
-            p = by_key.get(key)
-            if p is None:  # pragma: no cover -- already pruned by the caller
-                continue
-            state = self._param_state.setdefault(
-                key, {"lb": p.lb, "ub": p.ub, "start": p.current_value}
-            )
-            lb_field = W.FloatText(value=state["lb"], layout=field_layout)
-            ub_field = W.FloatText(value=state["ub"], layout=field_layout)
-            start_field = W.FloatText(value=state["start"], layout=field_layout)
-            remove_btn = W.Button(icon="times", layout=remove_layout)
-            remove_btn.on_click(self._make_remove_handler(key))
-            self._lb_fields.append(lb_field)
-            self._ub_fields.append(ub_field)
-            self._start_fields.append(start_field)
-            self._remove_buttons.append(remove_btn)
-            name_label = W.Label(f"{p.label} = {p.current_value:.4g}", layout=name_layout)
-            rows.append(W.HBox([name_label, start_field, lb_field, ub_field, remove_btn]))
-        self._param_box.children = tuple(rows)
-
-    def _on_add_param(self, _btn: Any) -> None:
-        key = self._param_add_picker.value
-        if key is None or key in self._added_keys:
-            return
-        self._snapshot_row_state()
-        self._added_keys.append(key)
-        self._refresh_added_rows()
-        self._refresh_add_picker_options()
-
-    def _make_remove_handler(self, key: tuple[str, str, Optional[int]]) -> Any:
-        def handler(_btn: Any) -> None:
-            self._snapshot_row_state()
-            if key in self._added_keys:
-                self._added_keys.remove(key)
-            self._param_state.pop(key, None)
-            self._refresh_added_rows()
-            self._refresh_add_picker_options()
-
-        return handler
-
     def _validation_error(self) -> Optional[str]:
         if self._config_widget is None or self._config_widget.process is None:
             return "No configuration to fit."
@@ -606,16 +435,13 @@ class ParameterEstimationWidget:
             return "Import or select an experimental dataset first."
         if self._signal_picker.value is None:
             return "Preview the process to see available signals first."
-        if not self._added_keys:
+        if not self.param_space:
             return "Add at least one parameter to fit."
-        by_key = self._params_by_key()
-        for key, lb_field, ub_field, start_field in zip(
-            self._added_keys, self._lb_fields, self._ub_fields, self._start_fields
-        ):
-            start, lb, ub = start_field.value, lb_field.value, ub_field.value
+        for idx, start, lb, ub in self.param_space.rows():
             if not (lb <= start <= ub):
+                label = self.param_space.params[idx].label
                 return (
-                    f"Start value for {by_key[key].label} ({start:.4g}) must be "
+                    f"Start value for {label} ({start:.4g}) must be "
                     f"within its bounds [{lb:.4g}, {ub:.4g}]."
                 )
         method: CalibrationMethod = self._calibration_picker.value
@@ -628,15 +454,10 @@ class ParameterEstimationWidget:
         return None
 
     def _on_run(self, _btn: Any) -> None:
-        self._plot_out.value = b""
-        self._plot_out.layout.display = "none"
-        self._live_plot_out.value = b""
-        self._live_plot_out.layout.display = "none"
+        for img in (self._plot_out, self._live_plot_out, self._convergence_out, self._pairwise_out):
+            img.value = b""
+            img.layout.display = "none"
         self._live_plot_error.value = ""
-        self._convergence_out.value = b""
-        self._convergence_out.layout.display = "none"
-        self._pairwise_out.value = b""
-        self._pairwise_out.layout.display = "none"
         self._analytics_error.value = ""
         self._btn_accept.layout.display = "none"
         self._last_result = None
@@ -648,17 +469,13 @@ class ParameterEstimationWidget:
 
         unit, port = self._signal_picker.value
         reference, _ = self._current_reference()
-        index_of = {self._param_key(p): i for i, p in enumerate(self._params)}
-        params = list(self._params)
+        params = list(self.param_space.params)
         selected = []
         starts = []
-        for key, lb_field, ub_field, start_field in zip(
-            self._added_keys, self._lb_fields, self._ub_fields, self._start_fields
-        ):
-            idx = index_of[key]
-            params[idx] = replace(params[idx], lb=lb_field.value, ub=ub_field.value)
+        for idx, start, lb, ub in self.param_space.rows():
+            params[idx] = replace(params[idx], lb=lb, ub=ub)
             selected.append(idx)
-            starts.append(start_field.value)
+            starts.append(start)
         process = self._config_widget.process
         column = self._config_widget._column_form.built
 
@@ -778,7 +595,7 @@ class ParameterEstimationWidget:
 
             solution = preview.solution[unit][port]
             width, height = self._FIGSIZE
-            fig = self._new_figure(figsize=(2 * width, height))  # two "1_col" panels side by side
+            fig = new_figure(figsize=(2 * width, height))  # two "1_col" panels side by side
             ax1 = fig.add_subplot(1, 2, 1)
             ax2 = fig.add_subplot(1, 2, 2)
             solution.plot(ax=ax1)
@@ -796,7 +613,7 @@ class ParameterEstimationWidget:
             ax2.set_title("Objective history")
 
             fig.tight_layout()
-            self._display_figure(self._live_plot_out, fig)
+            display_figure(self._live_plot_out, fig)
             self._live_plot_error.value = ""
         except Exception as exc:  # noqa: BLE001 -- best-effort per tick, but visibly
             self._live_plot_error.value = (
@@ -863,20 +680,20 @@ class ParameterEstimationWidget:
             if len(results.populations) == 0:
                 return  # nothing ran yet (e.g. cancelled before generation 1)
 
-            fig1 = self._new_figure(figsize=self._FIGSIZE)
+            fig1 = new_figure(figsize=self._FIGSIZE)
             ax1 = fig1.subplots(nrows=1, ncols=1, squeeze=False).reshape(-1)
             results.plot_convergence(ax=ax1)
-            self._display_figure(self._convergence_out, fig1)
+            display_figure(self._convergence_out, fig1)
 
             # Mirrors CADET-Process's own `results.plot_figures()` guard --
             # a single variable's pairwise grid is a degenerate 1x1 plot.
             n_var = len(results.x[0])
             if n_var > 1:
                 width, _ = self._FIGSIZE
-                fig2 = self._new_figure(figsize=(width * n_var * 0.8, width * n_var * 0.8))
+                fig2 = new_figure(figsize=(width * n_var * 0.8, width * n_var * 0.8))
                 ax2 = fig2.subplots(nrows=n_var, ncols=n_var, squeeze=False)
                 results.plot_pairwise(ax=ax2)
-                self._display_figure(self._pairwise_out, fig2)
+                display_figure(self._pairwise_out, fig2)
             self._analytics_error.value = ""
         except Exception as exc:  # noqa: BLE001 -- best-effort, but visibly
             self._analytics_error.value = (
@@ -885,8 +702,8 @@ class ParameterEstimationWidget:
 
     def _render_fit_table(self, result: EstimationResult) -> None:
         rows = "".join(
-            f"<tr><td>{self._params[idx].label}</td>"
-            f"<td>{self._params[idx].current_value:.4g}</td><td>{value:.4g}</td></tr>"
+            f"<tr><td>{self.param_space.params[idx].label}</td>"
+            f"<td>{self.param_space.params[idx].current_value:.4g}</td><td>{value:.4g}</td></tr>"
             for idx, value in result.fitted.items()
         )
         self._fit_table.value = (
@@ -898,7 +715,7 @@ class ParameterEstimationWidget:
             return
         cw = self._config_widget
         for idx, value in self._last_result.fitted.items():
-            param = self._params[idx]
+            param = self.param_space.params[idx]
             form = cw._column_form if param.owner == "column" else cw._binding_form
             element = form.element(param.name)
             if param.component_index is None:

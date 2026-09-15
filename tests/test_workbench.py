@@ -25,7 +25,7 @@ def test_workbench_builds_and_wires_the_three_widgets():
 def test_workbench_wires_parameter_estimation_to_configuration():
     wb = WorkbenchWidget()
 
-    assert wb.parameter_estimation._param_add_picker.option_labels  # bind_to_config populated it
+    assert wb.parameter_estimation.param_space._param_add_picker.option_labels  # bind_to_config populated it
     assert wb.parameter_estimation._signal_picker.option_labels == []  # nothing previewed yet
 
     wb.parameter_estimation._on_preview(None)

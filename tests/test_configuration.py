@@ -311,7 +311,7 @@ def test_multiplex_checkboxes_hidden_for_column_without_any_applicable_param():
     cw = ConfigurationWidget()
     cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
     # The gear itself stays visible -- "Show optional parameters" always applies.
-    assert cw._btn_settings.layout.display != "none"
+    assert cw._column_settings.button.layout.display != "none"
     assert all(cb.layout.display == "none" for cb in cw._multiplex_checkboxes.values())
 
 
@@ -321,13 +321,13 @@ def test_show_optional_parameters_adds_and_removes_column_fields():
     required_names = {f.name for f in cw._column_form.spec.fields}
     assert "c" not in required_names  # optional fields hidden by default
 
-    cw._show_optional_checkbox.value = True
+    cw._show_optional_column_checkbox.value = True
     shown_names = {f.name for f in cw._column_form.spec.fields}
     assert {"c", "cp", "flow_direction", "pore_accessibility"} <= shown_names
     # still builds a real column with the optional fields' own defaults applied
     assert cw._get_column() is not None
 
-    cw._show_optional_checkbox.value = False
+    cw._show_optional_column_checkbox.value = False
     assert {f.name for f in cw._column_form.spec.fields} == required_names
 
 
@@ -335,7 +335,7 @@ def test_show_optional_parameters_skips_none_valued_and_non_scalar_fields():
     cw = ConfigurationWidget()
     cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
     cw._binding_picker.value = cw._binding_registry["None"]  # q stays unset without a real isotherm
-    cw._show_optional_checkbox.value = True
+    cw._show_optional_column_checkbox.value = True
 
     names = {f.name for f in cw._column_form.spec.fields}
     assert "q" not in names  # None-valued (no bound states configured)
@@ -346,7 +346,7 @@ def test_show_optional_parameters_skips_none_valued_and_non_scalar_fields():
 def test_show_optional_parameters_does_not_apply_to_binding_form():
     cw = ConfigurationWidget()
     cw._binding_picker.value = cw._binding_registry["Steric Mass Action (SMA)"]
-    cw._show_optional_checkbox.value = True
+    cw._show_optional_column_checkbox.value = True
 
     names = {f.name for f in cw._binding_form.spec.fields}
     assert "reference_liquid_phase_conc" not in names
@@ -548,11 +548,11 @@ def test_switching_column_type_rebuilds_event_sliders_without_stale_links():
 
 def test_cycle_time_settings_gear_visible_only_when_cycle_time_exists():
     cw = ConfigurationWidget()  # defaults to Batch Elution, which has cycle_time
-    assert cw._btn_process_settings.layout.display == ""
+    assert cw._process_settings.button.layout.display == ""
 
     cw._model_picker.value = cw._registry["Load–Wash–Elute (LWE)"]  # no cycle_time field
-    assert cw._btn_process_settings.layout.display == "none"
-    assert cw._process_settings_box.layout.display == "none"
+    assert cw._process_settings.button.layout.display == "none"
+    assert cw._process_settings.box.layout.display == "none"
 
 
 def test_cycle_time_minutes_toggle_swaps_visible_field_and_converts_value():
@@ -722,7 +722,7 @@ def test_snapshot_and_apply_state_round_trips_a_mutated_configuration():
     cw2._apply_state("Imported", state)
 
     assert cw2.config_name == "Imported"
-    assert cw2._name_field.value == "Imported"
+    assert cw2.persistence._name_field.value == "Imported"
     assert cw2.config_hash == cw.config_hash
     assert type(cw2._get_column()).__name__ == "GeneralRateModel"
     assert type(cw2._get_binding_model()).__name__ == "Langmuir"
@@ -742,11 +742,11 @@ def test_apply_state_rejects_an_unregistered_column_key():
 
 def test_save_button_writes_to_the_store_and_shows_the_path(tmp_path):
     cw = ConfigurationWidget()
-    cw._name_field.value = "Saved Config"
+    cw.persistence._name_field.value = "Saved Config"
 
-    cw._on_save(None)
+    cw.persistence._on_save(None)
 
-    assert str(tmp_path) in cw.save_status.value
+    assert str(tmp_path) in cw.persistence.save_status.value
     name, state = configuration_store.load_from_store(cw.config_hash)
     assert name == "Saved Config"
     assert state == cw._snapshot_state()
@@ -754,9 +754,9 @@ def test_save_button_writes_to_the_store_and_shows_the_path(tmp_path):
 
 def test_import_from_store_restores_a_previously_saved_configuration():
     cw = ConfigurationWidget()
-    cw._name_field.value = "Saved Config"
+    cw.persistence._name_field.value = "Saved Config"
     cw._model_form.element("flow_rate").value = 7.7e-6
-    cw._on_save(None)
+    cw.persistence._on_save(None)
     saved_hash = cw.config_hash
 
     cw2 = ConfigurationWidget()
@@ -764,31 +764,31 @@ def test_import_from_store_restores_a_previously_saved_configuration():
 
     assert cw2.config_name == "Saved Config"
     assert cw2.config_hash == saved_hash
-    assert "Imported" in cw2.save_status.value
+    assert "Imported" in cw2.persistence.save_status.value
 
 
 def test_import_from_store_with_unknown_hash_shows_an_error():
     cw = ConfigurationWidget()
     cw.import_from_store("deadbeef")
-    assert "deadbeef" in cw.save_status.value
+    assert "deadbeef" in cw.persistence.save_status.value
 
 
 def test_import_hash_button_delegates_to_import_from_store():
     cw = ConfigurationWidget()
-    cw._name_field.value = "Saved Config"
-    cw._on_save(None)
+    cw.persistence._name_field.value = "Saved Config"
+    cw.persistence._on_save(None)
     saved_hash = cw.config_hash
 
     cw2 = ConfigurationWidget()
-    cw2._import_hash_field.value = saved_hash
-    cw2._on_import_hash_click(None)
+    cw2.persistence._import_hash_field.value = saved_hash
+    cw2.persistence._on_import_hash_click(None)
 
     assert cw2.config_hash == saved_hash
 
 
 def test_file_upload_imports_an_exported_configuration():
     cw = ConfigurationWidget()
-    cw._name_field.value = "Uploaded Config"
+    cw.persistence._name_field.value = "Uploaded Config"
     cw._model_form.element("flow_rate").value = 2.2e-6
 
     import tempfile
@@ -801,7 +801,7 @@ def test_file_upload_imports_an_exported_configuration():
         content = memoryview(path.read_bytes())
 
     cw2 = ConfigurationWidget()
-    cw2._file_upload.value = (
+    cw2.persistence._file_upload.value = (
         {
             "name": "exported.h5",
             "type": "application/x-hdf5",
@@ -813,15 +813,15 @@ def test_file_upload_imports_an_exported_configuration():
 
     assert cw2.config_name == "Uploaded Config"
     assert cw2.config_hash == cw.config_hash
-    assert cw2._file_upload.value == ()  # cleared so the same file can be re-uploaded
+    assert cw2.persistence._file_upload.value == ()  # cleared so the same file can be re-uploaded
 
 
 def test_store_dir_defaults_to_none_and_uses_the_default_store(tmp_path):
     cw = ConfigurationWidget()
-    cw._name_field.value = "Default Store Config"
-    assert cw._store_dir is None
+    cw.persistence._name_field.value = "Default Store Config"
+    assert cw.persistence.store_dir is None
 
-    cw._on_save(None)
+    cw.persistence._on_save(None)
     # default store dir is monkeypatched to tmp_path by the isolated_store fixture
     assert (tmp_path / f"{cw.config_hash}.h5").exists()
 
@@ -829,33 +829,33 @@ def test_store_dir_defaults_to_none_and_uses_the_default_store(tmp_path):
 def test_setting_a_custom_store_dir_is_used_for_save_and_import(tmp_path):
     custom = tmp_path / "my_configs" / "nested"
     cw = ConfigurationWidget()
-    cw._name_field.value = "Custom Folder Config"
-    cw._store_dir_field.value = str(custom)
+    cw.persistence._name_field.value = "Custom Folder Config"
+    cw.persistence._store_dir_field.value = str(custom)
 
-    cw._on_set_store_dir(None)
+    cw.persistence._on_set_store_dir(None)
 
-    assert cw._store_dir == custom
+    assert cw.persistence.store_dir == custom
     assert custom.is_dir()  # created on set, even before anything is saved
 
-    cw._on_save(None)
+    cw.persistence._on_save(None)
     assert (custom / f"{cw.config_hash}.h5").exists()
 
     cw2 = ConfigurationWidget()
-    cw2._store_dir_field.value = str(custom)
-    cw2._on_set_store_dir(None)
+    cw2.persistence._store_dir_field.value = str(custom)
+    cw2.persistence._on_set_store_dir(None)
     cw2.import_from_store(cw.config_hash)
     assert cw2.config_name == "Custom Folder Config"
 
 
 def test_blank_store_dir_field_resets_to_the_default(tmp_path):
     cw = ConfigurationWidget()
-    cw._store_dir_field.value = str(tmp_path / "custom")
-    cw._on_set_store_dir(None)
-    assert cw._store_dir is not None
+    cw.persistence._store_dir_field.value = str(tmp_path / "custom")
+    cw.persistence._on_set_store_dir(None)
+    assert cw.persistence.store_dir is not None
 
-    cw._store_dir_field.value = ""
-    cw._on_set_store_dir(None)
-    assert cw._store_dir is None
+    cw.persistence._store_dir_field.value = ""
+    cw.persistence._on_set_store_dir(None)
+    assert cw.persistence.store_dir is None
 
 
 def test_invalid_store_dir_shows_an_error_and_does_not_change_store_dir(tmp_path):
@@ -863,34 +863,34 @@ def test_invalid_store_dir_shows_an_error_and_does_not_change_store_dir(tmp_path
     blocked.write_text("x")
 
     cw = ConfigurationWidget()
-    cw._store_dir_field.value = str(blocked / "sub")
-    cw._on_set_store_dir(None)
+    cw.persistence._store_dir_field.value = str(blocked / "sub")
+    cw.persistence._on_set_store_dir(None)
 
-    assert cw._store_dir is None
-    assert "span style" in cw.save_status.value
+    assert cw.persistence.store_dir is None
+    assert "span style" in cw.persistence.save_status.value
 
 
 def test_save_without_a_name_is_refused(tmp_path):
     cw = ConfigurationWidget()
-    cw._name_field.value = ""  # cleared the default name
-    cw._on_save(None)
+    cw.persistence._name_field.value = ""  # cleared the default name
+    cw.persistence._on_save(None)
 
-    assert "name" in cw.save_status.value.lower()
+    assert "name" in cw.persistence.save_status.value.lower()
     assert list(tmp_path.glob("*.h5")) == []  # nothing written to the store
 
 
 def test_save_load_details_are_collapsed_by_default_and_toggle():
     cw = ConfigurationWidget()
-    assert cw._save_load_details_box.layout.display == "none"
-    assert cw._btn_toggle_save_load_details.description == "Show details"
+    assert cw.persistence._save_load_details_box.layout.display == "none"
+    assert cw.persistence._btn_toggle_save_load_details.description == "Show details"
 
-    cw._on_toggle_save_load_details(None)
-    assert cw._save_load_details_box.layout.display == ""
-    assert cw._btn_toggle_save_load_details.description == "Hide details"
+    cw.persistence._on_toggle_save_load_details(None)
+    assert cw.persistence._save_load_details_box.layout.display == ""
+    assert cw.persistence._btn_toggle_save_load_details.description == "Hide details"
 
-    cw._on_toggle_save_load_details(None)
-    assert cw._save_load_details_box.layout.display == "none"
-    assert cw._btn_toggle_save_load_details.description == "Show details"
+    cw.persistence._on_toggle_save_load_details(None)
+    assert cw.persistence._save_load_details_box.layout.display == "none"
+    assert cw.persistence._btn_toggle_save_load_details.description == "Show details"
 
 
 def test_save_load_section_is_the_first_section_in_the_panel():
@@ -905,14 +905,14 @@ def test_name_error_reflects_whether_the_configuration_is_named():
     cw = ConfigurationWidget()
     assert cw.name_error() is None  # has the default name
 
-    cw._name_field.value = ""
+    cw.persistence._name_field.value = ""
     error = cw.name_error("running a simulation")
     assert error == "Give the configuration a name before running a simulation."
 
 
 def test_persist_to_store_raises_without_a_name():
     cw = ConfigurationWidget()
-    cw._name_field.value = ""
+    cw.persistence._name_field.value = ""
     try:
         cw.persist_to_store()
         assert False, "should have raised"
@@ -922,7 +922,7 @@ def test_persist_to_store_raises_without_a_name():
 
 def test_persist_to_store_saves_and_returns_the_path(tmp_path):
     cw = ConfigurationWidget()
-    cw._name_field.value = "Persisted Config"
+    cw.persistence._name_field.value = "Persisted Config"
 
     path = cw.persist_to_store()
 
