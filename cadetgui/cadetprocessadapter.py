@@ -476,6 +476,25 @@ def build_parameter_config_spec(
     names = _unique_preserve_order(list(req))
     category, model_name = _category_and_model(obj)
 
+    # `obj.required_parameters` is a CADET-Process class-level property whose
+    # *order* is not stable across process runs: its metaclass builds it via
+    # `list(set(parameters))` (CADETProcess/dataStructure/dataStructure.py),
+    # so which parameter lands first depends on Python's per-process string
+    # hash seed -- confirmed by observing `total_porosity` and
+    # `axial_dispersion` swap which one is index 0 between separate `python`
+    # invocations of the identical code. The *set* of names is correct, only
+    # the order isn't. Re-order by this model's position in
+    # `parameters/interface.json` instead (a curated, deliberately-ordered
+    # schema) so the rendered field/checklist order is actually stable and
+    # doesn't reshuffle every time a user restarts their kernel. See
+    # ai-docs/UPSTREAM_ISSUES.md #4.
+    if category is not None:
+        try:
+            schema_order = list(_param_metadata_for(category, model_name))
+        except KeyError:
+            schema_order = []
+        names.sort(key=lambda n: schema_order.index(n) if n in schema_order else len(schema_order))
+
     # is_kinetic isn't in CADET-Process's own required_parameters, but every
     # binding model with a real isotherm needs it settable. `names` is only
     # non-empty for those (NoBinding's required_parameters is []).
@@ -533,18 +552,25 @@ def classify_signal_ports(result: Any) -> list[tuple[str, tuple[str, str]]]:
     bookkeeping, not real signals -- identical to that same unit's other port
     for every current template. Only the real port is offered, labeled
     "Source"/"Sink" rather than the (there, meaningless) port name.
+
+    Any "Sink" entry is sorted first -- comparing/fitting against the process
+    outlet is the common case (`ChoiceField.set_options(..., keep_value=True)`
+    defaults to index 0 when nothing was previously selected, so this is what
+    determines the signal picker's default in both `SolutionWidget` and
+    `ParameterEstimationWidget`).
     """
     units = result.process.flow_sheet.units_dict
-    options: list[tuple[str, tuple[str, str]]] = []
+    sinks: list[tuple[str, tuple[str, str]]] = []
+    others: list[tuple[str, tuple[str, str]]] = []
     for unit_name, ports in result.solution.items():
         unit = units.get(unit_name)
         if isinstance(unit, Inlet):
             if "outlet" in ports:
-                options.append((f"{unit_name}: Source", (unit_name, "outlet")))
+                others.append((f"{unit_name}: Source", (unit_name, "outlet")))
         elif isinstance(unit, Outlet):
             if "inlet" in ports:
-                options.append((f"{unit_name}: Sink", (unit_name, "inlet")))
+                sinks.append((f"{unit_name}: Sink", (unit_name, "inlet")))
         else:
             for port in ports:
-                options.append((f"{unit_name}: {port}", (unit_name, port)))
-    return options
+                others.append((f"{unit_name}: {port}", (unit_name, port)))
+    return sinks + others

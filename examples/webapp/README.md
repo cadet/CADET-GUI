@@ -1,17 +1,19 @@
 # CADET-GUI as a website
 
 `app.ipynb` renders `ConfigurationWidget`, `SolutionWidget` (with its built-in
-run history), and `DataImportWidget` — the exact same widgets used in
+run history), and `ParameterEstimationWidget` — the same widgets used in
 `examples/configuration_and_solution.ipynb` — composed into three tabs
-(**Configuration** / **Solution** / **Analysis**), served via
-[Voilà](https://voila.readthedocs.io/). `DataImportWidget` lives under
-**Analysis**, not alongside Solution — that's a deliberate separation, not a
-demotion: comparison/analysis is its own concern, distinct from running and
-viewing a single simulation, even though it visually overlays onto Solution's
-plot. Try uploading `examples/data/example_uv_signal.csv` (a synthetic UV trace
-generated for these examples) there to see it overlaid on a simulation run —
-switching tabs doesn't lose anything; a plot rendered on one tab is still there
-when you switch back.
+(**Configuration** / **Solution** / **Parameter Estimation**), served via
+[Voilà](https://voila.readthedocs.io/). Comparison against measured data lives
+under **Parameter Estimation**, not alongside Solution — that's a deliberate
+separation, not a demotion: the Solution tab shows only the raw simulation;
+importing a dataset, calibrating it, and overlaying it against a simulated
+signal is its own concern, with its own "Preview" step. Try uploading one of
+the three example datasets in `examples/data/` (see `examples/EXAMPLE_DATA.md`
+for exactly what configuration each was generated from, and what to check in
+the parameter checklist) and clicking "Preview" to see it overlaid —
+switching tabs doesn't lose anything; a plot rendered on one tab is still
+there when you switch back.
 
 ## Run it
 

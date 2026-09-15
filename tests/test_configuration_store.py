@@ -7,6 +7,7 @@ from cadet import H5
 from cadetgui.configuration_store import (
     ConfigurationState,
     compute_hash,
+    list_store,
     load_from_store,
     load_h5,
     save_h5,
@@ -92,3 +93,33 @@ def test_save_to_store_is_idempotent_for_identical_content(tmp_path):
     name, loaded = load_from_store(compute_hash(state), store_dir=tmp_path)
     assert name == "Name B"  # last write wins for the metadata, content unchanged
     assert loaded == state
+
+
+def test_list_store_is_empty_for_a_fresh_store_dir(tmp_path):
+    assert list_store(store_dir=tmp_path) == []
+
+
+def test_list_store_lists_every_saved_configuration_as_name_hash_pairs(tmp_path):
+    state_a = _sample_state()
+    state_b = _sample_state(column_values={"length": 0.6, "diameter": 0.024})
+    save_to_store(state_a, "Config A", store_dir=tmp_path)
+    save_to_store(state_b, "Config B", store_dir=tmp_path)
+
+    entries = list_store(store_dir=tmp_path)
+
+    assert {name for name, _ in entries} == {"Config A", "Config B"}
+    assert {hash_ for _, hash_ in entries} == {compute_hash(state_a), compute_hash(state_b)}
+
+
+def test_list_store_skips_a_non_cadetgui_h5_file(tmp_path):
+    state = _sample_state()
+    save_to_store(state, "Config A", store_dir=tmp_path)
+
+    h5 = H5()
+    h5.root.some_other_data = 1
+    h5.filename = str(tmp_path / "not_a_config.h5")
+    h5.save()
+
+    entries = list_store(store_dir=tmp_path)
+
+    assert [name for name, _ in entries] == ["Config A"]

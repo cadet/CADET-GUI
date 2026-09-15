@@ -29,8 +29,8 @@ class SolutionWidget:
         self._runner = runner or _default_runner
         self.process = process
         self.result: Any = None
-        self._data_widget: Optional[Any] = None
         self._config_widget: Optional[Any] = None
+        self._listeners: list[Callable[[], None]] = []
 
         self._process_label = W.HTML()
         self._btn_run = W.Button(description="Run simulation", icon="play", button_style="success")
@@ -91,10 +91,13 @@ class SolutionWidget:
         if getattr(config_widget, "process", None) is not None:
             self.set_process(config_widget.process)
 
-    def bind_to_data(self, data_widget: Any) -> None:
-        """Overlay a DataImportWidget's loaded datasets on this widget's plot."""
-        self._data_widget = data_widget
-        data_widget.add_listener(self._plot_selected)
+    def add_listener(self, fn: Callable[[], None]) -> None:
+        """Register a callback fired (no args) whenever a new result is loaded."""
+        self._listeners.append(fn)
+
+    def _notify(self) -> None:
+        for fn in list(self._listeners):
+            fn()
 
     def _display_name(self) -> str:
         """Return the label to show/record for the current process.
@@ -176,6 +179,7 @@ class SolutionWidget:
         if not run.ok:
             self.result = None
             self._signal_picker.set_options([])
+            self._notify()
             self.status.value = f"<span style='color:#b00020'>Simulation failed: {run.error}</span>"
             return
         self._load_result(run.result)
@@ -185,11 +189,13 @@ class SolutionWidget:
         self.result = result
         self._signal_picker.set_options(classify_signal_ports(result), keep_value=True)
         self._plot_selected()
+        self._notify()
 
     def _on_clear(self, _btn: Any) -> None:
         self._plot_out.clear_output()
         self.result = None
         self._signal_picker.set_options([])
+        self._notify()
         self.status.value = "<em>Cleared.</em>"
 
     def _on_signal_change(self, change: dict) -> None:
@@ -209,11 +215,6 @@ class SolutionWidget:
             from IPython.display import display
 
             fig, ax = solution.plot()
-            datasets = self._data_widget.datasets if self._data_widget else []
-            for ds in datasets:
-                ax.plot(ds.time_min, ds.signal, linestyle="--", label=f"{ds.label} (measured)")
-            if datasets:
-                ax.legend()
             display(fig)
             plt.close(fig)
 

@@ -37,7 +37,7 @@ class WorkbenchWidget:
         self.parameter_estimation = parameter_estimation or ParameterEstimationWidget()
 
         self.solution.bind_to_config(self.configuration)
-        self.solution.bind_to_data(self.parameter_estimation.data)
+        self.parameter_estimation.bind_to_config(self.configuration)
 
         self._panes: Dict[str, W.Widget] = {
             "Configuration": self.configuration.root,

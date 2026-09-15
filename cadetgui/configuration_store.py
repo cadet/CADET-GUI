@@ -19,6 +19,7 @@ __all__ = [
     "load_h5",
     "save_to_store",
     "load_from_store",
+    "list_store",
 ]
 
 
@@ -156,3 +157,21 @@ def load_from_store(
     if not path.exists():
         raise FileNotFoundError(f"No saved configuration with hash {hash_!r} in {store_dir}.")
     return load_h5(path)
+
+
+def list_store(*, store_dir: Optional[Path] = None) -> List[Tuple[str, str]]:
+    """List every saved configuration as (name, hash) pairs, newest first.
+
+    Silently skips any file that isn't a valid saved configuration (e.g. a
+    plain CADET-Core h5 someone dropped into the store directory by hand).
+    """
+    store_dir = store_dir or default_store_dir()
+    paths = sorted(store_dir.glob("*.h5"), key=lambda p: p.stat().st_mtime, reverse=True)
+    entries = []
+    for path in paths:
+        try:
+            name, _ = load_h5(path)
+        except Exception:  # noqa: BLE001
+            continue
+        entries.append((name, path.stem))
+    return entries
