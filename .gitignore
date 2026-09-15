@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints
+debug*
+log/
+diskcache_*
+results_*
+*.egg-info
+.vscode
+
+# AI-assisted development notes (local working docs, not for the repo yet)
+ai-docs/

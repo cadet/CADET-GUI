@@ -1,0 +1,133 @@
+/* Own copy of the shared tokens (anywidget gives each element its own CSS
+   instance, no cross-file sharing) -- see _shared.css's header comment. */
+.cadetgui-timeline-chart {
+  --cg-fg: #1f2937;
+  --cg-muted: #6b7280;
+  --cg-border: #d1d5db;
+  --cg-bg: #ffffff;
+  --cg-radius: 6px;
+
+  position: relative;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--cg-fg);
+}
+
+@media (prefers-color-scheme: dark) {
+  .cadetgui-timeline-chart {
+    --cg-fg: #e5e7eb;
+    --cg-muted: #9ca3af;
+    --cg-border: #4b5563;
+    --cg-bg: #1f2937;
+  }
+}
+
+.cadetgui-timeline-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.cadetgui-timeline-grid line {
+  stroke: var(--cg-border);
+  stroke-width: 1;
+}
+
+.cadetgui-timeline-axislabel {
+  fill: var(--cg-muted);
+  font-size: 9px;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.cadetgui-timeline-axistitle {
+  fill: var(--cg-muted);
+  font-size: 10px;
+  font-family: "STIX Two Math", "Cambria Math", Georgia, "Times New Roman", serif;
+}
+
+.cadetgui-timeline-empty {
+  fill: var(--cg-muted);
+  font-size: 12px;
+}
+
+.cadetgui-timeline-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.cadetgui-timeline-area {
+  stroke: none;
+  fill-opacity: 0.14;
+}
+
+.cadetgui-timeline-crosshair {
+  stroke: var(--cg-muted);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.cadetgui-timeline-legend {
+  display: flex;
+  flex-flow: row wrap;
+  gap: 4px 14px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.cadetgui-timeline-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--cg-fg);
+}
+
+.cadetgui-timeline-legend-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.cadetgui-timeline-tooltip {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 6px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cadetgui-timeline-tooltip-time {
+  color: var(--cg-muted);
+  font-size: 11px;
+  margin-bottom: 3px;
+}
+
+.cadetgui-timeline-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cadetgui-timeline-tooltip-key {
+  display: inline-block;
+  width: 10px;
+  height: 2px;
+  flex: 0 0 auto;
+}
+
+.cadetgui-timeline-tooltip-value {
+  color: var(--cg-fg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cadetgui-timeline-tooltip-name {
+  color: var(--cg-muted);
+}

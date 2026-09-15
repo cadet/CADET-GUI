@@ -11,11 +11,9 @@ name = "CADET-GUI"
 dynamic = ["version"]
 authors = [
     { name = "Hannah Lanzrath", email = "h.lanzrath@fz-juelich.de" },
-    { name = "Johannes Schmölder", email = "j.schmoelder@fz-juelich.de" },
-    { name = "", email = "" },
-    { name = "", email = "" }
+    { name = "Johannes Schmölder", email = "j.schmoelder@fz-juelich.de" }
 ]
-description = "A Framework for Modelling and Optimizing Advanced Chromatographic Processes"
+description = ""
 readme = "README.md"
 requires-python = ">=3.10"
 keywords = ["process modeling", "process optimization", "chromatography"]
@@ -24,22 +22,11 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-    "Intended Audience :: Science/Research",
+    "Intended Audience :: Science/Research"
 ]
 dependencies = [
-    "addict==2.3",
-    "cadet-python>=1.0.4",
-    "corner>=2.2.1",
-    "diskcache>=5.4.0",
-    "hopsy>=1.5.3",
-    "joblib>=1.3.0",
-    "numpy>=1.21",
-    "matplotlib>=3.4",
-    "numba>=0.55.1",
-    "pathos>=0.2.8",
-    "psutil>=5.9.8",
-    "pymoo>=0.6",
-    "scipy>=1.14",
+    "anywidget",
+    "traitlets"
 ]
 
 [dependency-groups]
@@ -55,44 +42,23 @@ docs = [
     "sphinxcontrib-bibtex>=2.5.0",
     "sphinx_book_theme>=1.0.0",
     "sphinx_copybutton>=0.5.1",
-    "sphinx-sitemap>=2.5.0",
+    "sphinx-sitemap>=2.5.0"
 ]
 dev = [
-    {include-group = "docs"},
-    {include-group = "testing"},
+    "coverage",
+    "pytest",
+    "pytest-cov",
+    "myst-nb>=0.17.1",
+    "numpydoc>=1.5.0",
+    "sphinx>=5.3.0",
+    "sphinxcontrib-bibtex>=2.5.0",
+    "sphinx_book_theme>=1.0.0",
+    "sphinx_copybutton>=0.5.1",
+    "sphinx-sitemap>=2.5.0",
     "certifi", # tries to prevent certificate problems on windows
     "pre-commit",
-<<<<<<< HEAD
-    "ruff",
-=======
-    "ruff<=0.13.0",
->>>>>>> 591e72cbaf1d976d69729f076fdf0ff4d6beb0a6
+    "ruff"
 ]
-
-[project.optional-dependencies]
-ax = [
-<<<<<<< HEAD
-    "ax-platform >=0.3.5,<1.0.0"
-=======
-    "ax-platform >=0.3.5,<0.5.0"
->>>>>>> 591e72cbaf1d976d69729f076fdf0ff4d6beb0a6
-]
-all = [
-   "",
-]
-
-[project.urls]
-homepage = ""
-documentation = ""
-"Bug Tracker" = ""
-
-[tool.setuptools.packages.find]
-include = [
-
-]
-
-[tool.setuptools.dynamic]
-version = {}
 
 [tool.ruff]
 src = ["CADET-GUI", "tests"]
@@ -108,11 +74,11 @@ select = [
   "E",    # pycodestyle errors
   "F",    # pyflakes
   "W",    # pycodestyle warnings
-  "I",    # isort
+  "I"     # isort
 ]
 ignore = [
   "ANN401",  # Allow dynamically typed expressions like `Any`
-  "D100",    # Allow missing docstring in public module
+  "D100"     # Allow missing docstring in public module
 ]
 
 [tool.ruff.format]
@@ -129,18 +95,17 @@ convention = "numpy"
   "ANN",   # type annotations
   "D",     # docstrings
   "E402",  # imports on top of module 
-  "E731",  # lamba assignments
-  "F841",  # unused variables
+  "E731",  # lambda assignments
+  "F841"   # unused variables
 ]
-
 
 [tool.pytest.ini_options]
 testpaths = [
-    "tests",
+    "tests"
 ]
 pythonpath = [
-    "tests",
+    "tests"
 ]
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')"
 ]
