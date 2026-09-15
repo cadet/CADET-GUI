@@ -400,6 +400,7 @@ class ConfigurationWidget:
 
     @property
     def config_name(self) -> str:
+        """Name shown in the Save/Load section and used as the save target."""
         return self.persistence.config_name
 
     @config_name.setter

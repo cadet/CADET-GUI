@@ -66,6 +66,7 @@ class ParameterSpaceEditor:
         self.root = W.VBox([add_row, self._param_header, self._param_box])
 
     def __len__(self) -> int:
+        """Return the number of parameters currently added to the fit."""
         return len(self._added_keys)
 
     @staticmethod

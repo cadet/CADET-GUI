@@ -96,7 +96,7 @@ def test_config_field_changes_rebuild_the_add_parameter_picker():
 
     cw._model_form.element("flow_rate").value = 5e-6  # any committed change
 
-    assert len(pw.param_space._param_add_picker.option_labels) == before  # rebuilt, same shape, no crash
+    assert len(pw.param_space._param_add_picker.option_labels) == before  # rebuilt, no crash
 
 
 def test_adding_a_parameter_removes_it_from_the_add_picker_and_adds_a_row():
@@ -584,7 +584,9 @@ def test_progress_tick_does_not_redraw_twice_for_the_same_generation(monkeypatch
     pw._progress["optimizer"] = _FakeOptimizer(_FakeResults(1, [0.5], [[1.0]]))
     pw._live_plot_checkbox.value = True
 
-    last_n_gen = pw._progress_tick(0.0, None, None, pw.param_space.params, [0], None, "outlet", "inlet", 1)
+    last_n_gen = pw._progress_tick(
+        0.0, None, None, pw.param_space.params, [0], None, "outlet", "inlet", 1
+    )
 
     assert calls == []  # n_gen (1) == last_n_gen (1) -- nothing new since last tick
     assert last_n_gen == 1

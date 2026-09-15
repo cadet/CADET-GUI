@@ -5,7 +5,13 @@ from typing import Any, Callable, Optional
 
 import ipywidgets as W
 
-from ...configuration_store import ConfigurationState, compute_hash, load_from_store, load_h5, save_to_store
+from ...configuration_store import (
+    ConfigurationState,
+    compute_hash,
+    load_from_store,
+    load_h5,
+    save_to_store,
+)
 from .._settings_popover import toggle_box
 from ..elements import TextField
 
@@ -96,6 +102,7 @@ class ConfigurationPersistence:
             return None
 
     def refresh_hash_display(self) -> None:
+        """Update the hash line to match the current `config_hash`."""
         if self.config_hash is None:
             self._hash_display.value = "<em>No configuration built yet.</em>"
         else:
