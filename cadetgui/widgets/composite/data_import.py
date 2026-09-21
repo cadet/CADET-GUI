@@ -44,7 +44,8 @@ class DataImportWidget:
 
     Assumes a header row and uses the file's first two columns as time/signal —
     full column mapping (PRODUCT_VISION.md §13) is bigger scope, not built yet.
-    `SolutionWidget.bind_to_data()` overlays loaded datasets on its plot.
+    `ParameterEstimationWidget` nests one (`.data`) as its experimental-data
+    source; see its docstring.
     """
 
     def __init__(self) -> None:

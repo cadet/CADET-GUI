@@ -464,10 +464,8 @@ def test_run_estimation_passes_the_start_fields_as_starts(monkeypatch):
     pw._on_run(None)
 
     # If `_on_run` ever returns before calling `run_estimation` (e.g. a
-    # future regression re-introducing param-order instability -- see
-    # ai-docs/UPSTREAM_ISSUES.md #4 for the CADET-Process bug this caught,
-    # and cadetprocessadapter.py's `build_parameter_config_spec` for the fix),
-    # surface *why* via the guard-clause message instead of a bare KeyError.
+    # future regression re-introducing param-order instability), surface
+    # *why* via the guard-clause message instead of a bare KeyError.
     assert "starts" in captured, (
         f"run_estimation was never called; pw.status was: {pw.status.value!r}"
     )

@@ -80,3 +80,27 @@ def test_workbench_accepts_prebuilt_widgets():
     assert wb.solution is sw
     assert wb.parameter_estimation is pw
     assert sw.process is cw.process
+
+
+def test_workbench_include_builds_only_the_requested_steps():
+    wb = WorkbenchWidget(include=("Configuration", "Simulation"))
+
+    assert wb.configuration is not None
+    assert wb.solution is not None
+    assert wb.parameter_estimation is None
+    assert list(wb._nav.options) == ["Configuration", "Simulation"]
+    assert wb.solution.process is wb.configuration.process
+
+
+def test_workbench_include_rejects_unknown_step():
+    with pytest.raises(ValueError):
+        WorkbenchWidget(include=("Configuration", "Not A Step"))
+
+
+def test_workbench_include_rejects_widget_for_excluded_step():
+    from cadetgui.widgets.composite import ParameterEstimationWidget
+
+    with pytest.raises(ValueError):
+        WorkbenchWidget(
+            include=("Configuration",), parameter_estimation=ParameterEstimationWidget()
+        )

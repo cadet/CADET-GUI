@@ -1,9 +1,8 @@
 """Loader for the parameter metadata ground truth (`interface.json`).
 
-Framework-agnostic (no widget/CADET-Process imports) -- see
-ai-docs/ARCHITECTURE.md's "Parameter metadata schema" for the design and
-ai-docs/REQUIREMENTS.md item #5 for why this exists as one file rather than
-scattered per-widget constants.
+Framework-agnostic (no widget/CADET-Process imports) -- one file rather than
+scattered per-widget constants, so every field's unit/min/max/kind has a
+single source of truth.
 """
 from __future__ import annotations
 

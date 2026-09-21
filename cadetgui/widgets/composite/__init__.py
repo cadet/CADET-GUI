@@ -1,7 +1,4 @@
-"""Task widgets assembled from elements + forms.
-
-See ai-docs/ARCHITECTURE.md's "Composition, not inheritance-of-everything" note.
-"""
+"""Task widgets assembled from elements + forms."""
 from .configuration import ConfigurationWidget
 from .data_import import DataImportWidget, ExperimentalDataset
 from .parameter_estimation import ParameterEstimationWidget

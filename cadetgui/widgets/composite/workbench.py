@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Optional, Sequence
 
 import ipywidgets as W
 
 from .._chrome import logo_data_uri, style_tag
+from .._sidebar_shell import SidebarShell, collect_panes, resolve_step, validate_steps
 from .configuration import ConfigurationWidget
 from .parameter_estimation import ParameterEstimationWidget
 from .solution import SolutionWidget
@@ -20,39 +21,63 @@ class WorkbenchWidget:
     Builds and wires a `ConfigurationWidget`, `SolutionWidget`, and
     `ParameterEstimationWidget` together (same bindings as
     examples/configuration_and_solution.ipynb), showing exactly one at a time
-    via a left sidebar instead of stacking all three inline. Each stays a
-    plain attribute (`.configuration`/`.solution`/`.parameter_estimation`) for
-    scripting — the shell is purely a navigation convenience, not a black box.
+    via `SidebarShell` (`widgets/_sidebar_shell.py`) instead of stacking all
+    three inline. Each stays a plain attribute
+    (`.configuration`/`.solution`/`.parameter_estimation`) for scripting —
+    this class is purely "the known three widgets, pre-wired, in a sidebar,"
+    not a black box; a different combination of widgets is a different
+    `SidebarShell` call, not a change to this class.
+
+    `include` narrows which steps are built and shown at all (default: all
+    three) — e.g. `WorkbenchWidget(include=("Configuration", "Simulation"))`
+    for a notebook that has no use for parameter estimation. Skipping a step
+    also skips its own construction and its `bind_to_config` wiring, so it
+    costs nothing (no widgets built, no listeners attached) rather than just
+    being hidden. Passing an explicit widget for a step not in `include` is
+    a contradiction and raises `ValueError` rather than silently dropping it.
     """
 
     def __init__(
         self,
         *,
+        include: Optional[Sequence[str]] = None,
         configuration: Optional[ConfigurationWidget] = None,
         solution: Optional[SolutionWidget] = None,
         parameter_estimation: Optional[ParameterEstimationWidget] = None,
     ) -> None:
-        self.configuration = configuration or ConfigurationWidget()
-        self.solution = solution or SolutionWidget()
-        self.parameter_estimation = parameter_estimation or ParameterEstimationWidget()
+        steps = tuple(include) if include is not None else _STEPS
+        validate_steps(steps, _STEPS)
 
-        self.solution.bind_to_config(self.configuration)
-        self.parameter_estimation.bind_to_config(self.configuration)
+        self.configuration = resolve_step(
+            "Configuration", configuration, steps=steps, factory=ConfigurationWidget
+        )
+        self.solution = resolve_step(
+            "Simulation", solution, steps=steps, factory=SolutionWidget
+        )
+        self.parameter_estimation = resolve_step(
+            "Parameter Estimation",
+            parameter_estimation,
+            steps=steps,
+            factory=ParameterEstimationWidget,
+        )
 
-        self._panes: Dict[str, W.Widget] = {
-            "Configuration": self.configuration.root,
-            "Simulation": self.solution.root,
-            "Parameter Estimation": self.parameter_estimation.root,
-        }
-        for root in self._panes.values():
-            root.layout.display = "none"
+        if self.configuration is not None:
+            for dependent in (self.solution, self.parameter_estimation):
+                if dependent is not None:
+                    dependent.bind_to_config(self.configuration)
 
-        self._nav = W.ToggleButtons(options=list(_STEPS))
-        self._nav.add_class("cadetgui-sidebar-nav")
-        self._nav.observe(self._on_nav_change, names="index")
-
-        self._content = W.VBox(list(self._panes.values()))
-        self._content.add_class("cadetgui-workbench-content")
+        panes = collect_panes(
+            _STEPS,
+            {
+                "Configuration": self.configuration.root if self.configuration else None,
+                "Simulation": self.solution.root if self.solution else None,
+                "Parameter Estimation": (
+                    self.parameter_estimation.root if self.parameter_estimation else None
+                ),
+            },
+        )
+        self._shell = SidebarShell(panes)
+        self._nav = self._shell.nav  # exposed for scripting/tests, same name as before the split
 
         top_bar = W.HTML(
             "<div class='cadetgui-topbar'>"
@@ -60,23 +85,10 @@ class WorkbenchWidget:
             "<span class='cadetgui-topbar-title'>Workbench</span>"
             "</div>"
         )
-        body = W.HBox([self._nav, self._content])
-        body.add_class("cadetgui-workbench-body")
 
-        self.root = W.VBox([W.HTML(style_tag()), top_bar, body])
+        self.root = W.VBox([W.HTML(style_tag()), top_bar, self._shell.body])
         self.root.add_class("cadetgui-panel")
         self.root.add_class("cadetgui-workbench")
-
-        self._show(_STEPS[0])
-
-    def _on_nav_change(self, change: dict) -> None:
-        if change.get("name") != "index":
-            return
-        self._show(_STEPS[change["new"]])
-
-    def _show(self, step: str) -> None:
-        for name, root in self._panes.items():
-            root.layout.display = "" if name == step else "none"
 
     def display(self) -> None:
         """Render this widget in a Jupyter cell."""

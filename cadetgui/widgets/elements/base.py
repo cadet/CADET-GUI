@@ -13,8 +13,8 @@ Validator = Callable[[Any], Optional[str]]
 class Element(anywidget.AnyWidget):
     """Base for atomic input widgets: value + label + validation, synced to JS.
 
-    Implements the element contract from ai-docs/ARCHITECTURE.md: state via
-    `error`/`is_valid`, events via traitlets' own `.observe()`. Subclasses define
+    Implements the element contract (input/output/state/validation/events): state
+    via `error`/`is_valid`, events via traitlets' own `.observe()`. Subclasses define
     their own `value` — either a synced trait directly (`FloatField`, `TextField`,
     ...) for JSON-safe types, or a plain Python property backed by a different
     synced trait (`ChoiceField.selected_index`) when the true value isn't

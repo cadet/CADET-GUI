@@ -16,8 +16,7 @@ __all__ = ["SolutionWidget"]
 class SolutionWidget:
     """Run a CADET-Process process and plot its solution.
 
-    Plots via `SolutionIO.plot()` directly (CADET-Process already provides it —
-    see ai-docs/ARCHITECTURE.md's "no duplicated numerical engine" principle).
+    Plots via `SolutionIO.plot()` directly rather than reimplementing plotting.
     """
 
     def __init__(

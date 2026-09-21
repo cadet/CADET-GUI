@@ -246,7 +246,7 @@ def test_binding_model_scales_to_multiple_named_components():
     # concentration defaults (e.g. c_feed=[10.0]) that CADET-Process rejects
     # for n_comp != 1. Pre-existing adapter-layer limitation, unrelated to
     # component naming; column/binding config already scale correctly, as
-    # this test shows. See ai-docs/REQUIREMENTS.md.
+    # this test shows.
 
 
 def test_binding_form_fields_get_component_names_matching_component_system():

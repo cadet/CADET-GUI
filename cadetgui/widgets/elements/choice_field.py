@@ -17,8 +17,7 @@ class ChoiceField(Element):
 
     `value` may be any Python object, not just JSON-serializable ones — only
     the option labels and the selected index cross the anywidget sync boundary;
-    the label -> value mapping stays server-side (see ai-docs/ARCHITECTURE.md's
-    Element contract for why).
+    the label -> value mapping stays server-side.
     """
 
     option_labels = T.List(T.Unicode()).tag(sync=True)

@@ -1,7 +1,4 @@
-"""Atomic anywidget input controls — the target implementation.
-
-See ai-docs/ARCHITECTURE.md for the element contract these follow.
-"""
+"""Atomic anywidget input controls — the target implementation."""
 from .base import Element
 from .bool_field import BoolField
 from .choice_field import ChoiceField

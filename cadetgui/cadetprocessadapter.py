@@ -266,7 +266,7 @@ def pulse_feed_spec(unit: Any) -> ModelSpec:
     )
 
 
-# CLR/Flip-Flop/MRSSR: see ai-docs/REQUIREMENTS.md "Open decisions".
+# CLR/Flip-Flop/MRSSR templates are intentionally not registered yet.
 MODEL_REGISTRY: dict[str, Callable[[Any], ModelSpec]] = {
     "Batch Elution": batch_elution_spec,
     "Load–Wash–Elute (LWE)": lwe_spec,
@@ -486,8 +486,7 @@ def build_parameter_config_spec(
     # the order isn't. Re-order by this model's position in
     # `parameters/interface.json` instead (a curated, deliberately-ordered
     # schema) so the rendered field/checklist order is actually stable and
-    # doesn't reshuffle every time a user restarts their kernel. See
-    # ai-docs/UPSTREAM_ISSUES.md #4.
+    # doesn't reshuffle every time a user restarts their kernel.
     if category is not None:
         try:
             schema_order = list(_param_metadata_for(category, model_name))

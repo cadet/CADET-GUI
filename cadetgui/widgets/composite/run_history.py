@@ -33,9 +33,9 @@ class RunHistoryWidget:
     """Chronological list of run results; pick one to revisit.
 
     Reusable across anything that produces multiple results over time — forward
-    simulation runs today, estimation candidates / optimization solutions later
-    (see ai-docs/REQUIREMENTS.md's "Next widgets" gap analysis). Callers `record()`
-    a run and `add_listener()` to react when the user picks one to view.
+    simulation runs today, estimation candidates / optimization solutions later.
+    Callers `record()` a run and `add_listener()` to react when the user picks
+    one to view.
     """
 
     def __init__(self) -> None:
