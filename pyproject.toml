@@ -29,6 +29,15 @@ dependencies = [
     "traitlets"
 ]
 
+[tool.setuptools.package-data]
+cadetgui = [
+    "parameters/*.json",
+    "widgets/*.css",
+    "widgets/assets/*.png",
+    "widgets/elements/*.css",
+    "widgets/elements/*.js",
+]
+
 [dependency-groups]
 testing = [
     "coverage",
