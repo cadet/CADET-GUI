@@ -12,6 +12,7 @@ from cadet import H5
 from . import __version__ as _cadetgui_version
 
 __all__ = [
+    "InstrumentState",
     "ConfigurationState",
     "compute_hash",
     "default_store_dir",
@@ -24,12 +25,24 @@ __all__ = [
 
 
 @dataclass(frozen=True)
-class ConfigurationState:
-    """The hashed, JSON-safe payload needed to reconstruct a ConfigurationWidget."""
+class InstrumentState:
+    """The hashed, JSON-safe payload needed to reconstruct an InstrumentWidget."""
 
     components: List[str]
     column_key: str
     binding_key: str
+    include_sample_loop: bool = True
+    sample_loop_volume: float = 50e-9
+    sample_loop_diameter_auto: bool = True
+    sample_loop_diameter: float = 0.75e-3
+    bypass_units: List[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ConfigurationState:
+    """The hashed, JSON-safe payload needed to reconstruct a ConfigurationWidget."""
+
+    instrument: InstrumentState
     template_key: str
     multiplex_state: Dict[str, bool] = field(default_factory=dict)
     show_optional_column: bool = False
@@ -118,10 +131,19 @@ def load_h5(path: "Path | str") -> Tuple[str, ConfigurationState]:
         raise ValueError(f"{path} has no 'cadetgui' group -- not a saved configuration.")
 
     payload = gui["state"]
+    instrument_payload = payload["instrument"]
+    instrument = InstrumentState(
+        components=instrument_payload["components"],
+        column_key=instrument_payload["column_key"],
+        binding_key=instrument_payload["binding_key"],
+        include_sample_loop=instrument_payload.get("include_sample_loop", True),
+        sample_loop_volume=instrument_payload.get("sample_loop_volume", 50e-9),
+        sample_loop_diameter_auto=instrument_payload.get("sample_loop_diameter_auto", True),
+        sample_loop_diameter=instrument_payload.get("sample_loop_diameter", 0.75e-3),
+        bypass_units=list(instrument_payload.get("bypass_units", [])),
+    )
     state = ConfigurationState(
-        components=payload["components"],
-        column_key=payload["column_key"],
-        binding_key=payload["binding_key"],
+        instrument=instrument,
         template_key=payload["template_key"],
         multiplex_state=payload.get("multiplex_state", {}),
         show_optional_column=payload.get("show_optional_column", False),

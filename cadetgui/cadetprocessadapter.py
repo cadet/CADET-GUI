@@ -3,22 +3,26 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Literal, Mapping, Optional, Sequence
 
-from CADETProcess.modelBuilder import LWE, BatchElution
+from CADETProcess.instruments import (
+    LWE,
+    Breakthrough,
+    LCFlowSheet,
+    PulseInjection,
+    Step,
+    StepElution,
+)
 from CADETProcess.processModel import (
     BindingBaseClass,
     ChromatographicColumnBase,
     ComponentSystem,
     Cstr,
-    FlowSheet,
     GeneralRateModel,
     Inlet,
     Langmuir,
     Linear,
     LumpedRateModelWithoutPores,
     LumpedRateModelWithPores,
-    NoBinding,
     Outlet,
-    Process,
     StericMassAction,
 )
 
@@ -70,40 +74,33 @@ CONCENTRATION_UNITS = "mol/m^3_IV"
 # Units: mol/m^3_IV (inlet.rst CONST_COEFF), s (solver.rst SECTION_TIMES),
 # flow_rate m^3/s by consistency with CADET-Core's other flow-rate fields.
 #
-# Concentration fields (c_feed, c_load, c_salt_low, c_salt_high, c_eluent)
-# aren't here -- they're per-component (`Inlet.c`), built by
-# `_concentration_field()` per model-spec call instead.
+# Concentration fields (c_buffer_a, c_buffer_b, c_sample) aren't here --
+# they're per-component (`Inlet.c`), built by `_concentration_field()` per
+# model-spec call instead.
 PARAMS: dict[str, FieldSpec] = {
     "flow_rate": FieldSpec(
         "flow_rate", "float", "Flow rate", 1.0e-6,
         validate=require_positive, units="m^3/s",
     ),
-    "feed_duration": FieldSpec(
-        "feed_duration", "float", "Feed duration", 60.0,
-        validate=require_positive, units="s",
-    ),
-    "load_duration": FieldSpec(
-        "load_duration", "float", "Load duration", 60.0,
-        validate=require_positive, units="s",
+    "flow_rate_wash": FieldSpec(
+        "flow_rate_wash", "float", "Flow rate", 1.0e-6,
+        validate=require_positive, units="m^3/s",
     ),
     "cycle_time": FieldSpec(
         "cycle_time", "float", "Cycle time", 6000.0,
         validate=require_positive, units="s",
     ),
-    "pulse_duration": FieldSpec(
-        "pulse_duration", "float", "Pulse duration", 60.0,
+    "delta_t_wash": FieldSpec(
+        "delta_t_wash", "float", "Wash duration", 600.0,
         validate=require_positive, units="s",
     ),
-    "wash_duration": FieldSpec(
-        "wash_duration", "float", "Wash duration", 10.0,
+    "delta_t_elute": FieldSpec(
+        "delta_t_elute", "float", "Elution duration", 1200.0,
         validate=require_positive, units="s",
     ),
-    "gradient_duration": FieldSpec(
-        "gradient_duration", "float", "Gradient duration", 10.0,
+    "delta_t_final_wash": FieldSpec(
+        "delta_t_final_wash", "float", "Final wash duration", 600.0,
         validate=require_positive, units="s",
-    ),
-    "final_wash_duration": FieldSpec(
-        "final_wash_duration", "float", "Final wash duration", 10.0, units="s",
     ),
 }
 
@@ -115,12 +112,6 @@ class ModelSpec:
     title: str
     fields: list[FieldSpec] = field(default_factory=list)
     build: Callable[[Mapping[str, Any]], Any] | None = None
-    # Script lines constructing `process` from `column`/`component_system`, for
-    # export_script(). None means the default `Cls(column=column, **values)`
-    # pattern (true for a CADET-Process model-builder like BatchElution/LWE);
-    # a model that wires its own flow sheet instead (e.g. Pulse Feed) provides
-    # its own.
-    export: Callable[[Mapping[str, Any]], list[str]] | None = None
 
 
 def _pick(keys: Sequence[str]) -> list[FieldSpec]:
@@ -128,10 +119,10 @@ def _pick(keys: Sequence[str]) -> list[FieldSpec]:
 
 
 def _concentration_field(
-    name: str, label: str, default_scalar: float, unit: Any
+    name: str, label: str, default_scalar: float, component_system: ComponentSystem
 ) -> FieldSpec:
-    """Per-component concentration field, sized/named from the unit's ComponentSystem."""
-    names = tuple(unit.component_system.names)
+    """Per-component concentration field, sized/named from the given ComponentSystem."""
+    names = tuple(component_system.names)
     n_comp = len(names) or 1
     return FieldSpec(
         name, "float_list", label, [default_scalar] * n_comp,
@@ -139,205 +130,168 @@ def _concentration_field(
     )
 
 
-def batch_elution_spec(column: ChromatographicColumnBase) -> ModelSpec:
-    """Build the Batch Elution model's ModelSpec for the given column."""
+def pulse_injection_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
+    """Build the Pulse Injection template's ModelSpec for the given instrument."""
+    cs = flow_sheet.component_system
 
     def _build(v: Mapping[str, Any]) -> Any:
-        return BatchElution(
-            column=column,
-            c_feed=v["c_feed"],
-            flow_rate=float(v["flow_rate"]),
-            feed_duration=float(v["feed_duration"]),
+        return PulseInjection(
+            "pulse_injection", flow_sheet,
+            c_buffer_a=v["c_buffer_a"],
+            c_sample=v["c_sample"],
             cycle_time=float(v["cycle_time"]),
-            c_eluent=v["c_eluent"],
+            flow_rate=float(v["flow_rate"]),
         )
 
     fields = [
-        _concentration_field("c_feed", "Feed concentration", 10.0, column),
-        *_pick(["flow_rate", "feed_duration", "cycle_time"]),
-        _concentration_field("c_eluent", "Eluent concentration", 0.0, column),
+        _concentration_field("c_buffer_a", "Buffer A concentration", 0.0, cs),
+        _concentration_field("c_sample", "Sample concentration", 10.0, cs),
+        *_pick(["cycle_time", "flow_rate"]),
     ]
-    return ModelSpec(title="Batch Elution", fields=fields, build=_build)
+    return ModelSpec(title="Pulse Injection", fields=fields, build=_build)
 
 
-def lwe_spec(column: ChromatographicColumnBase) -> ModelSpec:
-    """Build the Load-Wash-Elute model's ModelSpec for the given column."""
+def step_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
+    """Build the Step template's ModelSpec for the given instrument."""
+    cs = flow_sheet.component_system
+
+    def _build(v: Mapping[str, Any]) -> Any:
+        return Step(
+            "step", flow_sheet,
+            c_buffer_a=v["c_buffer_a"],
+            c_buffer_b=v["c_buffer_b"],
+            cycle_time=float(v["cycle_time"]),
+            flow_rate=float(v["flow_rate"]),
+        )
+
+    fields = [
+        _concentration_field("c_buffer_a", "Buffer A concentration", 0.0, cs),
+        _concentration_field("c_buffer_b", "Buffer B concentration", 1000.0, cs),
+        *_pick(["cycle_time", "flow_rate"]),
+    ]
+    return ModelSpec(title="Step", fields=fields, build=_build)
+
+
+def lwe_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
+    """Build the Load-Wash-Elute template's ModelSpec for the given instrument.
+
+    `flow_rate_elute`/`flow_rate_final_wash` aren't exposed separately here --
+    both default to `flow_rate_wash` (CADET-Process's own default), a
+    deliberately narrower slice than the full three-flow-rate constructor.
+    """
+    cs = flow_sheet.component_system
 
     def _build(v: Mapping[str, Any]) -> Any:
         return LWE(
-            column=column,
-            c_load=v["c_load"],
-            c_salt_low=v["c_salt_low"],
-            c_salt_high=v["c_salt_high"],
-            flow_rate=float(v["flow_rate"]),
-            load_duration=float(v["load_duration"]),
-            wash_duration=float(v["wash_duration"]),
-            gradient_duration=float(v["gradient_duration"]),
-            final_wash_duration=float(v["final_wash_duration"]),
+            "lwe", flow_sheet,
+            c_buffer_a=v["c_buffer_a"],
+            c_buffer_b=v["c_buffer_b"],
+            c_sample=v["c_sample"],
+            delta_t_wash=float(v["delta_t_wash"]),
+            delta_t_elute=float(v["delta_t_elute"]),
+            delta_t_final_wash=float(v["delta_t_final_wash"]),
+            flow_rate_wash=float(v["flow_rate_wash"]),
         )
 
     fields = [
-        _concentration_field("c_load", "Load concentration", 50.0, column),
-        _concentration_field("c_salt_low", "Low-salt buffer", 50.0, column),
-        _concentration_field("c_salt_high", "High-salt buffer", 500.0, column),
-        *_pick([
-            "flow_rate", "load_duration", "wash_duration", "gradient_duration",
-            "final_wash_duration",
-        ]),
+        _concentration_field("c_buffer_a", "Buffer A concentration", 20.0, cs),
+        _concentration_field("c_buffer_b", "Buffer B concentration", 1000.0, cs),
+        _concentration_field("c_sample", "Sample concentration", 20.0, cs),
+        *_pick(["delta_t_wash", "delta_t_elute", "delta_t_final_wash", "flow_rate_wash"]),
     ]
     return ModelSpec(title="Load–Wash–Elute (LWE)", fields=fields, build=_build)
 
 
-def pulse_feed_spec(unit: Any) -> ModelSpec:
-    """Build the Pulse Feed (Single Component) model's ModelSpec for the given unit.
+def step_elution_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
+    """Build the Step Elution template's ModelSpec for the given instrument.
 
-    Unlike Batch Elution/LWE, this isn't a CADET-Process model-builder class --
-    there is no predefined one for a plain feed-into-unit setup -- so it wires
-    the flow sheet and events directly. Works with any unit operation, not
-    just a `ChromatographicColumnBase` (e.g. `Cstr`, which isn't one).
+    Same scope note as `lwe_spec`: only `flow_rate_wash` is exposed.
     """
-    names = tuple(unit.component_system.names)
-
-    def _c_feed(v: Mapping[str, Any]) -> list[float]:
-        c_feed = [0.0] * (len(names) or 1)
-        if v["component"] in names:
-            c_feed[names.index(v["component"])] = float(v["concentration"])
-        return c_feed
+    cs = flow_sheet.component_system
 
     def _build(v: Mapping[str, Any]) -> Any:
-        component_system = unit.component_system
-        feed = Inlet(component_system, name="feed")
-        feed.flow_rate = float(v["flow_rate"])
-        outlet = Outlet(component_system, name="outlet")
-
-        flow_sheet = FlowSheet(component_system)
-        flow_sheet.add_unit(feed, feed_inlet=True)
-        flow_sheet.add_unit(unit)
-        flow_sheet.add_unit(outlet, product_outlet=True)
-        flow_sheet.add_connection(feed, unit)
-        flow_sheet.add_connection(unit, outlet)
-
-        process = Process(flow_sheet, "Pulse Feed")
-        process.cycle_time = float(v["cycle_time"])
-        process.add_duration("pulse_duration", float(v["pulse_duration"]))
-
-        c_feed = _c_feed(v)
-        process.add_event("pulse_on", "flow_sheet.feed.c", c_feed)
-        process.add_event("pulse_off", "flow_sheet.feed.c", [0.0] * len(c_feed))
-        process.add_event_dependency("pulse_off", ["pulse_on", "pulse_duration"], [1, 1])
-        return process
-
-    def _export(v: Mapping[str, Any]) -> list[str]:
-        c_feed = _c_feed(v)
-        c_off = [0.0] * len(c_feed)
-        return [
-            "",
-            "feed = Inlet(component_system, name='feed')",
-            f"feed.flow_rate = {float(v['flow_rate'])!r}",
-            "outlet = Outlet(component_system, name='outlet')",
-            "",
-            "flow_sheet = FlowSheet(component_system)",
-            "flow_sheet.add_unit(feed, feed_inlet=True)",
-            "flow_sheet.add_unit(column)",
-            "flow_sheet.add_unit(outlet, product_outlet=True)",
-            "flow_sheet.add_connection(feed, column)",
-            "flow_sheet.add_connection(column, outlet)",
-            "",
-            "process = Process(flow_sheet, 'Pulse Feed')",
-            f"process.cycle_time = {float(v['cycle_time'])!r}",
-            f"process.add_duration('pulse_duration', {float(v['pulse_duration'])!r})",
-            f"process.add_event('pulse_on', 'flow_sheet.feed.c', {c_feed!r})",
-            f"process.add_event('pulse_off', 'flow_sheet.feed.c', {c_off!r})",
-            "process.add_event_dependency('pulse_off', ['pulse_on', 'pulse_duration'], [1, 1])",
-        ]
+        return StepElution(
+            "step_elution", flow_sheet,
+            c_buffer_a=v["c_buffer_a"],
+            c_buffer_b=v["c_buffer_b"],
+            c_sample=v["c_sample"],
+            delta_t_wash=float(v["delta_t_wash"]),
+            delta_t_elute=float(v["delta_t_elute"]),
+            delta_t_final_wash=float(v["delta_t_final_wash"]),
+            flow_rate_wash=float(v["flow_rate_wash"]),
+        )
 
     fields = [
-        FieldSpec(
-            "component", "choice", "Component", names[0] if names else None,
-            options=tuple((n, n) for n in names),
-        ),
-        FieldSpec(
-            "concentration", "float", "Pulse concentration", 10.0, units=CONCENTRATION_UNITS,
-        ),
-        *_pick(["flow_rate", "pulse_duration", "cycle_time"]),
+        _concentration_field("c_buffer_a", "Buffer A concentration", 20.0, cs),
+        _concentration_field("c_buffer_b", "Buffer B concentration", 1000.0, cs),
+        _concentration_field("c_sample", "Sample concentration", 20.0, cs),
+        *_pick(["delta_t_wash", "delta_t_elute", "delta_t_final_wash", "flow_rate_wash"]),
     ]
-    return ModelSpec(
-        title="Pulse Feed (Single Component)", fields=fields, build=_build, export=_export
-    )
+    return ModelSpec(title="Step Elution", fields=fields, build=_build)
 
 
-# CLR/Flip-Flop/MRSSR templates are intentionally not registered yet.
-MODEL_REGISTRY: dict[str, Callable[[Any], ModelSpec]] = {
-    "Batch Elution": batch_elution_spec,
+def breakthrough_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
+    """Build the Breakthrough template's ModelSpec for the given instrument."""
+    cs = flow_sheet.component_system
+
+    def _build(v: Mapping[str, Any]) -> Any:
+        return Breakthrough(
+            "breakthrough", flow_sheet,
+            c_sample=v["c_sample"],
+            flow_rate=float(v["flow_rate"]),
+            cycle_time=float(v["cycle_time"]),
+            sample_buffer=v["sample_buffer"],
+        )
+
+    fields = [
+        _concentration_field("c_sample", "Sample concentration", 10.0, cs),
+        *_pick(["flow_rate", "cycle_time"]),
+        FieldSpec(
+            "sample_buffer", "choice", "Sample delivered via", "F",
+            options=(
+                ("Feed inlet (F)", "F"), ("Buffer A", "A"), ("Buffer B", "B"),
+                ("Buffer C", "C"), ("Buffer D", "D"),
+            ),
+        ),
+    ]
+    return ModelSpec(title="Breakthrough", fields=fields, build=_build)
+
+
+# PhasedProcess's fully generic phase-list composition is out of scope here --
+# see REQUIREMENTS.md's "generic user-authored event widget" open decision.
+INSTRUMENT_TEMPLATES: dict[str, Callable[[LCFlowSheet], ModelSpec]] = {
+    "Pulse Injection": pulse_injection_spec,
+    "Step": step_spec,
     "Load–Wash–Elute (LWE)": lwe_spec,
-    "Pulse Feed (Single Component)": pulse_feed_spec,
+    "Step Elution": step_elution_spec,
+    "Breakthrough": breakthrough_spec,
 }
 
-ColumnFactory = Callable[[ComponentSystem], ChromatographicColumnBase]
+# Units `LCFlowSheet(bypass_units=...)` accepts (CADET-Process's own
+# `_BYPASSABLE` set, not exported -- mirrored here rather than reached into).
+BYPASSABLE_UNITS: tuple[str, ...] = (
+    "mixer", "tubing_pre_injection", "tubing_pre_column",
+    "column", "tubing_post_column", "tubing_detectors",
+)
 
-
-def make_grm(cs: ComponentSystem) -> ChromatographicColumnBase:
-    """Build a General Rate Model column for the given component system."""
-    col = GeneralRateModel(cs, name="GRM")
-    return col
-
-
-def make_lrmp(cs: ComponentSystem) -> ChromatographicColumnBase:
-    """Build a Lumped Rate Model With Pores column for the given component system."""
-    col = LumpedRateModelWithPores(cs, name="LRMP")
-    return col
-
-
-def make_lrm(cs: ComponentSystem) -> ChromatographicColumnBase:
-    """Build a Lumped Rate Model Without Pores column for the given component system."""
-    col = LumpedRateModelWithoutPores(cs, name="LRM")
-    return col
-
-
-def make_cstr(cs: ComponentSystem) -> ChromatographicColumnBase:
-    """Build a CSTR column for the given component system."""
-    col = Cstr(cs, name="CSTR")
-    return col
-
-
-# Dict keys double as the dropdown's option labels, written out in full.
-DEFAULT_COLUMN_FACTORIES: Dict[str, ColumnFactory] = {
-    "General Rate Model (GRM)": make_grm,
-    "Lumped Rate Model With Pores (LRMP)": make_lrmp,
-    "Lumped Rate Model Without Pores (LRM)": make_lrm,
-    "Continuous Stirred Tank Reactor (CSTR)": make_cstr,
+# `LCFlowSheet(ColumnModel=...)` takes the class itself -- it instantiates and
+# names the column ("column") internally, so this is a plain class registry,
+# not an instance-factory like the old `DEFAULT_COLUMN_FACTORIES`. CSTR isn't
+# a `ChromatographicColumnBase` and doesn't fit LCFlowSheet's column slot --
+# it's not carried forward from the old "Pulse Feed" workaround, which is gone.
+COLUMN_MODELS: Dict[str, type] = {
+    "General Rate Model (GRM)": GeneralRateModel,
+    "Lumped Rate Model With Pores (LRMP)": LumpedRateModelWithPores,
+    "Lumped Rate Model Without Pores (LRM)": LumpedRateModelWithoutPores,
 }
 
-BindingFactory = Callable[[ComponentSystem], BindingBaseClass]
-
-
-def make_no_binding(cs: ComponentSystem) -> BindingBaseClass:
-    """Build a NoBinding model for the given component system."""
-    return NoBinding(cs, name="NoBinding")
-
-
-def make_linear_binding(cs: ComponentSystem) -> BindingBaseClass:
-    """Build a Linear binding model for the given component system."""
-    return Linear(cs, name="Linear")
-
-
-def make_langmuir_binding(cs: ComponentSystem) -> BindingBaseClass:
-    """Build a Langmuir binding model for the given component system."""
-    return Langmuir(cs, name="Langmuir")
-
-
-def make_sma_binding(cs: ComponentSystem) -> BindingBaseClass:
-    """Build a Steric Mass Action binding model for the given component system."""
-    return StericMassAction(cs, name="StericMassAction")
-
-
-# "None" first so a ChoiceField over this dict defaults to it, matching
-# CADET-Process's own default (an unconfigured column already has NoBinding).
-DEFAULT_BINDING_FACTORIES: Dict[str, BindingFactory] = {
-    "None": make_no_binding,
-    "Linear": make_linear_binding,
-    "Langmuir": make_langmuir_binding,
-    "Steric Mass Action (SMA)": make_sma_binding,
+# "None" first so a ChoiceField over this dict defaults to it -- LCFlowSheet
+# leaves the column's own default (NoBinding) in place when BindingModel=None.
+BINDING_MODELS: Dict[str, Optional[type]] = {
+    "None": None,
+    "Linear": Linear,
+    "Langmuir": Langmuir,
+    "Steric Mass Action (SMA)": StericMassAction,
 }
 
 
@@ -556,7 +510,10 @@ def classify_signal_ports(result: Any) -> list[tuple[str, tuple[str, str]]]:
     outlet is the common case (`ChoiceField.set_options(..., keep_value=True)`
     defaults to index 0 when nothing was previously selected, so this is what
     determines the signal picker's default in both `SolutionWidget` and
-    `ParameterEstimationWidget`).
+    `ParameterEstimationWidget`). An `LCFlowSheet` always has two Outlets
+    (`outlet`, the product; `waste`) -- the unit literally named `"outlet"` is
+    sorted first among sinks, not just "any Outlet", so `waste` stays a valid
+    but secondary choice rather than competing for the default.
     """
     units = result.process.flow_sheet.units_dict
     sinks: list[tuple[str, tuple[str, str]]] = []
@@ -568,8 +525,9 @@ def classify_signal_ports(result: Any) -> list[tuple[str, tuple[str, str]]]:
                 others.append((f"{unit_name}: Source", (unit_name, "outlet")))
         elif isinstance(unit, Outlet):
             if "inlet" in ports:
-                sinks.append((f"{unit_name}: Sink", (unit_name, "inlet")))
+                sinks.append((unit_name, f"{unit_name}: Sink", (unit_name, "inlet")))
         else:
             for port in ports:
                 others.append((f"{unit_name}: {port}", (unit_name, port)))
-    return sinks + others
+    sinks.sort(key=lambda entry: entry[0] != "outlet")
+    return [(label, value) for _, label, value in sinks] + others

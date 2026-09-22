@@ -11,10 +11,17 @@ from cadetgui.parameter_estimation import EstimationResult
 from cadetgui.widgets.composite import (
     ConfigurationWidget,
     DataImportWidget,
+    InstrumentWidget,
     ParameterEstimationWidget,
 )
 
 warnings.filterwarnings("ignore", category=UserWarning)
+
+
+def built_configuration() -> ConfigurationWidget:
+    """A default InstrumentWidget + bound ConfigurationWidget, auto-committed."""
+    iw = InstrumentWidget()
+    return ConfigurationWidget(instrument=iw)
 
 
 @pytest.fixture(autouse=True)
@@ -79,7 +86,7 @@ def test_parameter_estimation_widget_accepts_a_prebuilt_data_widget():
 
 def test_bind_to_config_populates_the_add_parameter_picker():
     pw = ParameterEstimationWidget()
-    cw = ConfigurationWidget()
+    cw = built_configuration()
 
     pw.bind_to_config(cw)
 
@@ -90,7 +97,7 @@ def test_bind_to_config_populates_the_add_parameter_picker():
 
 def test_config_field_changes_rebuild_the_add_parameter_picker():
     pw = ParameterEstimationWidget()
-    cw = ConfigurationWidget()
+    cw = built_configuration()
     pw.bind_to_config(cw)
     before = len(pw.param_space._param_add_picker.option_labels)
 
@@ -101,7 +108,7 @@ def test_config_field_changes_rebuild_the_add_parameter_picker():
 
 def test_adding_a_parameter_removes_it_from_the_add_picker_and_adds_a_row():
     pw = ParameterEstimationWidget()
-    cw = ConfigurationWidget()
+    cw = built_configuration()
     pw.bind_to_config(cw)
     before = len(pw.param_space._param_add_picker.option_labels)
 
@@ -114,7 +121,7 @@ def test_adding_a_parameter_removes_it_from_the_add_picker_and_adds_a_row():
 
 def test_removing_a_parameter_puts_it_back_in_the_add_picker():
     pw = ParameterEstimationWidget()
-    cw = ConfigurationWidget()
+    cw = built_configuration()
     pw.bind_to_config(cw)
     _add_param(pw, 0)
     before = len(pw.param_space._param_add_picker.option_labels)
@@ -128,7 +135,7 @@ def test_removing_a_parameter_puts_it_back_in_the_add_picker():
 
 def test_unrelated_config_edits_preserve_edited_start_lb_ub_for_an_added_parameter():
     pw = ParameterEstimationWidget()
-    cw = ConfigurationWidget()
+    cw = built_configuration()
     pw.bind_to_config(cw)
     _add_param(pw, 0)
     pw.param_space._start_fields[0].value = 0.123
@@ -145,7 +152,7 @@ def test_unrelated_config_edits_preserve_edited_start_lb_ub_for_an_added_paramet
 
 def test_start_field_defaults_to_the_current_config_value_for_a_new_parameter():
     pw = ParameterEstimationWidget()
-    cw = ConfigurationWidget()
+    cw = built_configuration()
     pw.bind_to_config(cw)
 
     _add_param(pw, 0)
@@ -155,19 +162,19 @@ def test_start_field_defaults_to_the_current_config_value_for_a_new_parameter():
 
 def test_bind_to_config_populates_the_component_picker_with_components_and_total():
     pw = ParameterEstimationWidget()
-    cw = ConfigurationWidget()
+    cw = built_configuration()
 
     pw.bind_to_config(cw)
 
     assert pw._component_picker.option_labels == [
-        "Component 1", "Component 2", "Total (sum of all components)",
+        "Component 1", "Total (sum of all components)",
     ]
     assert pw._component_picker.value == "Component 1"  # a real component, not Total
 
 
 def test_unrelated_config_edits_do_not_reset_an_explicit_total_pick():
     pw = ParameterEstimationWidget()
-    cw = ConfigurationWidget()
+    cw = built_configuration()
     pw.bind_to_config(cw)
     pw._component_picker.value = None  # "Total (sum of all components)"
 
@@ -178,7 +185,7 @@ def test_unrelated_config_edits_do_not_reset_an_explicit_total_pick():
 
 def test_bind_to_config_populates_the_base_process_picker_with_current_configuration_only():
     pw = ParameterEstimationWidget()
-    cw = ConfigurationWidget()
+    cw = built_configuration()
 
     pw.bind_to_config(cw)
 
@@ -187,7 +194,7 @@ def test_bind_to_config_populates_the_base_process_picker_with_current_configura
 
 def test_preview_populates_the_signal_picker_and_does_not_touch_the_configuration():
     pw = ParameterEstimationWidget()
-    cw = ConfigurationWidget()
+    cw = built_configuration()
     pw.bind_to_config(cw)
 
     assert pw._signal_picker.option_labels == []  # nothing previewed yet
@@ -204,7 +211,7 @@ def test_plot_widget_starts_hidden_and_is_shown_once_a_preview_is_drawn():
     # `W.Image` renders a broken-image icon when `.value` is unset -- must
     # stay hidden until there's actually something to show.
     pw = ParameterEstimationWidget()
-    cw = ConfigurationWidget()
+    cw = built_configuration()
     pw.bind_to_config(cw)
 
     assert pw._plot_out.layout.display == "none"
@@ -219,7 +226,7 @@ def test_preview_defaults_the_signal_picker_to_the_sink():
     # Fitting against the process outlet is the common case -- it should be
     # selected by default after Preview, not whichever unit happens first.
     pw = ParameterEstimationWidget()
-    cw = ConfigurationWidget()
+    cw = built_configuration()
     pw.bind_to_config(cw)
 
     pw._on_preview(None)
@@ -245,7 +252,7 @@ def test_uploading_a_dataset_populates_the_dataset_picker():
 
 def test_saving_a_configuration_and_refreshing_lists_it_as_a_base_process():
     pw = ParameterEstimationWidget()
-    cw = ConfigurationWidget()
+    cw = built_configuration()
     pw.bind_to_config(cw)
     cw.persistence._name_field.value = "Saved Base"
     cw.persist_to_store()
@@ -257,7 +264,7 @@ def test_saving_a_configuration_and_refreshing_lists_it_as_a_base_process():
 
 def test_picking_a_saved_base_process_loads_it_into_the_configuration_and_previews():
     pw = ParameterEstimationWidget()
-    cw = ConfigurationWidget()
+    cw = built_configuration()
     pw.bind_to_config(cw)
     cw.persistence._name_field.value = "Saved Base"
     saved_hash = cw.config_hash
@@ -274,7 +281,7 @@ def test_picking_a_saved_base_process_loads_it_into_the_configuration_and_previe
 
 
 def _bound_widgets():
-    cw = ConfigurationWidget()
+    cw = built_configuration()
     pw = ParameterEstimationWidget()
     pw.bind_to_config(cw)
     return cw, pw
@@ -485,6 +492,7 @@ def test_run_estimation_with_total_selected_still_succeeds():
 
 def test_run_estimation_with_a_specific_component_selected_succeeds():
     cw, pw = _bound_widgets()
+    cw._instrument.components = ["Component 1", "Component 2"]  # needs a real 2nd component
     pw._on_preview(None)
     unit, port = pw._signal_picker.value
     sol = pw._display_result.solution[unit][port]

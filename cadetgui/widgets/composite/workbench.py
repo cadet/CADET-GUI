@@ -7,40 +7,43 @@ import ipywidgets as W
 from .._chrome import logo_data_uri, style_tag
 from .._sidebar_shell import SidebarShell, collect_panes, resolve_step, validate_steps
 from .configuration import ConfigurationWidget
+from .instrument import InstrumentWidget
 from .parameter_estimation import ParameterEstimationWidget
 from .solution import SolutionWidget
 
 __all__ = ["WorkbenchWidget"]
 
-_STEPS = ("Configuration", "Simulation", "Parameter Estimation")
+_STEPS = ("Instrument", "Configuration", "Simulation", "Parameter Estimation")
 
 
 class WorkbenchWidget:
-    """Top-level shell: a sidebar-navigated Configuration/Simulation/Estimation page.
+    """Top-level shell: a sidebar-navigated Instrument/Configuration/Simulation/Estimation page.
 
-    Builds and wires a `ConfigurationWidget`, `SolutionWidget`, and
-    `ParameterEstimationWidget` together (same bindings as
-    examples/configuration_and_solution.ipynb), showing exactly one at a time
-    via `SidebarShell` (`widgets/_sidebar_shell.py`) instead of stacking all
-    three inline. Each stays a plain attribute
-    (`.configuration`/`.solution`/`.parameter_estimation`) for scripting —
-    this class is purely "the known three widgets, pre-wired, in a sidebar,"
-    not a black box; a different combination of widgets is a different
-    `SidebarShell` call, not a change to this class.
+    Builds and wires an `InstrumentWidget`, `ConfigurationWidget`,
+    `SolutionWidget`, and `ParameterEstimationWidget` together (same bindings
+    as examples/configuration_and_solution.ipynb), showing exactly one at a
+    time via `SidebarShell` (`widgets/_sidebar_shell.py`) instead of stacking
+    all four inline. Each stays a plain attribute
+    (`.instrument`/`.configuration`/`.solution`/`.parameter_estimation`) for
+    scripting — this class is purely "the known widgets, pre-wired, in a
+    sidebar," not a black box; a different combination of widgets is a
+    different `SidebarShell` call, not a change to this class.
 
     `include` narrows which steps are built and shown at all (default: all
-    three) — e.g. `WorkbenchWidget(include=("Configuration", "Simulation"))`
-    for a notebook that has no use for parameter estimation. Skipping a step
-    also skips its own construction and its `bind_to_config` wiring, so it
-    costs nothing (no widgets built, no listeners attached) rather than just
-    being hidden. Passing an explicit widget for a step not in `include` is
-    a contradiction and raises `ValueError` rather than silently dropping it.
+    four) — e.g. `WorkbenchWidget(include=("Instrument", "Configuration",
+    "Simulation"))` for a notebook that has no use for parameter estimation.
+    Skipping a step also skips its own construction and its `bind_to_*`
+    wiring, so it costs nothing (no widgets built, no listeners attached)
+    rather than just being hidden. Passing an explicit widget for a step not
+    in `include` is a contradiction and raises `ValueError` rather than
+    silently dropping it.
     """
 
     def __init__(
         self,
         *,
         include: Optional[Sequence[str]] = None,
+        instrument: Optional[InstrumentWidget] = None,
         configuration: Optional[ConfigurationWidget] = None,
         solution: Optional[SolutionWidget] = None,
         parameter_estimation: Optional[ParameterEstimationWidget] = None,
@@ -48,6 +51,9 @@ class WorkbenchWidget:
         steps = tuple(include) if include is not None else _STEPS
         validate_steps(steps, _STEPS)
 
+        self.instrument = resolve_step(
+            "Instrument", instrument, steps=steps, factory=InstrumentWidget
+        )
         self.configuration = resolve_step(
             "Configuration", configuration, steps=steps, factory=ConfigurationWidget
         )
@@ -61,6 +67,9 @@ class WorkbenchWidget:
             factory=ParameterEstimationWidget,
         )
 
+        if self.instrument is not None and self.configuration is not None:
+            self.configuration.bind_to_instrument(self.instrument)
+
         if self.configuration is not None:
             for dependent in (self.solution, self.parameter_estimation):
                 if dependent is not None:
@@ -69,6 +78,7 @@ class WorkbenchWidget:
         panes = collect_panes(
             _STEPS,
             {
+                "Instrument": self.instrument.root if self.instrument else None,
                 "Configuration": self.configuration.root if self.configuration else None,
                 "Simulation": self.solution.root if self.solution else None,
                 "Parameter Estimation": (

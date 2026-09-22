@@ -4,6 +4,7 @@ from typing import Any, Callable, Optional
 
 import ipywidgets as W
 
+from ... import run_store
 from ...cadetprocessadapter import classify_signal_ports
 from ...simulation import run_process as _default_runner
 from .._chrome import style_tag
@@ -23,7 +24,7 @@ class SolutionWidget:
         self,
         *,
         process: Any = None,
-        runner: Optional[Callable[[Any], Any]] = None,
+        runner: Optional[Callable[..., Any]] = None,
     ) -> None:
         self._runner = runner or _default_runner
         self.process = process
@@ -149,12 +150,22 @@ class SolutionWidget:
         self._btn_run.description = "Running..."
         self.status.value = "<span class='cadetgui-spinner'></span><em>Running simulation…</em>"
         config_name, config_hash = self._tag_current_config()
+
+        run_id = None
+        runner_kwargs: dict[str, Any] = {}
+        if self.history.store_dir is not None:
+            run_id = run_store.new_run_id()
+            runner_kwargs["file_path"] = run_store.run_output_path(
+                run_id, store_dir=self.history.store_dir
+            )
+
         try:
-            result = self._runner(self.process)
+            result = self._runner(self.process, **runner_kwargs)
         except Exception as exc:  # noqa: BLE001
             self.result = None
             self.history.record(
-                label, error=str(exc), config_name=config_name, config_hash=config_hash
+                label, error=str(exc), config_name=config_name, config_hash=config_hash,
+                run_id=run_id,
             )
             self.status.value = f"<span style='color:#b00020'>Simulation failed: {exc}</span>"
             return
@@ -162,7 +173,9 @@ class SolutionWidget:
             self._btn_run.disabled = False
             self._btn_run.description = "Run simulation"
 
-        self.history.record(label, result=result, config_name=config_name, config_hash=config_hash)
+        self.history.record(
+            label, result=result, config_name=config_name, config_hash=config_hash, run_id=run_id
+        )
         self._load_result(result)
         self.status.value = "<em>Simulation finished.</em>"
 
@@ -181,8 +194,46 @@ class SolutionWidget:
             self._notify()
             self.status.value = f"<span style='color:#b00020'>Simulation failed: {run.error}</span>"
             return
+        if run.result is None:
+            run.result = self._hydrate(run)
+            if run.result is None:
+                self.result = None
+                self._signal_picker.set_options([])
+                self._notify()
+                return
         self._load_result(run.result)
         self.status.value = f"<em>Viewing: {run.label}</em>"
+
+    def _hydrate(self, run: RunRecord) -> Any:
+        """Reconstruct a persisted-but-not-yet-loaded run's result, best-effort.
+
+        Rebuilds the run's own configuration first (`import_from_store`) so the
+        `Process` handed to `load_run_results` actually matches what was run --
+        not whatever the bound ConfigurationWidget currently happens to hold.
+        """
+        if run.run_id is None or self.history.store_dir is None:
+            self.status.value = (
+                "<span style='color:#b00020'>"
+                "This run's result isn't available in this session."
+                "</span>"
+            )
+            return None
+        if self._config_widget is None or run.config_hash is None:
+            self.status.value = (
+                "<span style='color:#b00020'>"
+                "No configuration bound to reload this run against."
+                "</span>"
+            )
+            return None
+        try:
+            state = run_store.load_run(run.run_id, store_dir=self.history.store_dir)
+            self._config_widget.import_from_store(run.config_hash)
+            return run_store.load_run_results(
+                state, self.process, store_dir=self.history.store_dir
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.status.value = f"<span style='color:#b00020'>Could not reload run: {exc}</span>"
+            return None
 
     def _load_result(self, result: Any) -> None:
         self.result = result

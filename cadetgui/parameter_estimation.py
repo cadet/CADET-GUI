@@ -178,7 +178,7 @@ def _register_variables(
             # otherwise) -- without it every variable is optimized in its own
             # raw, wildly different units (e.g. porosity ~0.7 next to axial
             # dispersion ~1e-8), which Nelder-Mead's simplex handles poorly.
-            normalization="auto",
+            transform="auto",
             **kwargs,
         )
 

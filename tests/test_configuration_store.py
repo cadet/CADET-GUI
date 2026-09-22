@@ -6,6 +6,7 @@ import pytest
 from cadet import H5
 from cadetgui.configuration_store import (
     ConfigurationState,
+    InstrumentState,
     compute_hash,
     list_store,
     load_from_store,
@@ -17,12 +18,25 @@ from cadetgui.configuration_store import (
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
-def _sample_state(**overrides) -> ConfigurationState:
+def _sample_instrument(**overrides) -> InstrumentState:
     defaults = dict(
         components=["Salt", "Protein"],
         column_key="Lumped Rate Model Without Pores (LRM)",
         binding_key="Linear",
-        template_key="Batch Elution",
+        include_sample_loop=True,
+        sample_loop_volume=50e-9,
+        sample_loop_diameter_auto=True,
+        sample_loop_diameter=0.75e-3,
+        bypass_units=[],
+    )
+    defaults.update(overrides)
+    return InstrumentState(**defaults)
+
+
+def _sample_state(*, instrument: InstrumentState | None = None, **overrides) -> ConfigurationState:
+    defaults = dict(
+        instrument=instrument or _sample_instrument(),
+        template_key="Load–Wash–Elute (LWE)",
         multiplex_state={"axial_dispersion": False},
         show_optional_column=False,
         show_optional_binding=True,

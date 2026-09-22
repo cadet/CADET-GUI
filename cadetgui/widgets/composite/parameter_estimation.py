@@ -417,7 +417,7 @@ class ParameterEstimationWidget:
 
     def _refresh_component_options(self) -> None:
         cw = self._config_widget
-        components = list(cw._components.value) if cw is not None else []
+        components = cw.components if cw is not None else []
         options = [(name, name) for name in components]
         options.append(("Total (sum of all components)", None))
         # Skip re-selecting when the component list is unchanged -- both "Total"

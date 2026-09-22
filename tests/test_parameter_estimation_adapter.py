@@ -15,13 +15,14 @@ from cadetgui.parameter_estimation import (
     simulate_at,
 )
 from cadetgui.simulation import run_process
-from cadetgui.widgets.composite import ConfigurationWidget
+from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
 def built_widget() -> ConfigurationWidget:
-    return ConfigurationWidget()  # auto-commits its defaults on construction
+    iw = InstrumentWidget()
+    return ConfigurationWidget(instrument=iw)  # auto-commits its defaults on construction
 
 
 FIELDS = [
@@ -226,7 +227,7 @@ def test_simulate_at_writes_values_onto_an_independent_copy():
     result = simulate_at(process, column, params, [porosity_idx], [0.5])
 
     assert column.total_porosity == original_porosity  # caller's process untouched
-    assert result.solution.outlet.inlet.solution.shape[1] == len(cw._components.value)
+    assert result.solution.outlet.inlet.solution.shape[1] == len(cw.components)
 
     # Compare against a hand-built simulation at the same value -- same curve.
     import copy as _copy
@@ -308,6 +309,7 @@ def test_run_estimation_with_a_component_name_ignores_other_components():
     # A reference built from just "Component 2" should recover the same fit
     # whether "Component 1" is perturbed or not -- it's never looked at.
     cw = built_widget()
+    cw._instrument.components = ["Component 1", "Component 2"]  # needs a real 2nd component
     process, column = cw.process, cw._column_form.built
     original_porosity = column.total_porosity
 

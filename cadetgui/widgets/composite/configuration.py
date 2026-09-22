@@ -4,40 +4,42 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
 import ipywidgets as W
+from CADETProcess.instruments import LCFlowSheet
 from CADETProcess.processModel import ComponentSystem
 
 from ...cadetprocessadapter import (
+    BYPASSABLE_UNITS,
     CONCENTRATION_UNITS,
-    DEFAULT_BINDING_FACTORIES,
-    DEFAULT_COLUMN_FACTORIES,
-    MODEL_REGISTRY,
+    INSTRUMENT_TEMPLATES,
     MULTIPLEXABLE_COLUMN_PARAMS,
     PARAMS,
-    batch_elution_spec,
     build_parameter_config_spec,
     lwe_spec,
     require_positive,
+    step_elution_spec,
 )
 from ...configuration_store import ConfigurationState
 from .._chrome import style_tag
 from .._settings_popover import SettingsPopover
 from ..elements import (
     ChoiceField,
-    ComponentListField,
     EventTimelineChart,
     FloatField,
 )
 from ..forms import FormRenderer
 from .configuration_persistence import ConfigurationPersistence
+from .instrument import InstrumentWidget
 
 __all__ = ["ConfigurationWidget"]
 
 _CYCLE_TIME_SLIDER_MAX_SECONDS = 300.0 * 60.0
 _DEFAULT_CONFIG_NAME = "New Experiment"
 
-# These templates model a buffer/salt gradient against a load, which is
+# These templates model a buffer/salt gradient against a load/sample, which is
 # meaningless with a single component -- auto-add a second one on selection.
-_TEMPLATES_REQUIRING_MULTIPLE_COMPONENTS = frozenset({batch_elution_spec, lwe_spec})
+# Pulse Injection/Step/Breakthrough stay single-component-friendly on purpose
+# (a non-binding tracer pulse is the standard characterization experiment).
+_TEMPLATES_REQUIRING_MULTIPLE_COMPONENTS = frozenset({lwe_spec, step_elution_spec})
 
 
 def _round_10sf(v: float) -> float:
@@ -51,9 +53,12 @@ def _key_for_value(registry: Mapping[str, Any], value: Any) -> Optional[str]:
 
 
 class ConfigurationWidget:
-    """Pick a unit operation + binding model + model-builder template, build a process.
+    """Pick a process template and configure it against a bound InstrumentWidget.
 
-    Rebuilds its forms whenever the component count, column, binding model, or
+    Column/binding *type* and topology live on the bound `InstrumentWidget`
+    (see `bind_to_instrument`); this widget renders their *parameter* forms
+    (against `instrument.flow_sheet.column`/`.column.binding_model`) plus the
+    process-template form. Rebuilds whenever the bound instrument or the
     process-template selection changes. `.process` holds the latest
     successfully-built object; `add_listener` registers a callback that fires
     with it on every successful build.
@@ -62,15 +67,11 @@ class ConfigurationWidget:
     def __init__(
         self,
         *,
-        registry: Optional[Dict[str, Callable[[Any], Any]]] = None,
-        columns: Optional[Dict[str, Callable[[ComponentSystem], Any]]] = None,
-        binding_registry: Optional[Dict[str, Callable[[ComponentSystem], Any]]] = None,
+        instrument: Optional[InstrumentWidget] = None,
+        registry: Optional[Dict[str, Callable[[LCFlowSheet], Any]]] = None,
     ) -> None:
-        self._registry = registry or MODEL_REGISTRY
-        self._columns = columns or DEFAULT_COLUMN_FACTORIES
-        self._binding_registry = binding_registry or DEFAULT_BINDING_FACTORIES
-        self._column_cache: Dict[Any, Any] = {}
-        self._binding_cache: Dict[Any, Any] = {}
+        self._registry = registry or INSTRUMENT_TEMPLATES
+        self._instrument: Optional[InstrumentWidget] = None
         self._listeners: List[Callable[[Any], None]] = []
         self.process: Any = None
         self._column_form: Optional[FormRenderer] = None
@@ -78,9 +79,9 @@ class ConfigurationWidget:
         self._model_form: Optional[FormRenderer] = None
         self._event_sliders: Dict[str, W.FloatSlider] = {}
         self._cycle_time_minutes_element: Optional[FloatField] = None
-        # Set around _apply_state()'s picker/component writes so each one's own
-        # observer doesn't trigger its own full rebuild -- one rebuild for the
-        # whole restored selection instead of one per field touched.
+        # Set around _apply_state()'s picker writes so each one's own observer
+        # doesn't trigger its own full rebuild -- one rebuild for the whole
+        # restored selection instead of one per field touched.
         self._suspend_rebuild = False
 
         # Column Model gear popover: "Show optional parameters" + one "Enable
@@ -128,25 +129,12 @@ class ConfigurationWidget:
             visible=False,
         )
 
-        # "Components:" row editor in the Component System section.
-        self._components = ComponentListField(label="Components:")
-        self._component_note = W.HTML(layout=W.Layout(display="none"))
-        self._component_note.add_class("cadetgui-note")
-        # The three dropdowns sitting above their own form, one per section.
-        self._column_picker = ChoiceField(
-            label="Column Model:", options=list(self._columns.items()),
-            value=self._columns.get("Lumped Rate Model Without Pores (LRM)"),
-        )
-        self._binding_picker = ChoiceField(
-            label="Binding Model:", options=list(self._binding_registry.items()),
-            value=self._binding_registry.get("Linear"),
-        )
         self._model_picker = ChoiceField(
             label="Process Template:", options=list(self._registry.items())
         )
 
         # Empty boxes filled in by _rebuild_forms() with each FormRenderer's
-        # rendered fields once a column/binding model/template is picked.
+        # rendered fields once an instrument/template is available.
         self._column_form_box = W.VBox([])
         self._binding_form_box = W.VBox([])
         self._model_form_box = W.VBox([])
@@ -155,7 +143,7 @@ class ConfigurationWidget:
         self._event_plot_label = W.HTML("<div class='cadetgui-section-title'>Event Timeline</div>")
         self._event_chart = EventTimelineChart()
         # Status line at the very bottom of the panel.
-        self.status = W.HTML("<em>Select a column and model.</em>")
+        self.status = W.HTML("<em>Bind an Instrument to get started.</em>")
         self.status.add_class("cadetgui-status")
 
         # "Export script" button + the generated-script textarea below it.
@@ -172,15 +160,6 @@ class ConfigurationWidget:
             on_name_change=lambda _name: self._notify(),  # e.g. the Simulation tab's process label
         )
 
-        components_section = W.VBox(
-            [
-                W.HTML("<div class='cadetgui-section-title'>Component System</div>"),
-                self._components,
-                self._component_note,
-            ]
-        )
-        components_section.add_class("cadetgui-section")
-
         column_header = W.HBox(
             [
                 W.HTML("<div class='cadetgui-section-title'>Column Model</div>"),
@@ -192,7 +171,6 @@ class ConfigurationWidget:
             [
                 column_header,
                 self._column_settings.box,
-                self._column_picker,
                 self._column_form_box,
             ]
         )
@@ -210,7 +188,6 @@ class ConfigurationWidget:
             [
                 binding_header,
                 self._binding_settings.box,
-                self._binding_picker,
                 self._binding_form_box,
             ]
         )
@@ -252,7 +229,6 @@ class ConfigurationWidget:
                 W.HTML(style_tag()),
                 W.HTML("<div class='cadetgui-panel-title'>Configuration</div>"),
                 self.persistence.root,
-                components_section,
                 column_binding_row,
                 process_section,
                 self._btn_export,
@@ -262,12 +238,16 @@ class ConfigurationWidget:
         )
         self.root.add_class("cadetgui-panel")
 
-        self._components.observe(self._on_components_change, names="value")
-        self._column_picker.observe(self._on_selection_change, names="selected_index")
-        self._binding_picker.observe(self._on_selection_change, names="selected_index")
         self._model_picker.observe(self._on_model_selection_change, names="selected_index")
         self._btn_export.on_click(self._on_export)
 
+        if instrument is not None:
+            self.bind_to_instrument(instrument)
+
+    def bind_to_instrument(self, instrument: InstrumentWidget) -> None:
+        """Track an InstrumentWidget's built flow sheet automatically."""
+        self._instrument = instrument
+        instrument.add_listener(self._on_instrument_changed)
         self._sync_component_minimum()
         if not self._maybe_autoadd_component():
             self._rebuild_forms()
@@ -280,37 +260,30 @@ class ConfigurationWidget:
         for fn in list(self._listeners):
             fn(self.process)
 
+    @property
+    def flow_sheet(self) -> Optional[LCFlowSheet]:
+        """The bound instrument's current flow sheet, or None if unbound/unbuilt."""
+        return self._instrument.flow_sheet if self._instrument is not None else None
+
+    @property
+    def components(self) -> List[str]:
+        """The bound instrument's current component names, or [] if unbound."""
+        return self._instrument.components if self._instrument is not None else []
+
     def _get_column(self) -> Any:
-        factory = self._column_picker.value
-        if factory is None:
-            return None
-        if factory not in self._column_cache:
-            cs = ComponentSystem(self._components.value)
-            self._column_cache[factory] = factory(cs)
-        return self._column_cache[factory]
+        flow_sheet = self.flow_sheet
+        return getattr(flow_sheet, "column", None) if flow_sheet is not None else None
 
     def _get_binding_model(self) -> Any:
-        factory = self._binding_picker.value
         column = self._get_column()
-        if factory is None or column is None:
-            return None
-        # Keyed by id(column): a binding model's component_system must be the same
-        # object as its column's, and each column gets its own.
-        cache_key = (factory, id(column))
-        if cache_key not in self._binding_cache:
-            self._binding_cache[cache_key] = factory(column.component_system)
-        return self._binding_cache[cache_key]
+        return getattr(column, "binding_model", None) if column is not None else None
 
-    def _on_components_change(self, change: dict) -> None:
-        if change.get("name") != "value":
+    def _on_instrument_changed(self, _flow_sheet: Any) -> None:
+        if self._suspend_rebuild:
             return
-        self._column_cache.clear()
-        self._binding_cache.clear()
-        self._rebuild_forms()
-
-    def _on_selection_change(self, change: dict) -> None:
-        if change.get("name") != "selected_index":
-            return
+        self._sync_component_minimum()
+        if self._maybe_autoadd_component():
+            return  # setting instrument.components already rebuilt the forms
         self._rebuild_forms()
 
     def _on_model_selection_change(self, change: dict) -> None:
@@ -318,7 +291,7 @@ class ConfigurationWidget:
             return
         self._sync_component_minimum()
         if self._maybe_autoadd_component():
-            return  # setting self._components.value already rebuilt the forms
+            return  # setting instrument.components already rebuilt the forms
         self._rebuild_forms()
 
     def _required_min_components(self) -> int:
@@ -326,28 +299,19 @@ class ConfigurationWidget:
         return 2 if model_fn in _TEMPLATES_REQUIRING_MULTIPLE_COMPONENTS else 1
 
     def _sync_component_minimum(self) -> None:
-        """Raise/lower the component list's floor to match the selected template.
-
-        Also drives the info note next to it and (via `min_components`) greys
-        out the list's remove button once the row count hits the floor.
-        """
-        required = self._required_min_components()
-        self._components.min_components = required
-        if required > 1:
-            self._component_note.value = (
-                "The process template you selected does not allow less than"
-                f" {required} components."
-            )
-            self._component_note.layout.display = ""
-        else:
-            self._component_note.layout.display = "none"
+        """Raise/lower the bound instrument's component-list floor to match the template."""
+        if self._instrument is None:
+            return
+        self._instrument.set_min_components(self._required_min_components())
 
     def _maybe_autoadd_component(self) -> bool:
         """Add a second component when a gradient template needs one but only one exists."""
+        if self._instrument is None:
+            return False
         required = self._required_min_components()
-        names = self._components.value
+        names = self._instrument.components
         if len(names) < required:
-            self._components.value = [
+            self._instrument.components = [
                 *names,
                 *(f"Component {i}" for i in range(len(names) + 1, required + 1)),
             ]
@@ -375,26 +339,27 @@ class ConfigurationWidget:
         self.status.value = "<em>Process built.</em>"
 
     def _snapshot_state(self) -> ConfigurationState:
-        """Capture the current selection + field values as the hashed save/import payload."""
-        if self._column_form is None or self._binding_form is None or self._model_form is None:
+        """Capture the current selection + field values as the hashed save/import payload.
+
+        `_column_form`/`_binding_form` are legitimately `None` when the
+        instrument bypasses the column entirely -- only `_model_form` (the
+        process itself) is required.
+        """
+        if self._instrument is None or self._model_form is None:
             raise RuntimeError(
-                "Nothing built yet -- pick a column, binding model, and template first."
+                "Nothing built yet -- bind an Instrument and pick a template first."
             )
-        column_key = _key_for_value(self._columns, self._column_picker.value)
-        binding_key = _key_for_value(self._binding_registry, self._binding_picker.value)
         template_key = _key_for_value(self._registry, self._model_picker.value)
-        if column_key is None or binding_key is None or template_key is None:
+        if template_key is None:
             raise RuntimeError("Current selection isn't in a known registry -- can't snapshot it.")
         return ConfigurationState(
-            components=list(self._components.value),
-            column_key=column_key,
-            binding_key=binding_key,
+            instrument=self._instrument.snapshot(),
             template_key=template_key,
             multiplex_state=dict(self._multiplex_state),
             show_optional_column=bool(self._show_optional_column_checkbox.value),
             show_optional_binding=bool(self._show_optional_binding_checkbox.value),
-            column_values=self._column_form.collect_values(),
-            binding_values=self._binding_form.collect_values(),
+            column_values=self._column_form.collect_values() if self._column_form else {},
+            binding_values=self._binding_form.collect_values() if self._binding_form else {},
             model_values=self._model_form.collect_values(),
         )
 
@@ -428,13 +393,13 @@ class ConfigurationWidget:
         self.persistence.import_from_store(hash_)
 
     def _apply_state(self, name: str, state: ConfigurationState) -> None:
-        """Reconstruct pickers/forms from a saved ConfigurationState."""
-        column_factory = self._columns.get(state.column_key)
-        binding_factory = self._binding_registry.get(state.binding_key)
+        """Reconstruct the bound instrument/pickers/forms from a saved ConfigurationState."""
+        if self._instrument is None:
+            raise RuntimeError("No Instrument bound -- call bind_to_instrument() first.")
         template_factory = self._registry.get(state.template_key)
-        if column_factory is None or binding_factory is None or template_factory is None:
+        if template_factory is None:
             raise ValueError(
-                "Saved configuration references a column, binding model, or template"
+                "Saved configuration references a process template"
                 " that isn't registered here anymore."
             )
 
@@ -446,16 +411,16 @@ class ConfigurationWidget:
                     checkbox.value = enabled
             self._show_optional_column_checkbox.value = state.show_optional_column
             self._show_optional_binding_checkbox.value = state.show_optional_binding
-            self._components.value = list(state.components)
-            self._column_picker.value = column_factory
-            self._binding_picker.value = binding_factory
+            self._instrument.apply_state(state.instrument)
             self._model_picker.value = template_factory
         finally:
             self._suspend_rebuild = False
 
         self._rebuild_forms()
-        self._column_form.set_values(state.column_values)
-        self._binding_form.set_values(state.binding_values)
+        if self._column_form is not None:
+            self._column_form.set_values(state.column_values)
+        if self._binding_form is not None:
+            self._binding_form.set_values(state.binding_values)
         self._model_form.set_values(state.model_values)
 
         self.persistence.set_name(name)
@@ -466,7 +431,8 @@ class ConfigurationWidget:
         column = self._get_column()
         binding_model = self._get_binding_model()
         model_fn = self._model_picker.value
-        if column is None or binding_model is None or model_fn is None:
+        flow_sheet = self.flow_sheet
+        if flow_sheet is None or model_fn is None:
             self._column_form_box.children = ()
             self._binding_form_box.children = ()
             self._model_form_box.children = ()
@@ -474,35 +440,41 @@ class ConfigurationWidget:
             self.persistence.refresh_hash_display()
             return
 
-        column_params = set(getattr(column, "required_parameters", None) or [])
-        applicable = column_params & MULTIPLEXABLE_COLUMN_PARAMS
-        for name, checkbox in self._multiplex_checkboxes.items():
-            checkbox.layout.display = "" if name in applicable else "none"
-        # "Show optional parameters" applies to every column model, unlike
-        # the multiplex checkboxes above -- the gear stays visible regardless
-        # of `applicable`.
+        if column is not None:
+            column_params = set(getattr(column, "required_parameters", None) or [])
+            applicable = column_params & MULTIPLEXABLE_COLUMN_PARAMS
+            for name, checkbox in self._multiplex_checkboxes.items():
+                checkbox.layout.display = "" if name in applicable else "none"
 
-        self._column_form = FormRenderer(
-            build_parameter_config_spec(
-                column,
-                multiplex=self._multiplex_state,
-                include_optional=self._show_optional_column_checkbox.value,
+            self._column_form = FormRenderer(
+                build_parameter_config_spec(
+                    column,
+                    multiplex=self._multiplex_state,
+                    include_optional=self._show_optional_column_checkbox.value,
+                )
             )
-        )
-        self._column_form_box.children = (self._column_form.root,)
+            self._column_form_box.children = (self._column_form.root,)
+        else:
+            self._column_form = None
+            self._column_form_box.children = ()
 
-        def _attach_binding(built: Any, col: Any = column) -> None:
-            col.binding_model = built
+        if binding_model is not None:
 
-        self._binding_form = FormRenderer(
-            build_parameter_config_spec(
-                binding_model, include_optional=self._show_optional_binding_checkbox.value
-            ),
-            on_built=_attach_binding,
-        )
-        self._binding_form_box.children = (self._binding_form.root,)
+            def _attach_binding(built: Any, col: Any = column) -> None:
+                col.binding_model = built
 
-        self._model_form = FormRenderer(model_fn(column), on_built=self._on_process_built)
+            self._binding_form = FormRenderer(
+                build_parameter_config_spec(
+                    binding_model, include_optional=self._show_optional_binding_checkbox.value
+                ),
+                on_built=_attach_binding,
+            )
+            self._binding_form_box.children = (self._binding_form.root,)
+        else:
+            self._binding_form = None
+            self._binding_form_box.children = ()
+
+        self._model_form = FormRenderer(model_fn(flow_sheet), on_built=self._on_process_built)
         self._model_form_box.children = (self._model_form.root,)
         self._rebuild_event_sliders()
         # The model form's own on_built=_on_process_built fires from inside the
@@ -666,7 +638,7 @@ class ConfigurationWidget:
                 parts = name.split(".")
                 unit_op = parts[-2] if len(parts) >= 2 else name
                 display_name = unit_op.replace("_", " ").capitalize()
-                component_names = self._components.value
+                component_names = self._instrument.components if self._instrument else []
                 for col in range(n_cols):
                     if n_cols == 1:
                         label = display_name
@@ -707,59 +679,81 @@ class ConfigurationWidget:
         """
         if (
             self.process is None
-            or self._column_form is None
-            or self._binding_form is None
+            or self._instrument is None
+            or self._instrument.flow_sheet is None
             or self._model_form is None
         ):
             raise RuntimeError(
-                "Nothing built yet — pick a column, binding model, and process template first."
+                "Nothing built yet — bind an Instrument and pick a process template first."
             )
 
+        flow_sheet = self._instrument.flow_sheet
         column = self._get_column()
         binding_model = self._get_binding_model()
         cs_cls = ComponentSystem
-        col_cls = type(column)
-        bind_cls = type(binding_model)
         proc_cls = type(self.process)
-        model_spec = self._model_form.spec
+        state = self._instrument.snapshot()
 
         imports = [
             f"from {cs_cls.__module__} import {cs_cls.__name__}",
-            f"from {col_cls.__module__} import {col_cls.__name__}",
-            f"from {bind_cls.__module__} import {bind_cls.__name__}",
-            f"from {proc_cls.__module__} import {proc_cls.__name__}",
+            f"from {LCFlowSheet.__module__} import LCFlowSheet",
         ]
-        if model_spec.export is not None:
-            imports.append("from CADETProcess.processModel import FlowSheet, Inlet, Outlet")
+        if column is not None:
+            col_cls = type(column)
+            imports.append(f"from {col_cls.__module__} import {col_cls.__name__}")
+        if binding_model is not None:
+            bind_cls = type(binding_model)
+            imports.append(f"from {bind_cls.__module__} import {bind_cls.__name__}")
+        imports.append(f"from {proc_cls.__module__} import {proc_cls.__name__}")
 
         lines = [
             *imports,
             "",
-            f"component_system = {cs_cls.__name__}({self._components.value!r})",
+            f"component_system = {cs_cls.__name__}({state.components!r})",
             "",
-            f"column = {col_cls.__name__}(component_system, name={column.name!r})",
         ]
-        for name, value in self._column_form.collect_values().items():
-            lines.append(f"column.{name} = {value!r}")
 
-        lines.append("")
-        lines.append(
-            f"column.binding_model = {bind_cls.__name__}("
-            f"component_system, name={binding_model.name!r})"
-        )
-        for name, value in self._binding_form.collect_values().items():
-            lines.append(f"column.binding_model.{name} = {value!r}")
+        flow_sheet_kwargs = ["component_system"]
+        if state.include_sample_loop:
+            flow_sheet_kwargs.append(f"sample_loop_volume={state.sample_loop_volume!r}")
+            if not state.sample_loop_diameter_auto:
+                flow_sheet_kwargs.append(f"sample_loop_diameter={state.sample_loop_diameter!r}")
+        if column is not None:
+            flow_sheet_kwargs.append(f"ColumnModel={type(column).__name__}")
+        if binding_model is not None:
+            flow_sheet_kwargs.append(f"BindingModel={type(binding_model).__name__}")
+        if state.bypass_units:
+            flow_sheet_kwargs.append(f"bypass_units={state.bypass_units!r}")
+        lines.append("flow_sheet = LCFlowSheet(" + ", ".join(flow_sheet_kwargs) + ")")
+
+        # Mixer/tubing dead-volume geometry has no parameter form (see
+        # instrument.py's seeding note) -- emit its live values directly.
+        for unit_name in BYPASSABLE_UNITS:
+            if unit_name == "column":
+                continue
+            unit = getattr(flow_sheet, unit_name, None)
+            if unit is None:
+                continue
+            lines.append("")
+            for pname in unit.required_parameters:
+                lines.append(f"flow_sheet.{unit_name}.{pname} = {getattr(unit, pname)!r}")
+
+        if column is not None:
+            lines.append("")
+            for name, value in self._column_form.collect_values().items():
+                lines.append(f"flow_sheet.column.{name} = {value!r}")
+
+        if binding_model is not None:
+            lines.append("")
+            for name, value in self._binding_form.collect_values().items():
+                lines.append(f"flow_sheet.column.binding_model.{name} = {value!r}")
 
         model_values = self._model_form.collect_values()
-        if model_spec.export is not None:
-            lines.extend(model_spec.export(model_values))
-        else:
-            lines.append("")
-            lines.append(f"process = {proc_cls.__name__}(")
-            lines.append("    column=column,")
-            for name, value in model_values.items():
-                lines.append(f"    {name}={value!r},")
-            lines.append(")")
+        lines.append("")
+        lines.append(f"process = {proc_cls.__name__}({self.process.name!r}, flow_sheet,")
+        for name, value in model_values.items():
+            lines.append(f"    {name}={value!r},")
+        lines.append(")")
 
         return "\n".join(lines)
 

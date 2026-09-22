@@ -15,10 +15,11 @@ def _isolated_store(tmp_path, monkeypatch):
     monkeypatch.setattr(configuration_store, "default_store_dir", lambda: tmp_path)
 
 
-def test_workbench_builds_and_wires_the_three_widgets():
+def test_workbench_builds_and_wires_the_four_widgets():
     wb = WorkbenchWidget()
 
-    assert wb.configuration.process is not None  # auto-committed on construction
+    assert wb.instrument.flow_sheet is not None  # auto-committed on construction
+    assert wb.configuration.process is not None  # bind_to_instrument picked it up
     assert wb.solution.process is wb.configuration.process  # bind_to_config picked it up
 
 
@@ -34,10 +35,11 @@ def test_workbench_wires_parameter_estimation_to_configuration():
     assert wb.solution.result is None  # the Simulation tab's own run state is untouched
 
 
-def test_workbench_shows_only_the_configuration_pane_initially():
+def test_workbench_shows_only_the_instrument_pane_initially():
     wb = WorkbenchWidget()
 
-    assert wb.configuration.root.layout.display == ""
+    assert wb.instrument.root.layout.display == ""
+    assert wb.configuration.root.layout.display == "none"
     assert wb.solution.root.layout.display == "none"
     assert wb.parameter_estimation.root.layout.display == "none"
     assert wb._nav.index == 0
@@ -46,11 +48,22 @@ def test_workbench_shows_only_the_configuration_pane_initially():
 def test_workbench_nav_switches_the_visible_pane():
     wb = WorkbenchWidget()
 
-    wb._nav.index = 1  # Simulation
+    wb._nav.index = 2  # Simulation
 
+    assert wb.instrument.root.layout.display == "none"
     assert wb.configuration.root.layout.display == "none"
     assert wb.solution.root.layout.display == ""
     assert wb.parameter_estimation.root.layout.display == "none"
+
+
+def test_workbench_instrument_edits_flow_through_to_configuration_and_solution():
+    wb = WorkbenchWidget()
+    first_process = wb.solution.process
+
+    wb.instrument.components = ["Salt", "Protein"]
+
+    assert wb.solution.process is wb.configuration.process
+    assert wb.solution.process is not first_process
 
 
 def test_workbench_config_edits_still_flow_through_to_solution():
@@ -79,17 +92,27 @@ def test_workbench_accepts_prebuilt_widgets():
     assert wb.configuration is cw
     assert wb.solution is sw
     assert wb.parameter_estimation is pw
+    assert cw.process is not None  # bound to WorkbenchWidget's own default Instrument
     assert sw.process is cw.process
 
 
 def test_workbench_include_builds_only_the_requested_steps():
-    wb = WorkbenchWidget(include=("Configuration", "Simulation"))
+    wb = WorkbenchWidget(include=("Instrument", "Configuration", "Simulation"))
 
+    assert wb.instrument is not None
     assert wb.configuration is not None
     assert wb.solution is not None
     assert wb.parameter_estimation is None
-    assert list(wb._nav.options) == ["Configuration", "Simulation"]
+    assert list(wb._nav.options) == ["Instrument", "Configuration", "Simulation"]
     assert wb.solution.process is wb.configuration.process
+
+
+def test_workbench_excluding_instrument_leaves_configuration_unbound():
+    wb = WorkbenchWidget(include=("Configuration", "Simulation"))
+
+    assert wb.instrument is None
+    assert wb.configuration.process is None  # nothing to build against
+    assert wb.solution.process is None
 
 
 def test_workbench_include_rejects_unknown_step():

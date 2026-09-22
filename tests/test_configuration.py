@@ -5,7 +5,7 @@ import warnings
 
 import cadetgui.configuration_store as configuration_store
 import pytest
-from cadetgui.widgets.composite import ConfigurationWidget
+from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -16,27 +16,33 @@ def _isolated_store(tmp_path, monkeypatch):
     monkeypatch.setattr(configuration_store, "default_store_dir", lambda: tmp_path)
 
 
+def built():
+    """A default InstrumentWidget + bound ConfigurationWidget pair."""
+    iw = InstrumentWidget()
+    cw = ConfigurationWidget(instrument=iw)
+    return iw, cw
+
+
 def test_configuration_widget_renders_default_forms():
-    cw = ConfigurationWidget()
-    assert cw._column_picker.option_labels == [
+    iw, cw = built()
+    assert iw._column_picker.option_labels == [
         "General Rate Model (GRM)",
         "Lumped Rate Model With Pores (LRMP)",
         "Lumped Rate Model Without Pores (LRM)",
-        "Continuous Stirred Tank Reactor (CSTR)",
     ]
     assert len(cw._column_form_box.children) == 1
     assert len(cw._model_form_box.children) == 1
 
 
 def test_configuration_widget_builds_process_automatically_with_defaults():
-    cw = ConfigurationWidget()
+    _, cw = built()
 
     assert cw.process is not None
-    assert type(cw.process).__name__ == "BatchElution"
+    assert type(cw.process).__name__ == "PulseInjection"
 
 
 def test_configuration_widget_notifies_listeners_on_a_valid_field_change():
-    cw = ConfigurationWidget()
+    _, cw = built()
     seen = []
     cw.add_listener(seen.append)
 
@@ -47,7 +53,7 @@ def test_configuration_widget_notifies_listeners_on_a_valid_field_change():
 
 
 def test_configuration_widget_rebuilds_forms_on_model_change():
-    cw = ConfigurationWidget()
+    _, cw = built()
     first_title = cw._model_form.spec.title
 
     cw._model_picker.selected_index = 1
@@ -56,24 +62,22 @@ def test_configuration_widget_rebuilds_forms_on_model_change():
 
 
 def test_configuration_widget_rebuilds_column_on_component_change():
-    cw = ConfigurationWidget()
+    iw, cw = built()
     original_column = cw._get_column()
-    assert original_column.n_comp == 2  # Batch Elution's auto-added default
+    assert original_column.n_comp == 1  # Pulse Injection stays single-component-friendly
 
-    cw._components.value = ["Salt", "Protein", "Impurity"]
+    iw.components = ["Salt", "Protein", "Impurity"]
     new_column = cw._get_column()
     assert new_column is not original_column
     assert new_column.n_comp == 3
     assert list(new_column.component_system.names) == ["Salt", "Protein", "Impurity"]
-    # the stale 2-component column must not linger in the cache
-    assert original_column not in cw._column_cache.values()
 
 
 def test_export_script_raises_when_nothing_has_been_built():
     # With auto-commit, this state isn't reachable through the default
     # registries (their defaults always build successfully) -- force it
     # directly to keep the guard clause itself covered.
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw.process = None
     cw._column_form = None
     cw._binding_form = None
@@ -82,33 +86,33 @@ def test_export_script_raises_when_nothing_has_been_built():
         cw.export_script()
         assert False, "should have raised"
     except RuntimeError as exc:
-        assert "column" in str(exc).lower()
+        assert "instrument" in str(exc).lower()
 
 
 def test_export_script_button_shows_error_status_when_nothing_has_been_built():
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw.process = None
     cw._column_form = None
     cw._binding_form = None
     cw._model_form = None
     cw._on_export(None)
-    assert "column" in cw.status.value.lower()
+    assert "instrument" in cw.status.value.lower()
     assert cw._script_out.layout.display == "none"
 
 
 def test_export_script_produces_executable_equivalent_process():
     import numpy as np
 
-    cw = ConfigurationWidget()
+    iw, cw = built()
 
     script = cw.export_script()
     ns = {}
     exec(compile(script, "<generated>", "exec"), ns)  # noqa: S102
 
     assert type(ns["process"]) is type(cw.process)
-    assert type(ns["column"]) is type(cw._get_column())
-    assert ns["component_system"].n_comp == len(cw._components.value)
-    assert list(ns["component_system"].names) == cw._components.value
+    assert type(ns["flow_sheet"].column) is type(cw._get_column())
+    assert ns["component_system"].n_comp == len(iw.components)
+    assert list(ns["component_system"].names) == iw.components
 
     from cadetgui.simulation import run_process
 
@@ -122,7 +126,7 @@ def test_export_script_produces_executable_equivalent_process():
 
 
 def test_export_script_button_populates_textarea_on_success():
-    cw = ConfigurationWidget()
+    _, cw = built()
 
     cw._on_export(None)
     assert "process = " in cw._script_out.value
@@ -131,17 +135,17 @@ def test_export_script_button_populates_textarea_on_success():
 
 
 def test_binding_model_defaults_to_linear():
-    cw = ConfigurationWidget()
-    assert cw._binding_picker.option_labels[0] == "None"  # still first in the dropdown list
-    selected = cw._binding_picker.option_labels[cw._binding_picker.selected_index]
+    iw, cw = built()
+    assert iw._binding_picker.option_labels[0] == "None"  # still first in the dropdown list
+    selected = iw._binding_picker.option_labels[iw._binding_picker.selected_index]
     assert selected == "Linear"
     names = {f.name for f in cw._binding_form.spec.fields}
     assert names == {"adsorption_rate", "desorption_rate", "is_kinetic"}
 
 
 def test_switching_binding_model_rebuilds_its_form():
-    cw = ConfigurationWidget()
-    cw._binding_picker.value = cw._binding_registry["Langmuir"]
+    iw, cw = built()
+    iw._binding_picker.value = iw._binding_registry["Langmuir"]
     assert {f.name for f in cw._binding_form.spec.fields} == {
         "adsorption_rate",
         "desorption_rate",
@@ -151,8 +155,8 @@ def test_switching_binding_model_rebuilds_its_form():
 
 
 def test_selecting_binding_model_attaches_it_to_the_column():
-    cw = ConfigurationWidget()
-    cw._binding_picker.value = cw._binding_registry["Linear"]
+    iw, cw = built()
+    iw._binding_picker.value = iw._binding_registry["Linear"]
 
     column = cw._get_column()
     assert type(column.binding_model).__name__ == "Linear"
@@ -160,14 +164,13 @@ def test_selecting_binding_model_attaches_it_to_the_column():
 
 def test_switching_column_type_keeps_binding_model_attachable():
     """Regression test: binding model and column must share one ComponentSystem
-    instance (CADET-Process rejects a mismatch), and each column factory gets
-    its own fresh ComponentSystem — so a binding model cached against a
-    since-replaced column must not be reused as-is."""
-    cw = ConfigurationWidget()
-    cw._binding_picker.value = cw._binding_registry["Linear"]
+    instance (CADET-Process rejects a mismatch) -- LCFlowSheet gives each a
+    fresh, shared ComponentSystem on every rebuild."""
+    iw, cw = built()
+    iw._binding_picker.value = iw._binding_registry["Linear"]
 
     # different column, different ComponentSystem
-    cw._column_picker.value = cw._columns["Lumped Rate Model With Pores (LRMP)"]
+    iw._column_picker.value = iw._columns["Lumped Rate Model With Pores (LRMP)"]
 
     assert cw._binding_form.built is not None
     assert cw._binding_form.status.value == ""
@@ -180,15 +183,16 @@ def test_export_script_includes_binding_model_and_round_trips():
     import numpy as np
     from cadetgui.simulation import run_process
 
-    cw = ConfigurationWidget()
-    cw._binding_picker.value = cw._binding_registry["Linear"]
+    iw, cw = built()
+    iw._binding_picker.value = iw._binding_registry["Linear"]
 
     script = cw.export_script()
-    assert "column.binding_model = Linear(" in script
+    assert "BindingModel=Linear" in script
+    assert "flow_sheet.column.binding_model." in script
 
     ns = {}
     exec(compile(script, "<generated>", "exec"), ns)  # noqa: S102
-    assert type(ns["column"].binding_model).__name__ == "Linear"
+    assert type(ns["flow_sheet"].column.binding_model).__name__ == "Linear"
 
     res_widget = run_process(cw.process)
     res_script = run_process(ns["process"])
@@ -199,34 +203,33 @@ def test_export_script_includes_binding_model_and_round_trips():
     )
 
 
-def test_components_field_defaults_to_two_named_components():
-    # Batch Elution is the default template and needs a feed + eluent
-    # component, so construction auto-adds a second one (see
-    # _maybe_autoadd_component / _TEMPLATES_REQUIRING_MULTIPLE_COMPONENTS).
-    cw = ConfigurationWidget()
-    assert cw._components.value == ["Component 1", "Component 2"]
-    assert cw._get_column().n_comp == 2
-    assert list(cw._get_column().component_system.names) == ["Component 1", "Component 2"]
+def test_components_field_defaults_to_one_named_component():
+    # Pulse Injection is the default template and stays single-component-friendly
+    # (a non-binding tracer pulse is the standard characterization experiment).
+    iw, cw = built()
+    assert iw.components == ["Component 1"]
+    assert cw._get_column().n_comp == 1
+    assert list(cw._get_column().component_system.names) == ["Component 1"]
 
 
 def test_component_minimum_and_note_match_the_selected_template():
-    cw = ConfigurationWidget()  # defaults to Batch Elution
-    assert cw._components.min_components == 2
-    assert cw._component_note.layout.display == ""
-    assert "2 components" in cw._component_note.value
-
-    cw._model_picker.value = cw._registry["Pulse Feed (Single Component)"]
-    assert cw._components.min_components == 1
-    assert cw._component_note.layout.display == "none"
+    iw, cw = built()  # defaults to Pulse Injection
+    assert iw._components.min_components == 1
+    assert iw._component_note.layout.display == "none"
 
     cw._model_picker.value = cw._registry["Load–Wash–Elute (LWE)"]
-    assert cw._components.min_components == 2
-    assert cw._component_note.layout.display == ""
+    assert iw._components.min_components == 2
+    assert iw._component_note.layout.display == ""
+    assert "2 components" in iw._component_note.value
+
+    cw._model_picker.value = cw._registry["Step"]
+    assert iw._components.min_components == 1
+    assert iw._component_note.layout.display == "none"
 
 
 def test_renaming_components_rebuilds_column_with_new_names():
-    cw = ConfigurationWidget()
-    cw._components.value = ["Salt", "Protein"]
+    iw, cw = built()
+    iw.components = ["Salt", "Protein"]
 
     column = cw._get_column()
     assert column.n_comp == 2
@@ -234,25 +237,19 @@ def test_renaming_components_rebuilds_column_with_new_names():
 
 
 def test_binding_model_scales_to_multiple_named_components():
-    cw = ConfigurationWidget()
-    cw._components.value = ["Salt", "Protein"]
-    cw._binding_picker.value = cw._binding_registry["Linear"]
+    iw, cw = built()
+    iw.components = ["Salt", "Protein"]
+    iw._binding_picker.value = iw._binding_registry["Linear"]
 
     column = cw._get_column()
     assert column.binding_model.n_comp == 2
     assert cw._binding_form.status.value == ""
-    # NOTE: applying the model form itself (batch_elution_spec/lwe_spec) is not
-    # exercised with >1 component here — those specs hard-code single-value
-    # concentration defaults (e.g. c_feed=[10.0]) that CADET-Process rejects
-    # for n_comp != 1. Pre-existing adapter-layer limitation, unrelated to
-    # component naming; column/binding config already scale correctly, as
-    # this test shows.
 
 
 def test_binding_form_fields_get_component_names_matching_component_system():
-    cw = ConfigurationWidget()
-    cw._components.value = ["Salt", "Protein"]
-    cw._binding_picker.value = cw._binding_registry["Linear"]
+    iw, cw = built()
+    iw.components = ["Salt", "Protein"]
+    iw._binding_picker.value = iw._binding_registry["Linear"]
 
     by_name = {f.name: f for f in cw._binding_form.spec.fields}
     assert by_name["adsorption_rate"].component_names == ("Salt", "Protein")
@@ -260,8 +257,8 @@ def test_binding_form_fields_get_component_names_matching_component_system():
 
 
 def test_binding_form_exposes_is_kinetic_defaulting_to_true():
-    cw = ConfigurationWidget()
-    cw._binding_picker.value = cw._binding_registry["Linear"]
+    iw, cw = built()
+    iw._binding_picker.value = iw._binding_registry["Linear"]
 
     element = cw._binding_form.element("is_kinetic")
     assert element.value is True  # CADET-Process's own default
@@ -269,8 +266,8 @@ def test_binding_form_exposes_is_kinetic_defaulting_to_true():
 
 
 def test_unchecking_is_kinetic_commits_to_the_real_binding_model():
-    cw = ConfigurationWidget()
-    cw._binding_picker.value = cw._binding_registry["Langmuir"]
+    iw, cw = built()
+    iw._binding_picker.value = iw._binding_registry["Langmuir"]
 
     cw._binding_form.element("is_kinetic").value = False
 
@@ -278,14 +275,14 @@ def test_unchecking_is_kinetic_commits_to_the_real_binding_model():
 
 
 def test_no_binding_does_not_get_an_is_kinetic_field():
-    cw = ConfigurationWidget()
-    cw._binding_picker.value = cw._binding_registry["None"]
+    iw, cw = built()
+    iw._binding_picker.value = iw._binding_registry["None"]
     assert "is_kinetic" not in {f.name for f in cw._binding_form.spec.fields}
 
 
 def test_column_geometry_fields_default_to_scalar_non_multiplexed():
-    cw = ConfigurationWidget()
-    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
+    iw, cw = built()
+    iw._column_picker.value = iw._columns["General Rate Model (GRM)"]
 
     by_name = {f.name: f for f in cw._column_form.spec.fields}
     assert by_name["axial_dispersion"].kind == "float"
@@ -294,9 +291,9 @@ def test_column_geometry_fields_default_to_scalar_non_multiplexed():
 
 
 def test_enabling_multiplex_switches_field_to_per_component():
-    cw = ConfigurationWidget()
-    cw._components.value = ["Salt", "Protein"]
-    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
+    iw, cw = built()
+    iw.components = ["Salt", "Protein"]
+    iw._column_picker.value = iw._columns["General Rate Model (GRM)"]
 
     cw._multiplex_checkboxes["axial_dispersion"].value = True
 
@@ -307,17 +304,18 @@ def test_enabling_multiplex_switches_field_to_per_component():
     assert by_name["film_diffusion"].kind == "float"
 
 
-def test_multiplex_checkboxes_hidden_for_column_without_any_applicable_param():
-    cw = ConfigurationWidget()
-    cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
-    # The gear itself stays visible -- "Show optional parameters" always applies.
-    assert cw._column_settings.button.layout.display != "none"
-    assert all(cb.layout.display == "none" for cb in cw._multiplex_checkboxes.values())
+def test_multiplex_checkbox_visibility_matches_column_capabilities():
+    iw, cw = built()
+    # LumpedRateModelWithoutPores: no particles
+    iw._column_picker.value = iw._columns["Lumped Rate Model Without Pores (LRM)"]
+    assert cw._multiplex_checkboxes["axial_dispersion"].layout.display == ""
+    assert cw._multiplex_checkboxes["film_diffusion"].layout.display == "none"
+    assert cw._multiplex_checkboxes["pore_diffusion"].layout.display == "none"
 
 
 def test_show_optional_parameters_adds_and_removes_column_fields():
-    cw = ConfigurationWidget()
-    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
+    iw, cw = built()
+    iw._column_picker.value = iw._columns["General Rate Model (GRM)"]
     required_names = {f.name for f in cw._column_form.spec.fields}
     assert "c" not in required_names  # optional fields hidden by default
 
@@ -332,9 +330,9 @@ def test_show_optional_parameters_adds_and_removes_column_fields():
 
 
 def test_show_optional_parameters_skips_none_valued_and_non_scalar_fields():
-    cw = ConfigurationWidget()
-    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
-    cw._binding_picker.value = cw._binding_registry["None"]  # q stays unset without a real isotherm
+    iw, cw = built()
+    iw._column_picker.value = iw._columns["General Rate Model (GRM)"]
+    iw._binding_picker.value = iw._binding_registry["None"]  # q stays unset without a real isotherm
     cw._show_optional_column_checkbox.value = True
 
     names = {f.name for f in cw._column_form.spec.fields}
@@ -344,8 +342,8 @@ def test_show_optional_parameters_skips_none_valued_and_non_scalar_fields():
 
 
 def test_show_optional_parameters_does_not_apply_to_binding_form():
-    cw = ConfigurationWidget()
-    cw._binding_picker.value = cw._binding_registry["Steric Mass Action (SMA)"]
+    iw, cw = built()
+    iw._binding_picker.value = iw._binding_registry["Steric Mass Action (SMA)"]
     cw._show_optional_column_checkbox.value = True
 
     names = {f.name for f in cw._binding_form.spec.fields}
@@ -353,8 +351,8 @@ def test_show_optional_parameters_does_not_apply_to_binding_form():
 
 
 def test_show_optional_binding_parameters_adds_sma_reference_concentrations():
-    cw = ConfigurationWidget()
-    cw._binding_picker.value = cw._binding_registry["Steric Mass Action (SMA)"]
+    iw, cw = built()
+    iw._binding_picker.value = iw._binding_registry["Steric Mass Action (SMA)"]
     required_names = {f.name for f in cw._binding_form.spec.fields}
 
     cw._show_optional_binding_checkbox.value = True
@@ -367,36 +365,27 @@ def test_show_optional_binding_parameters_adds_sma_reference_concentrations():
 
 
 def test_show_optional_binding_parameters_does_not_apply_to_column_form():
-    cw = ConfigurationWidget()
-    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
+    iw, cw = built()
+    iw._column_picker.value = iw._columns["General Rate Model (GRM)"]
     cw._show_optional_binding_checkbox.value = True
 
     names = {f.name for f in cw._column_form.spec.fields}
     assert "c" not in names
 
 
-def test_multiplex_checkbox_visibility_matches_column_capabilities():
-    cw = ConfigurationWidget()
-    # LumpedRateModelWithoutPores: no particles
-    cw._column_picker.value = cw._columns["Lumped Rate Model Without Pores (LRM)"]
-    assert cw._multiplex_checkboxes["axial_dispersion"].layout.display == ""
-    assert cw._multiplex_checkboxes["film_diffusion"].layout.display == "none"
-    assert cw._multiplex_checkboxes["pore_diffusion"].layout.display == "none"
-
-
 def test_scalar_column_field_broadcasts_via_cadetprocess():
-    cw = ConfigurationWidget()
-    cw._components.value = ["Salt", "Protein", "Impurity"]
-    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
+    iw, cw = built()
+    iw.components = ["Salt", "Protein", "Impurity"]
+    iw._column_picker.value = iw._columns["General Rate Model (GRM)"]
 
     column = cw._get_column()
     assert column.axial_dispersion == [column.axial_dispersion[0]] * 3
 
 
 def test_multiplexed_column_field_keeps_distinct_per_component_values():
-    cw = ConfigurationWidget()
-    cw._components.value = ["Salt", "Protein"]
-    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
+    iw, cw = built()
+    iw.components = ["Salt", "Protein"]
+    iw._column_picker.value = iw._columns["General Rate Model (GRM)"]
     cw._multiplex_checkboxes["axial_dispersion"].value = True
 
     cw._column_form._elements["axial_dispersion"].value = [1e-8, 2e-8]
@@ -406,19 +395,19 @@ def test_multiplexed_column_field_keeps_distinct_per_component_values():
 
 
 def test_concentration_fields_are_sized_and_named_from_component_system():
-    cw = ConfigurationWidget()
-    cw._components.value = ["Salt", "Protein", "Impurity"]
-    cw._model_picker.value = cw._registry["Batch Elution"]
+    iw, cw = built()
+    iw.components = ["Salt", "Protein", "Impurity"]
+    cw._model_picker.value = cw._registry["Load–Wash–Elute (LWE)"]
 
     by_name = {f.name: f for f in cw._model_form.spec.fields}
-    assert by_name["c_feed"].component_names == ("Salt", "Protein", "Impurity")
-    assert len(by_name["c_feed"].default) == 3
-    assert by_name["c_eluent"].component_names == ("Salt", "Protein", "Impurity")
+    assert by_name["c_buffer_a"].component_names == ("Salt", "Protein", "Impurity")
+    assert len(by_name["c_buffer_a"].default) == 3
+    assert by_name["c_sample"].component_names == ("Salt", "Protein", "Impurity")
 
 
 def test_export_script_reflects_a_renamed_single_component():
-    cw = ConfigurationWidget()
-    cw._components.value = ["MyProtein"]  # still one component, just renamed
+    iw, cw = built()
+    iw.components = ["MyProtein"]  # still one component, just renamed
 
     script = cw.export_script()
     assert "component_system = ComponentSystem(['MyProtein'])" in script
@@ -428,31 +417,45 @@ def test_export_script_reflects_a_renamed_single_component():
     assert list(ns["component_system"].names) == ["MyProtein"]
 
 
+def test_breakthrough_sample_buffer_choice_field_targets_the_selected_buffer():
+    iw, cw = built()
+    cw._model_picker.value = cw._registry["Breakthrough"]
+
+    sample_buffer = cw._model_form.element("sample_buffer")
+    assert sample_buffer.option_labels == [
+        "Feed inlet (F)", "Buffer A", "Buffer B", "Buffer C", "Buffer D",
+    ]
+    assert sample_buffer.value == "F"
+    assert cw.process.flow_sheet.feed_inlet.flow_rate[0] > 0
+
+    sample_buffer.value = "A"
+    assert cw.process.flow_sheet.buffer_a.flow_rate[0] > 0
+
+
 def test_event_sliders_cover_only_scalar_timing_fields_not_concentration_lists():
-    cw = ConfigurationWidget()  # defaults to Batch Elution
-    assert set(cw._event_sliders) == {"flow_rate", "feed_duration", "cycle_time"}
+    _, cw = built()  # defaults to Pulse Injection
+    assert set(cw._event_sliders) == {"cycle_time", "flow_rate"}
 
 
 def test_event_sliders_change_when_process_template_changes():
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw._model_picker.value = cw._registry["Load–Wash–Elute (LWE)"]
     assert set(cw._event_sliders) == {
-        "flow_rate", "load_duration", "wash_duration",
-        "gradient_duration", "final_wash_duration",
+        "delta_t_wash", "delta_t_elute", "delta_t_final_wash", "flow_rate_wash",
     }
 
 
 def test_moving_event_slider_updates_the_linked_form_field():
-    cw = ConfigurationWidget()
-    slider = cw._event_sliders["feed_duration"]
+    _, cw = built()
+    slider = cw._event_sliders["cycle_time"]
 
     slider.value = slider.value * 2
 
-    assert cw._model_form.element("feed_duration").value == slider.value
+    assert cw._model_form.element("cycle_time").value == slider.value
 
 
 def test_editing_form_field_updates_the_linked_event_slider():
-    cw = ConfigurationWidget()
+    _, cw = built()
     element = cw._model_form.element("flow_rate")
 
     element.value = element.value * 3
@@ -461,7 +464,7 @@ def test_editing_form_field_updates_the_linked_event_slider():
 
 
 def test_moving_event_slider_rebuilds_a_preview_process():
-    cw = ConfigurationWidget()
+    _, cw = built()
 
     seen = []
     original_build = cw._model_form.spec.build
@@ -474,21 +477,20 @@ def test_moving_event_slider_rebuilds_a_preview_process():
 
 
 def test_moving_event_slider_with_invalid_column_field_does_not_crash():
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw._column_form._elements["length"].value = -1.0  # CADET-Process rejects this on setattr
 
     cw._event_sliders["cycle_time"].value += 1.0  # must not raise despite the column error
 
 
-def test_event_chart_populates_series_from_parameter_timelines_on_construction():
-    cw = ConfigurationWidget()  # defaults to Batch Elution, valid out of the box
+def test_event_chart_populates_series_from_parameter_timelines():
+    _, cw = built()
+    cw._model_picker.value = cw._registry["Step"]  # a clean, valve-event-free timeline set
 
     series = cw._event_chart.series
     assert len(series) == len(cw.process.parameter_timelines)
-    # display names are the unit-operation name, not the raw dotted
-    # CADET-Process path (e.g. "Eluent", not "flow_sheet.eluent.flow_rate")
     names = {s["name"] for s in series}
-    assert names == {"Eluent", "Feed"}
+    assert names == {"Buffer b"}
     for s in series:
         assert len(s["times"]) == len(s["values"]) == 300
         assert s["times"][0] == 0.0
@@ -496,7 +498,8 @@ def test_event_chart_populates_series_from_parameter_timelines_on_construction()
 
 
 def test_event_chart_updates_when_a_field_changes():
-    cw = ConfigurationWidget()
+    _, cw = built()
+    cw._model_picker.value = cw._registry["Step"]
     first_series = cw._event_chart.series
 
     cw._model_form.element("cycle_time").value = 7000.0
@@ -505,27 +508,24 @@ def test_event_chart_updates_when_a_field_changes():
     assert cw._event_chart.series[0]["times"][-1] == 7000.0 / 60.0
 
 
-def test_event_chart_clears_when_nothing_is_selectable():
-    cw = ConfigurationWidget()
-    assert cw._event_chart.series  # non-empty to start
-
-    cw._column_picker.value = None
-
+def test_event_chart_clears_when_no_instrument_is_bound():
+    cw = ConfigurationWidget()  # nothing bound at all
     assert cw._event_chart.series == []
 
 
 def test_event_chart_y_label_is_flow_rate_quantity_and_unit():
-    cw = ConfigurationWidget()  # Batch Elution: every timeline is *.flow_rate
+    _, cw = built()
+    cw._model_picker.value = cw._registry["Step"]  # every timeline is *.flow_rate
     assert cw._event_chart.y_label == "Flow rate / m^3/s"
 
 
 def test_cycle_time_slider_is_capped_at_300_minutes_by_default():
-    cw = ConfigurationWidget()  # default cycle_time (6000s = 100min) is under the cap
+    _, cw = built()  # default cycle_time (6000s = 100min) is under the cap
     assert cw._event_sliders["cycle_time"].max == 300.0 * 60.0
 
 
 def test_cycle_time_slider_cap_stretches_to_fit_an_existing_larger_value():
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw._model_form.element("cycle_time").value = 400.0 * 60.0  # 400 min is above the 300 min cap
 
     cw._rebuild_event_sliders()  # normally triggered by a rebuild, called directly here
@@ -535,10 +535,10 @@ def test_cycle_time_slider_cap_stretches_to_fit_an_existing_larger_value():
 
 
 def test_switching_column_type_rebuilds_event_sliders_without_stale_links():
-    cw = ConfigurationWidget()
+    iw, cw = built()
     old_slider = cw._event_sliders["flow_rate"]
 
-    cw._column_picker.selected_index = 1  # switch column from GRM (default) to LRMP
+    iw._column_picker.selected_index = 1  # switch column from GRM (default) to LRMP
 
     new_slider = cw._event_sliders["flow_rate"]
     assert new_slider is not old_slider
@@ -547,7 +547,7 @@ def test_switching_column_type_rebuilds_event_sliders_without_stale_links():
 
 
 def test_cycle_time_settings_gear_visible_only_when_cycle_time_exists():
-    cw = ConfigurationWidget()  # defaults to Batch Elution, which has cycle_time
+    _, cw = built()  # defaults to Pulse Injection, which has cycle_time
     assert cw._process_settings.button.layout.display == ""
 
     cw._model_picker.value = cw._registry["Load–Wash–Elute (LWE)"]  # no cycle_time field
@@ -556,7 +556,7 @@ def test_cycle_time_settings_gear_visible_only_when_cycle_time_exists():
 
 
 def test_cycle_time_minutes_toggle_swaps_visible_field_and_converts_value():
-    cw = ConfigurationWidget()
+    _, cw = built()
     seconds_element = cw._model_form.element("cycle_time")
     assert seconds_element.value == 6000.0
     assert seconds_element.layout.display == ""
@@ -570,7 +570,7 @@ def test_cycle_time_minutes_toggle_swaps_visible_field_and_converts_value():
 
 
 def test_editing_cycle_time_in_minutes_updates_the_real_seconds_field():
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw._cycle_time_unit_checkbox.value = True
 
     cw._cycle_time_minutes_element.value = 150.0
@@ -581,10 +581,10 @@ def test_editing_cycle_time_in_minutes_updates_the_real_seconds_field():
 
 
 def test_cycle_time_unit_checkbox_state_persists_across_a_rebuild():
-    cw = ConfigurationWidget()
+    iw, cw = built()
     cw._cycle_time_unit_checkbox.value = True
 
-    cw._components.value = ["Salt", "Protein"]  # triggers _rebuild_forms -> fresh elements
+    iw.components = ["Salt", "Protein"]  # triggers _rebuild_forms -> fresh elements
 
     seconds_element = cw._model_form.element("cycle_time")
     assert seconds_element.layout.display == "none"
@@ -592,7 +592,7 @@ def test_cycle_time_unit_checkbox_state_persists_across_a_rebuild():
 
 
 def test_invalid_field_value_is_not_committed_and_shows_an_inline_error():
-    cw = ConfigurationWidget()
+    _, cw = built()
     element = cw._model_form.element("flow_rate")  # has validate=require_positive
 
     element.value = -1.0
@@ -604,7 +604,7 @@ def test_invalid_field_value_is_not_committed_and_shows_an_inline_error():
 
 
 def test_invalid_field_value_leaves_the_last_good_process_in_place():
-    cw = ConfigurationWidget()
+    _, cw = built()
     good_process = cw.process
     assert good_process is not None
 
@@ -614,7 +614,7 @@ def test_invalid_field_value_leaves_the_last_good_process_in_place():
 
 
 def test_cadetprocess_level_rejection_surfaces_as_a_status_error_without_crashing():
-    cw = ConfigurationWidget()
+    _, cw = built()
 
     cw._column_form._elements["length"].value = -1.0  # no client-side validator for this field
 
@@ -623,7 +623,7 @@ def test_cadetprocess_level_rejection_surfaces_as_a_status_error_without_crashin
 
 
 def test_fixing_an_invalid_value_recommits_automatically():
-    cw = ConfigurationWidget()
+    _, cw = built()
     element = cw._model_form.element("flow_rate")
     element.value = -1.0
     assert cw._model_form.built is None
@@ -635,73 +635,21 @@ def test_fixing_an_invalid_value_recommits_automatically():
     assert cw.process is cw._model_form.built
 
 
-def test_pulse_feed_builds_a_process_for_a_cstr():
-    cw = ConfigurationWidget()
-    cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
-    cw._model_picker.value = cw._registry["Pulse Feed (Single Component)"]
-    # Pulse Feed doesn't need the second component Batch Elution auto-added.
-    cw._components.value = ["Component 1"]
+def test_bypassing_column_builds_a_process_with_no_column_at_all():
+    iw, cw = built()
+    iw._bypass_checkboxes["column"].value = True
+    iw._bypass_checkboxes["tubing_pre_column"].value = True
+    iw._bypass_checkboxes["tubing_post_column"].value = True
+    iw._bypass_checkboxes["tubing_detectors"].value = True
 
-    assert type(cw.process).__name__ == "Process"
-    assert cw.process.cycle_time == 6000.0
-    timeline = cw.process.parameter_timelines["flow_sheet.feed.c"]
-    assert timeline.value([0.0]).flatten().tolist() == [10.0]
-    assert timeline.value([70.0]).flatten().tolist() == [0.0]  # past the 60s pulse_duration
-
-
-def test_pulse_feed_component_picker_targets_only_the_selected_component():
-    cw = ConfigurationWidget()
-    cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
-    cw._components.value = ["Salt", "Protein"]
-    cw._model_picker.value = cw._registry["Pulse Feed (Single Component)"]
-
-    component = cw._model_form.element("component")
-    assert component.option_labels == ["Salt", "Protein"]
-    timeline = cw.process.parameter_timelines["flow_sheet.feed.c"]
-    assert timeline.value([0.0]).flatten().tolist() == [10.0, 0.0]
-
-    component.value = "Protein"
-
-    timeline = cw.process.parameter_timelines["flow_sheet.feed.c"]
-    assert timeline.value([0.0]).flatten().tolist() == [0.0, 10.0]
-
-
-def test_pulse_feed_event_chart_shows_feed_concentration():
-    cw = ConfigurationWidget()
-    cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
-    cw._model_picker.value = cw._registry["Pulse Feed (Single Component)"]
-    # Pulse Feed doesn't need the second component Batch Elution auto-added.
-    cw._components.value = ["Component 1"]
-
-    assert [s["name"] for s in cw._event_chart.series] == ["Feed"]
-    assert cw._event_chart.y_label == "Concentration / mol/m^3_IV"
-
-
-def test_pulse_feed_gets_sliders_for_its_scalar_fields_but_not_the_component_picker():
-    cw = ConfigurationWidget()
-    cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
-    cw._model_picker.value = cw._registry["Pulse Feed (Single Component)"]
-
-    assert set(cw._event_sliders) == {"concentration", "flow_rate", "pulse_duration", "cycle_time"}
-
-
-def test_pulse_feed_export_script_round_trips():
-    cw = ConfigurationWidget()
-    cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
-    cw._model_picker.value = cw._registry["Pulse Feed (Single Component)"]
-
-    script = cw.export_script()
-    ns: dict = {}
-    exec(compile(script, "<generated>", "exec"), ns)  # noqa: S102
-
-    assert ns["process"].cycle_time == cw.process.cycle_time
-    exported_timeline = ns["process"].parameter_timelines["flow_sheet.feed.c"]
-    original_timeline = cw.process.parameter_timelines["flow_sheet.feed.c"]
-    assert exported_timeline.value([0.0]).tolist() == original_timeline.value([0.0]).tolist()
+    assert "column" not in [u.name for u in iw.flow_sheet.units]
+    assert cw._column_form is None
+    assert cw._binding_form is None
+    assert cw.process is not None  # the process template itself needs no column
 
 
 def test_config_hash_is_set_after_construction_and_changes_with_field_edits():
-    cw = ConfigurationWidget()
+    _, cw = built()
     assert cw.config_hash is not None
 
     first_hash = cw.config_hash
@@ -710,15 +658,15 @@ def test_config_hash_is_set_after_construction_and_changes_with_field_edits():
 
 
 def test_snapshot_and_apply_state_round_trips_a_mutated_configuration():
-    cw = ConfigurationWidget()
-    cw._column_picker.value = cw._columns["General Rate Model (GRM)"]
-    cw._binding_picker.value = cw._binding_registry["Langmuir"]
+    iw, cw = built()
+    iw._column_picker.value = iw._columns["General Rate Model (GRM)"]
+    iw._binding_picker.value = iw._binding_registry["Langmuir"]
     cw._column_form.element("length").value = 0.42
     cw._model_form.element("flow_rate").value = 4.4e-6
 
     state = cw._snapshot_state()
 
-    cw2 = ConfigurationWidget()  # a different widget entirely
+    _, cw2 = built()  # a different widget entirely
     cw2._apply_state("Imported", state)
 
     assert cw2.config_name == "Imported"
@@ -730,18 +678,31 @@ def test_snapshot_and_apply_state_round_trips_a_mutated_configuration():
     assert cw2._model_form.collect_values() == cw._model_form.collect_values()
 
 
-def test_apply_state_rejects_an_unregistered_column_key():
-    cw = ConfigurationWidget()
+def test_apply_state_rejects_an_unregistered_template_key():
+    _, cw = built()
     state = cw._snapshot_state()
     bad_state = configuration_store.ConfigurationState(
-        **{**state.__dict__, "column_key": "Some Removed Column"}
+        **{**state.__dict__, "template_key": "Some Removed Template"}
     )
     with pytest.raises(ValueError, match="isn't registered"):
         cw._apply_state("x", bad_state)
 
 
+def test_apply_state_rejects_an_unregistered_column_key():
+    iw, cw = built()
+    state = cw._snapshot_state()
+    bad_instrument = configuration_store.InstrumentState(
+        **{**state.instrument.__dict__, "column_key": "Some Removed Column"}
+    )
+    bad_state = configuration_store.ConfigurationState(
+        **{**state.__dict__, "instrument": bad_instrument}
+    )
+    with pytest.raises(ValueError, match="Unknown column model"):
+        cw._apply_state("x", bad_state)
+
+
 def test_save_button_writes_to_the_store_and_shows_the_path(tmp_path):
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw.persistence._name_field.value = "Saved Config"
 
     cw.persistence._on_save(None)
@@ -753,13 +714,13 @@ def test_save_button_writes_to_the_store_and_shows_the_path(tmp_path):
 
 
 def test_import_from_store_restores_a_previously_saved_configuration():
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw.persistence._name_field.value = "Saved Config"
     cw._model_form.element("flow_rate").value = 7.7e-6
     cw.persistence._on_save(None)
     saved_hash = cw.config_hash
 
-    cw2 = ConfigurationWidget()
+    _, cw2 = built()
     cw2.import_from_store(saved_hash)
 
     assert cw2.config_name == "Saved Config"
@@ -768,18 +729,18 @@ def test_import_from_store_restores_a_previously_saved_configuration():
 
 
 def test_import_from_store_with_unknown_hash_shows_an_error():
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw.import_from_store("deadbeef")
     assert "deadbeef" in cw.persistence.save_status.value
 
 
 def test_import_hash_button_delegates_to_import_from_store():
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw.persistence._name_field.value = "Saved Config"
     cw.persistence._on_save(None)
     saved_hash = cw.config_hash
 
-    cw2 = ConfigurationWidget()
+    _, cw2 = built()
     cw2.persistence._import_hash_field.value = saved_hash
     cw2.persistence._on_import_hash_click(None)
 
@@ -787,7 +748,7 @@ def test_import_hash_button_delegates_to_import_from_store():
 
 
 def test_file_upload_imports_an_exported_configuration():
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw.persistence._name_field.value = "Uploaded Config"
     cw._model_form.element("flow_rate").value = 2.2e-6
 
@@ -800,7 +761,7 @@ def test_file_upload_imports_an_exported_configuration():
         configuration_store.save_h5(state, "Uploaded Config", path, process=cw.process)
         content = memoryview(path.read_bytes())
 
-    cw2 = ConfigurationWidget()
+    _, cw2 = built()
     cw2.persistence._file_upload.value = (
         {
             "name": "exported.h5",
@@ -817,7 +778,7 @@ def test_file_upload_imports_an_exported_configuration():
 
 
 def test_store_dir_defaults_to_none_and_uses_the_default_store(tmp_path):
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw.persistence._name_field.value = "Default Store Config"
     assert cw.persistence.store_dir is None
 
@@ -828,7 +789,7 @@ def test_store_dir_defaults_to_none_and_uses_the_default_store(tmp_path):
 
 def test_setting_a_custom_store_dir_is_used_for_save_and_import(tmp_path):
     custom = tmp_path / "my_configs" / "nested"
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw.persistence._name_field.value = "Custom Folder Config"
     cw.persistence._store_dir_field.value = str(custom)
 
@@ -840,7 +801,7 @@ def test_setting_a_custom_store_dir_is_used_for_save_and_import(tmp_path):
     cw.persistence._on_save(None)
     assert (custom / f"{cw.config_hash}.h5").exists()
 
-    cw2 = ConfigurationWidget()
+    _, cw2 = built()
     cw2.persistence._store_dir_field.value = str(custom)
     cw2.persistence._on_set_store_dir(None)
     cw2.import_from_store(cw.config_hash)
@@ -848,7 +809,7 @@ def test_setting_a_custom_store_dir_is_used_for_save_and_import(tmp_path):
 
 
 def test_blank_store_dir_field_resets_to_the_default(tmp_path):
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw.persistence._store_dir_field.value = str(tmp_path / "custom")
     cw.persistence._on_set_store_dir(None)
     assert cw.persistence.store_dir is not None
@@ -862,7 +823,7 @@ def test_invalid_store_dir_shows_an_error_and_does_not_change_store_dir(tmp_path
     blocked = tmp_path / "not_a_directory"
     blocked.write_text("x")
 
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw.persistence._store_dir_field.value = str(blocked / "sub")
     cw.persistence._on_set_store_dir(None)
 
@@ -871,7 +832,7 @@ def test_invalid_store_dir_shows_an_error_and_does_not_change_store_dir(tmp_path
 
 
 def test_save_without_a_name_is_refused(tmp_path):
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw.persistence._name_field.value = ""  # cleared the default name
     cw.persistence._on_save(None)
 
@@ -880,7 +841,7 @@ def test_save_without_a_name_is_refused(tmp_path):
 
 
 def test_save_load_details_are_collapsed_by_default_and_toggle():
-    cw = ConfigurationWidget()
+    _, cw = built()
     assert cw.persistence._save_load_details_box.layout.display == "none"
     assert cw.persistence._btn_toggle_save_load_details.description == "Show details"
 
@@ -894,7 +855,7 @@ def test_save_load_details_are_collapsed_by_default_and_toggle():
 
 
 def test_save_load_section_is_the_first_section_in_the_panel():
-    cw = ConfigurationWidget()
+    _, cw = built()
     children = cw.root.children
     # index 0 is the injected style tag, index 1 the panel title
     save_load_section = children[2]
@@ -902,7 +863,7 @@ def test_save_load_section_is_the_first_section_in_the_panel():
 
 
 def test_name_error_reflects_whether_the_configuration_is_named():
-    cw = ConfigurationWidget()
+    _, cw = built()
     assert cw.name_error() is None  # has the default name
 
     cw.persistence._name_field.value = ""
@@ -911,7 +872,7 @@ def test_name_error_reflects_whether_the_configuration_is_named():
 
 
 def test_persist_to_store_raises_without_a_name():
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw.persistence._name_field.value = ""
     try:
         cw.persist_to_store()
@@ -921,7 +882,7 @@ def test_persist_to_store_raises_without_a_name():
 
 
 def test_persist_to_store_saves_and_returns_the_path(tmp_path):
-    cw = ConfigurationWidget()
+    _, cw = built()
     cw.persistence._name_field.value = "Persisted Config"
 
     path = cw.persist_to_store()
@@ -931,7 +892,7 @@ def test_persist_to_store_saves_and_returns_the_path(tmp_path):
 
 
 def test_config_hash_is_computed_fresh_not_cached_stale():
-    cw = ConfigurationWidget()
+    _, cw = built()
     first = cw.config_hash
     cw._model_form.element("flow_rate").value = 8.8e-6
     assert cw.config_hash != first  # no stale cached value survives a field edit

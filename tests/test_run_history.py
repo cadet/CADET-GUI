@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import cadetgui.run_store as run_store
 from cadetgui.widgets.composite import RunHistoryWidget
 
 
@@ -79,3 +80,80 @@ def test_record_without_config_leaves_hash_none():
 
     assert run.config_name is None
     assert run.config_hash is None
+
+
+def test_default_store_dir_is_none_and_nothing_is_persisted(tmp_path, monkeypatch):
+    """No store_dir set -> plain in-memory history, matching the pre-persistence behavior."""
+    monkeypatch.setattr(run_store, "default_run_store_dir", lambda: tmp_path)
+    h = RunHistoryWidget()
+    h.record("first", result="r1")
+
+    assert h.store_dir is None
+    assert run_store.list_runs(store_dir=tmp_path) == []
+
+
+def test_record_persists_metadata_when_store_dir_is_set(tmp_path):
+    h = RunHistoryWidget(store_dir=tmp_path)
+    run = h.record("first", result="r1", config_name="Cfg", config_hash="abc")
+
+    assert run.run_id is not None
+    persisted = run_store.list_runs(store_dir=tmp_path)
+    assert len(persisted) == 1
+    assert persisted[0].run_id == run.run_id
+    assert persisted[0].label == "first"
+    assert persisted[0].ok is True
+    assert persisted[0].config_name == "Cfg"
+    assert persisted[0].config_hash == "abc"
+
+
+def test_record_persists_a_failed_run_too(tmp_path):
+    h = RunHistoryWidget(store_dir=tmp_path)
+    run = h.record("bad", error="boom")
+
+    persisted = run_store.list_runs(store_dir=tmp_path)
+    assert persisted[0].run_id == run.run_id
+    assert persisted[0].ok is False
+    assert persisted[0].error == "boom"
+
+
+def test_construction_loads_existing_runs_from_store_dir(tmp_path):
+    id_a = run_store.new_run_id()
+    run_store.save_run(id_a, "Old Run", ok=True, store_dir=tmp_path)
+
+    h = RunHistoryWidget(store_dir=tmp_path)
+
+    assert [r.label for r in h.runs] == ["Old Run"]
+    assert h.runs[0].run_id == id_a
+    assert h.runs[0].result is None  # not hydrated -- only metadata was ever stored
+    assert h.selected.label == "Old Run"
+
+
+def test_loaded_run_is_ok_even_though_result_is_still_none(tmp_path):
+    run_id = run_store.new_run_id()
+    run_store.save_run(run_id, "Old Run", ok=True, store_dir=tmp_path)
+
+    h = RunHistoryWidget(store_dir=tmp_path)
+
+    assert h.runs[0].ok is True
+    assert h.runs[0].result is None
+
+
+def test_setting_store_dir_via_the_ui_field_loads_that_folders_history(tmp_path):
+    run_store.save_run(run_store.new_run_id(), "From Folder", ok=True, store_dir=tmp_path)
+
+    h = RunHistoryWidget()
+    h.record("In memory only", result="r1")
+    h._store_dir_field.value = str(tmp_path)
+    h._on_set_store_dir(None)
+
+    assert [r.label for r in h.runs] == ["From Folder"]
+    assert h.store_dir == tmp_path.resolve()
+
+
+def test_clearing_the_store_dir_field_reverts_to_in_memory_only(tmp_path):
+    h = RunHistoryWidget(store_dir=tmp_path)
+    h._store_dir_field.value = ""
+    h._on_set_store_dir(None)
+
+    assert h.store_dir is None
+    assert h.runs == []
