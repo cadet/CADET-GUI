@@ -129,9 +129,16 @@ class RunHistoryWidget:
         """Point this history at a (new) folder, reloading its runs from it.
 
         Setting this has the exact same effect as the "Set folder" button --
-        there is no separate scoping concept, a folder is a folder.
+        there is no separate scoping concept, a folder is a folder. A no-op
+        if it's already pointed there: reloading unconditionally would wipe
+        and re-fetch `self.runs` even when nothing changed, replacing an
+        already-hydrated `RunRecord` with a fresh unhydrated stand-in whose
+        re-selection then silently fails to re-trigger hydration (the picker's
+        index doesn't change, so no selection event fires).
         """
         path = Path(value).expanduser().resolve() if value else None
+        if path == self._store_dir:
+            return
         if path is not None:
             path.mkdir(parents=True, exist_ok=True)
         self._store_dir = path

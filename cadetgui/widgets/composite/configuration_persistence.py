@@ -42,6 +42,7 @@ class ConfigurationPersistence:
         self._on_name_change_cb = on_name_change
         self.config_name: str = default_name
         self.store_dir: Optional[Path] = None
+        self._store_dir_listeners: list[Callable[[Optional[Path]], None]] = []
 
         # Always-visible row: name field + Save/Show-details buttons.
         self._name_field = TextField(label="Configuration name:", value=default_name)
@@ -108,6 +109,10 @@ class ConfigurationPersistence:
         else:
             self._hash_display.value = f"<strong>Hash:</strong> <code>{self.config_hash}</code>"
 
+    def add_store_dir_listener(self, fn: Callable[[Optional[Path]], None]) -> None:
+        """Register a callback fired with the new `store_dir` whenever it's set via the UI."""
+        self._store_dir_listeners.append(fn)
+
     def set_name(self, name: str) -> None:
         """Rename after restoring a saved configuration, and refresh the hash display."""
         self.config_name = name
@@ -154,16 +159,18 @@ class ConfigurationPersistence:
         if not text:
             self.store_dir = None
             self.save_status.value = "<em>Using the default storage folder.</em>"
-            return
-        try:
-            path = Path(text).expanduser().resolve()
-            path.mkdir(parents=True, exist_ok=True)
-        except Exception as exc:  # noqa: BLE001
-            self.save_status.value = f"<span style='color:#b00020'>{exc}</span>"
-            return
-        self.store_dir = path
-        self._store_dir_field.value = str(path)
-        self.save_status.value = f"<em>Configurations will be saved to {path}.</em>"
+        else:
+            try:
+                path = Path(text).expanduser().resolve()
+                path.mkdir(parents=True, exist_ok=True)
+            except Exception as exc:  # noqa: BLE001
+                self.save_status.value = f"<span style='color:#b00020'>{exc}</span>"
+                return
+            self.store_dir = path
+            self._store_dir_field.value = str(path)
+            self.save_status.value = f"<em>Configurations will be saved to {path}.</em>"
+        for fn in list(self._store_dir_listeners):
+            fn(self.store_dir)
 
     def _on_save(self, _btn: Any) -> None:
         try:

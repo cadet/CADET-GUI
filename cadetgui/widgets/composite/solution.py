@@ -85,11 +85,23 @@ class SolutionWidget:
         Also remembers `config_widget` itself, so runs can be tagged with
         their source configuration's name/hash and a past run can be
         re-imported back into it (see `_on_run`/`_on_load_config`).
+
+        Also adopts the configuration's storage folder as the run history's
+        own, so the user isn't asked to type the same project folder into
+        both widgets -- but only once, and only as long as the run history
+        hasn't already been pointed somewhere on its own (see
+        `_on_config_store_dir_change`).
         """
         self._config_widget = config_widget
         config_widget.add_listener(self.set_process)
+        config_widget.persistence.add_store_dir_listener(self._on_config_store_dir_change)
+        self._on_config_store_dir_change(config_widget.persistence.store_dir)
         if getattr(config_widget, "process", None) is not None:
             self.set_process(config_widget.process)
+
+    def _on_config_store_dir_change(self, store_dir: Any) -> None:
+        if store_dir is not None and self.history.store_dir is None:
+            self.history.store_dir = store_dir
 
     def add_listener(self, fn: Callable[[], None]) -> None:
         """Register a callback fired (no args) whenever a new result is loaded."""

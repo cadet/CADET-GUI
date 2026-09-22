@@ -66,6 +66,44 @@ def test_solutionwidget_bind_to_config_picks_up_existing_process():
     assert sw.process is cw.process
 
 
+def test_solutionwidget_bind_to_config_adopts_an_already_set_store_dir(tmp_path):
+    cw = built_configuration()
+    cw.persistence.store_dir = tmp_path / "project"
+    (tmp_path / "project").mkdir()
+
+    sw = SolutionWidget()
+    sw.bind_to_config(cw)
+
+    assert sw.history.store_dir == (tmp_path / "project").resolve()
+
+
+def test_solutionwidget_bind_to_config_follows_later_store_dir_changes(tmp_path):
+    cw = built_configuration()
+    sw = SolutionWidget()
+    sw.bind_to_config(cw)
+    assert sw.history.store_dir is None
+
+    cw.persistence._store_dir_field.value = str(tmp_path / "project")
+    cw.persistence._on_set_store_dir(None)
+
+    assert sw.history.store_dir == (tmp_path / "project").resolve()
+
+
+def test_solutionwidget_bind_to_config_does_not_override_an_explicit_history_folder(tmp_path):
+    own_dir = tmp_path / "runs-only"
+    own_dir.mkdir()
+    cw = built_configuration()
+
+    sw = SolutionWidget()
+    sw.history.store_dir = own_dir
+    sw.bind_to_config(cw)
+
+    cw.persistence._store_dir_field.value = str(tmp_path / "project")
+    cw.persistence._on_set_store_dir(None)
+
+    assert sw.history.store_dir == own_dir.resolve()
+
+
 def test_solutionwidget_run_without_process_shows_error():
     sw = SolutionWidget()
     sw._on_run(None)
