@@ -13,11 +13,11 @@ from .solution import SolutionWidget
 
 __all__ = ["WorkbenchWidget"]
 
-_STEPS = ("Instrument", "Configuration", "Simulation", "Parameter Estimation")
+_STEPS = ("System", "Configuration", "Simulation", "Parameter Estimation")
 
 
 class WorkbenchWidget:
-    """Top-level shell: a sidebar-navigated Instrument/Configuration/Simulation/Estimation page.
+    """Top-level shell: a sidebar-navigated System/Configuration/Simulation/Estimation page.
 
     Builds and wires an `InstrumentWidget`, `ConfigurationWidget`,
     `SolutionWidget`, and `ParameterEstimationWidget` together (same bindings
@@ -27,16 +27,20 @@ class WorkbenchWidget:
     (`.instrument`/`.configuration`/`.solution`/`.parameter_estimation`) for
     scripting — this class is purely "the known widgets, pre-wired, in a
     sidebar," not a black box; a different combination of widgets is a
-    different `SidebarShell` call, not a change to this class.
+    different `SidebarShell` call, not a change to this class. The "System"
+    step (an `InstrumentWidget`, still `.instrument` on this class -- see
+    REQUIREMENTS.md item #32 for why only the user-facing label changed) is
+    optional layered-on-top topology, not a precondition: `ConfigurationWidget`
+    already builds a standalone simulation on its own without one bound.
 
     `include` narrows which steps are built and shown at all (default: all
-    four) — e.g. `WorkbenchWidget(include=("Instrument", "Configuration",
-    "Simulation"))` for a notebook that has no use for parameter estimation.
-    Skipping a step also skips its own construction and its `bind_to_*`
-    wiring, so it costs nothing (no widgets built, no listeners attached)
-    rather than just being hidden. Passing an explicit widget for a step not
-    in `include` is a contradiction and raises `ValueError` rather than
-    silently dropping it.
+    four) — e.g. `WorkbenchWidget(include=("Configuration", "Simulation"))`
+    for a notebook that has no use for the System step or parameter
+    estimation. Skipping a step also skips its own construction and its
+    `bind_to_*` wiring, so it costs nothing (no widgets built, no listeners
+    attached) rather than just being hidden. Passing an explicit widget for a
+    step not in `include` is a contradiction and raises `ValueError` rather
+    than silently dropping it.
     """
 
     def __init__(
@@ -52,7 +56,7 @@ class WorkbenchWidget:
         validate_steps(steps, _STEPS)
 
         self.instrument = resolve_step(
-            "Instrument", instrument, steps=steps, factory=InstrumentWidget
+            "System", instrument, steps=steps, factory=InstrumentWidget
         )
         self.configuration = resolve_step(
             "Configuration", configuration, steps=steps, factory=ConfigurationWidget
@@ -78,7 +82,7 @@ class WorkbenchWidget:
         panes = collect_panes(
             _STEPS,
             {
-                "Instrument": self.instrument.root if self.instrument else None,
+                "System": self.instrument.root if self.instrument else None,
                 "Configuration": self.configuration.root if self.configuration else None,
                 "Simulation": self.solution.root if self.solution else None,
                 "Parameter Estimation": (
