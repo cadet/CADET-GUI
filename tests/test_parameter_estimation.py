@@ -459,7 +459,11 @@ def test_run_estimation_passes_the_start_fields_as_starts(monkeypatch):
 
     cw, pw = _bound_widgets()
     _ready_to_run(cw, pw)
-    pw.param_space._start_fields[0].value = 0.123  # deliberately not the config's current value
+    # Field 0 is always `axial_dispersion` for this default config -- fields
+    # are alphabetical now (`build_parameter_config_spec` sorts by name), and
+    # it's the config's own seed value (1e-8) offset within its bounds
+    # ([0, 1e-7]), not that value itself.
+    pw.param_space._start_fields[0].value = 5e-8
     captured = {}
 
     def _fake_run_estimation(*args, **kwargs):
@@ -476,7 +480,7 @@ def test_run_estimation_passes_the_start_fields_as_starts(monkeypatch):
     assert "starts" in captured, (
         f"run_estimation was never called; pw.status was: {pw.status.value!r}"
     )
-    assert captured["starts"] == [0.123]
+    assert captured["starts"] == [5e-8]
 
 
 def test_run_estimation_with_total_selected_still_succeeds():

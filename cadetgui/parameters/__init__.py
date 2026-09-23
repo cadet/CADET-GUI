@@ -1,22 +1,24 @@
-"""Parameter metadata: `interface.json`'s curated units/descriptions merged with
-shape/bounds/co_name/default/required-ness introspected live off real
-CADET-Process descriptors and objects.
+"""Parameter metadata: unit/description/shape/bounds/co_name/default/required-ness,
+all introspected live off real CADET-Process descriptors and objects. Nothing here
+is hand-typed against a separate copy of CADET-Process's own knowledge.
 
-CADET-Process's own `ParameterBase` accepts `unit=`/`description=` kwargs, but
-nothing in `CADETProcess.processModel` actually sets them on any column/binding
-attribute (confirmed by grepping the installed package) -- CADET-Core's docs are
-the only source for those two fields, so `interface.json` stays their ground
-truth (plus each model's parameter *order*, which CADET-Process itself can't
-give stably -- see `ai-docs/UPSTREAM_ISSUES.md` #4).
+CADET-Process's own `ParameterBase` accepts `unit=`/`description=` kwargs, and (as of
+https://github.com/fau-advanced-separations/CADET-Process/pull/435) the column/
+binding/solver descriptors this module reads now actually set them, sourced from
+CADET-Core's own interface docs. `component_dependent`/`dtype`/`min`/`max`/`co_name`/
+`default` are read live off the actual descriptor class (`Sized`/`Ranged`/`Switch`/
+`Bool`/`Integer` from `CADETProcess.dataStructure`) and off
+`CADETProcess.simulator.cadetAdapter`'s own `unit_parameters_map`/
+`adsorption_parameters_map` -- the literal mapping CADET-Process uses to serialize to
+CADET-Core, so `co_name` can't disagree with what's actually written. None of this can
+drift from CADET-Process the way a hand-typed copy could, because it *is*
+CADET-Process.
 
-Everything else this file used to hand-type per parameter (`component_dependent`,
-`dtype`, `min`/`max`, `co_name`, `default`) is read live off the actual
-descriptor class (`Sized`/`Ranged`/`Switch`/`Bool`/`Integer` from
-`CADETProcess.dataStructure`) and off `CADETProcess.simulator.cadetAdapter`'s own
-`unit_parameters_map`/`adsorption_parameters_map` -- the literal mapping
-CADET-Process uses to serialize to CADET-Core, so `co_name` can't disagree with
-what's actually written. This can't drift from CADET-Process the way a hand-typed
-copy could, because it *is* CADET-Process.
+A parameter's *name* itself is also read live, off `cls._parameters` -- CADET-Process's
+own class-level list of every parameter it exposes (built by the same metaclass as
+`cls._required_parameters`, so -- like that one -- its *order* is hash-seed-random
+across process runs, not a stable fact; only the *set* is). This module returns names
+in plain alphabetical order instead of a curated one.
 
 `required_parameters()` is live too, but *not* off the class-level
 `cls._required_parameters` CADET-Process's metaclass builds -- that's a
@@ -25,13 +27,18 @@ constructed `Cstr(...).required_parameters` doesn't: confirmed directly,
 CADET-Process does extra instance-level filtering the class attribute never
 captures). Only a real, minimally-built instance is authoritative, so that's
 what `_required_parameters_live` constructs.
+
+The one thing live introspection can't reach: `co_group`, the CADET-Python H5
+wrapper tree path for a solver-category model (e.g. `/solver/time_integrator`)
+-- CADETProcess.simulator.cadetAdapter writes it as a plain uppercase HDF5
+group, not through a cp_name<->co_name map the way column/binding parameters
+are, so it isn't stored as an introspectable string anywhere in CADET-Process.
+That one stays a hand-typed constant, in `_SOLVER_CO_GROUPS` below.
 """
 from __future__ import annotations
 
-import json
 import math
 from functools import lru_cache
-from pathlib import Path
 from typing import Any
 
 from CADETProcess.dataStructure import Bool, Integer, Ranged, Sized, Switch
@@ -53,13 +60,16 @@ from CADETProcess.simulator.cadetAdapter import (
     unit_parameters_map,
 )
 
-__all__ = ["load_schema", "get_parameters", "get_parameter", "required_parameters"]
+__all__ = [
+    "get_parameters",
+    "get_parameter",
+    "required_parameters",
+    "get_co_group",
+]
 
-_SCHEMA_PATH = Path(__file__).parent / "interface.json"
-
-# The real CADET-Process class behind each (category, model name) this schema
-# registers -- what live introspection actually reads. Kept in sync with
-# interface.json's own "models" keys by test_every_registered_model_resolves_live.
+# The real CADET-Process class behind each (category, model name) this module
+# knows about -- what live introspection actually reads. Kept in sync with
+# test_every_registered_parameter_resolves_a_real_live_descriptor.
 _MODEL_CLASSES: dict[tuple[str, str], type] = {
     ("column", "GeneralRateModel"): GeneralRateModel,
     ("column", "LumpedRateModelWithPores"): LumpedRateModelWithPores,
@@ -78,26 +88,17 @@ _MODEL_CLASSES: dict[tuple[str, str], type] = {
 # not one of these two conversion tables) -- co_name stays None there.
 _CO_NAME_MAPS = {"column": unit_parameters_map, "binding": adsorption_parameters_map}
 
-
-def _resolve_refs(node: Any, root: dict) -> Any:
-    """Recursively replace `{"$ref": "a.b.c"}` with the dotted-path value from `root`."""
-    if isinstance(node, dict):
-        if set(node.keys()) == {"$ref"}:
-            target: Any = root
-            for part in node["$ref"].split("."):
-                target = target[part]
-            return _resolve_refs(target, root)
-        return {k: _resolve_refs(v, root) for k, v in node.items()}
-    if isinstance(node, list):
-        return [_resolve_refs(v, root) for v in node]
-    return node
+# See module docstring: the one piece of metadata live introspection can't reach.
+_SOLVER_CO_GROUPS: dict[str, str] = {
+    "SolverTimeIntegratorParameters": "/solver/time_integrator",
+}
 
 
-@lru_cache(maxsize=1)
-def load_schema() -> dict:
-    """Load and `$ref`-resolve `interface.json`. Cached -- the file doesn't change at runtime."""
-    raw = json.loads(_SCHEMA_PATH.read_text())
-    return _resolve_refs(raw, raw)
+def get_co_group(model: str) -> str | None:
+    """CADET-Core H5 group path for a solver-category model, e.g.
+    `get_co_group("SolverTimeIntegratorParameters") == "/solver/time_integrator"`.
+    `None` for anything not registered."""
+    return _SOLVER_CO_GROUPS.get(model)
 
 
 @lru_cache(maxsize=1)
@@ -130,10 +131,10 @@ def _descriptor(cls: type, name: str) -> Any | None:
 
 
 def _live_metadata(category: str, model_name: str, name: str) -> dict[str, Any] | None:
-    """Shape/bounds/co_name for one parameter, introspected off the real
-    CADET-Process descriptor. `None` if `(category, model_name)` isn't
-    registered in `_MODEL_CLASSES` or the attribute can't be resolved to a
-    real descriptor (see `_descriptor`)."""
+    """Full metadata for one parameter, introspected off the real CADET-Process
+    descriptor. `None` if `(category, model_name)` isn't registered in
+    `_MODEL_CLASSES` or the attribute can't be resolved to a real descriptor
+    (see `_descriptor`)."""
     cls = _MODEL_CLASSES.get((category, model_name))
     if cls is None:
         return None
@@ -152,6 +153,8 @@ def _live_metadata(category: str, model_name: str, name: str) -> dict[str, Any] 
         "component_dependent": isinstance(descriptor, Sized),
         "dtype": dtype,
         "co_name": _inverse_co_name_maps().get((category, model_name), {}).get(name),
+        "unit": descriptor.unit,
+        "description": descriptor.description,
     }
     if descriptor.default is not None:
         live["default"] = descriptor.default
@@ -164,7 +167,7 @@ def _live_metadata(category: str, model_name: str, name: str) -> dict[str, Any] 
     elif isinstance(descriptor, Switch):
         # e.g. TubularReactorBase.flow_direction = Switch(valid=[-1, 1]) --
         # not a Ranged constraint, but still a numeric range worth rendering
-        # as bounds (see interface.json's flow_direction note).
+        # as bounds.
         valid = [v for v in descriptor.valid if isinstance(v, (int, float))]
         if valid:
             live["min"], live["max"] = float(min(valid)), float(max(valid))
@@ -173,30 +176,20 @@ def _live_metadata(category: str, model_name: str, name: str) -> dict[str, Any] 
 
 
 def get_parameters(category: str, model: str) -> dict[str, dict]:
-    """All known parameters for `model` in `category`, keyed by CADET-Process name.
+    """All known parameters for `model` in `category`, keyed by CADET-Process name,
+    in alphabetical order.
 
-    Merges the category's curated `shared_parameters` (e.g. `length`, `diameter`,
-    `axial_dispersion` -- identical `unit`/`description` across every
-    TubularReactorBase-derived column) underneath the model's own curated
-    `own_parameters`, for models that opt in via `extends_shared_parameters: true`
-    -- e.g. `Cstr` has a different base class and no column geometry, so it must
-    not inherit them. Each entry's `unit`/`description`/`source` come from that
-    curated data; `component_dependent`/`dtype`/`min`/`max`/`co_name` are
-    introspected live (see `_live_metadata`) and override any same-named curated
-    field, so a model not registered in `_MODEL_CLASSES` still degrades to
-    whatever (if anything) the curated entry happens to carry.
+    Names come from `cls._parameters` (see module docstring for why only its
+    *set*, not its order, is trustworthy), filtered to the ones that actually
+    resolve to a real descriptor (see `_descriptor`). Each entry's metadata is
+    entirely live (see `_live_metadata`).
+
+    Raises `KeyError` if `(category, model)` isn't registered in
+    `_MODEL_CLASSES`.
     """
-    schema = load_schema()["categories"][category]
-    model_entry = schema["models"][model]
-    extends_shared = model_entry.get("extends_shared_parameters")
-    shared = schema.get("shared_parameters", {}) if extends_shared else {}
-    curated = {**shared, **model_entry["own_parameters"]}
-
-    merged: dict[str, dict] = {}
-    for name, entry in curated.items():
-        live = _live_metadata(category, model, name)
-        merged[name] = {**entry, **live} if live is not None else dict(entry)
-    return merged
+    cls = _MODEL_CLASSES[(category, model)]
+    names = {name for name in cls._parameters if _descriptor(cls, name) is not None}
+    return {name: _live_metadata(category, model, name) for name in sorted(names)}
 
 
 def get_parameter(category: str, model: str, name: str) -> dict:
@@ -219,8 +212,8 @@ def _required_parameters_live(category: str, model: str) -> frozenset[str]:
 
 def required_parameters(category: str, model: str) -> list[str]:
     """Return the subset of `get_parameters(...)` CADET-Process requires to
-    build `model`, in this schema's own curated order (CADET-Process's own
-    order is hash-seed-random across process runs, not a stable fact to
-    return -- see `ai-docs/UPSTREAM_ISSUES.md` #4)."""
+    build `model`, in alphabetical order (CADET-Process's own order is
+    hash-seed-random across process runs, not a stable fact to return -- see
+    `ai-docs/UPSTREAM_ISSUES.md` #4)."""
     required = _required_parameters_live(category, model)
     return [name for name in get_parameters(category, model) if name in required]
