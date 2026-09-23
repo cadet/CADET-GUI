@@ -8,9 +8,11 @@ from cadetgui.configuration_store import (
     ConfigurationState,
     InstrumentState,
     compute_hash,
+    config_dir,
     list_store,
     load_from_store,
     load_h5,
+    safe_config_dirname,
     save_h5,
     save_to_store,
 )
@@ -88,9 +90,39 @@ def test_save_to_store_and_load_from_store_round_trip(tmp_path):
     path = save_to_store(state, "My Config", store_dir=tmp_path)
 
     assert path.name == f"{compute_hash(state)}.h5"
+    assert path.parent == tmp_path / "My_Config"
     name, loaded = load_from_store(compute_hash(state), store_dir=tmp_path)
     assert name == "My Config"
     assert loaded == state
+
+
+def test_safe_config_dirname_replaces_whitespace_and_drops_unsafe_characters():
+    assert safe_config_dirname("My Config") == "My_Config"
+    assert safe_config_dirname("A/B: Config?") == "AB_Config"
+    assert safe_config_dirname("   ") == "unnamed"
+
+
+def test_config_dir_creates_a_subfolder_named_after_the_configuration(tmp_path):
+    path = config_dir("My Config", store_dir=tmp_path)
+
+    assert path == tmp_path / "My_Config"
+    assert path.is_dir()
+
+
+def test_save_to_store_reuses_the_existing_folder_for_identical_content_under_a_new_name(
+    tmp_path,
+):
+    # Content hash stays the true identity -- renaming must not change it, and
+    # two identical configurations under different names still collide to one
+    # file (ARCHITECTURE.md), even with the per-name subfolder layout: the
+    # folder simply keeps whichever name first saved that content.
+    state = _sample_state()
+    path_a = save_to_store(state, "Name A", store_dir=tmp_path)
+    path_b = save_to_store(state, "Name B", store_dir=tmp_path)
+
+    assert path_a == path_b
+    assert path_a.parent == tmp_path / "Name_A"
+    assert not (tmp_path / "Name_B").exists()
 
 
 def test_load_from_store_raises_a_clear_error_for_an_unknown_hash(tmp_path):

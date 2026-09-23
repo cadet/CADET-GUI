@@ -4,7 +4,7 @@ from typing import Any, Callable, Optional
 
 import ipywidgets as W
 
-from ... import run_store
+from ... import configuration_store, run_store
 from ...cadetprocessadapter import classify_signal_ports
 from ...simulation import run_process as _default_runner
 from .._chrome import style_tag
@@ -43,6 +43,9 @@ class SolutionWidget:
         self._plot_out = W.Output()
         self.status = W.HTML("<em>Ready.</em>")
         self.history = RunHistoryWidget()
+        self._save_outputs_checkbox = W.Checkbox(
+            description="Save plot & data to configuration folder", value=False, indent=False
+        )
 
         self._btn_run.on_click(self._on_run)
         self._btn_clear.on_click(self._on_clear)
@@ -66,6 +69,7 @@ class SolutionWidget:
                 W.HTML("<div class='cadetgui-panel-title'>Solution</div>"),
                 toolbar,
                 history_row,
+                self._save_outputs_checkbox,
                 self._signal_picker,
                 self._plot_out,
                 self.status,
@@ -86,9 +90,11 @@ class SolutionWidget:
         their source configuration's name/hash and a past run can be
         re-imported back into it (see `_on_run`/`_on_load_config`).
 
-        Also adopts the configuration's storage folder as the run history's
-        own, so the user isn't asked to type the same project folder into
-        both widgets -- but only once, and only as long as the run history
+        Also adopts the configuration's own per-configuration subfolder (see
+        `configuration_store.config_dir`) as the run history's own storage
+        folder, so the user isn't asked to type the same project folder into
+        both widgets and run outputs land alongside that configuration's own
+        saved `.h5` -- but only once, and only as long as the run history
         hasn't already been pointed somewhere on its own (see
         `_on_config_store_dir_change`).
         """
@@ -100,8 +106,11 @@ class SolutionWidget:
             self.set_process(config_widget.process)
 
     def _on_config_store_dir_change(self, store_dir: Any) -> None:
-        if store_dir is not None and self.history.store_dir is None:
-            self.history.store_dir = store_dir
+        if store_dir is None or self.history.store_dir is not None or self._config_widget is None:
+            return
+        self.history.store_dir = configuration_store.config_dir(
+            self._config_widget.config_name, store_dir=store_dir
+        )
 
     def add_listener(self, fn: Callable[[], None]) -> None:
         """Register a callback fired (no args) whenever a new result is loaded."""
@@ -189,7 +198,35 @@ class SolutionWidget:
             label, result=result, config_name=config_name, config_hash=config_hash, run_id=run_id
         )
         self._load_result(result)
+        self._maybe_save_outputs(result, run_id)
         self.status.value = "<em>Simulation finished.</em>"
+
+    def _maybe_save_outputs(self, result: Any, run_id: Optional[str]) -> None:
+        """Save each signal's plot (PNG) and raw data (CSV), opt-in only.
+
+        Written directly into the configuration's own storage subfolder
+        alongside its saved `.h5` (see `bind_to_config`), one pair of files
+        per signal, named by run id so repeated runs don't collide.
+        """
+        if not self._save_outputs_checkbox.value or self.history.store_dir is None or run_id is None:
+            return
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        for _label, (unit, port) in classify_signal_ports(result):
+            solution = result.solution[unit][port]
+            stem = f"{run_id}_{configuration_store.safe_config_dirname(f'{unit}_{port}')}"
+
+            fig, ax = solution.plot()
+            fig.savefig(self.history.store_dir / f"{stem}.png", dpi=150, bbox_inches="tight")
+            plt.close(fig)
+
+            data = np.column_stack([solution.time, solution.solution])
+            header = "time," + ",".join(solution.component_system.names)
+            np.savetxt(
+                self.history.store_dir / f"{stem}.csv", data, delimiter=",",
+                header=header, comments="",
+            )
 
     def _on_load_config(self, _btn: Any) -> None:
         run = self.history.selected

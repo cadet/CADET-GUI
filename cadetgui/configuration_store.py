@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -16,6 +17,8 @@ __all__ = [
     "ConfigurationState",
     "compute_hash",
     "default_store_dir",
+    "safe_config_dirname",
+    "config_dir",
     "save_h5",
     "load_h5",
     "save_to_store",
@@ -63,6 +66,25 @@ def default_store_dir() -> Path:
     store_dir = Path.home() / ".cadetgui" / "configurations"
     store_dir.mkdir(parents=True, exist_ok=True)
     return store_dir
+
+
+_UNSAFE_DIRNAME_CHARS = re.compile(r"[^\w\-.]")
+
+
+def safe_config_dirname(name: str) -> str:
+    """Filesystem-safe subfolder name for a configuration -- whitespace becomes
+    underscores, anything else unsafe in a folder name is dropped."""
+    cleaned = _UNSAFE_DIRNAME_CHARS.sub("", name.strip().replace(" ", "_"))
+    return cleaned or "unnamed"
+
+
+def config_dir(name: str, *, store_dir: Optional[Path] = None) -> Path:
+    """The per-configuration subfolder one configuration's own save file, and
+    any run results saved alongside it, live under. Created on demand."""
+    store_dir = store_dir or default_store_dir()
+    path = store_dir / safe_config_dirname(name)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def _decode_h5_leaf(value: Any) -> Any:
@@ -162,10 +184,21 @@ def save_to_store(
     process: Any = None,
     store_dir: Optional[Path] = None,
 ) -> Path:
-    """Save to the local configuration store, keyed by content hash. Returns the path."""
+    """Save to the local configuration store, under a subfolder for `name`.
+
+    Content hash stays the true identity, not the folder: renaming a saved
+    configuration must not change it, and two identical configurations under
+    different names still collide to one file (ARCHITECTURE.md). So if this
+    exact hash was already saved under some other name, that existing
+    subfolder/file is reused (its metadata updated) instead of creating a
+    duplicate copy under the new name -- the folder simply keeps whichever
+    name first saved that content. Returns the path.
+    """
     store_dir = store_dir or default_store_dir()
     store_dir.mkdir(parents=True, exist_ok=True)
-    path = store_dir / f"{compute_hash(state)}.h5"
+    hash_ = compute_hash(state)
+    existing = next(store_dir.glob(f"*/{hash_}.h5"), None)
+    path = existing if existing is not None else config_dir(name, store_dir=store_dir) / f"{hash_}.h5"
     save_h5(state, name, path, process=process)
     return path
 
@@ -173,10 +206,15 @@ def save_to_store(
 def load_from_store(
     hash_: str, *, store_dir: Optional[Path] = None
 ) -> Tuple[str, ConfigurationState]:
-    """Load a configuration from the local store by its hash."""
+    """Load a configuration from the local store by its hash.
+
+    Only the hash is known to the caller (a run's `config_hash`, or a hash
+    pasted by hand) -- not which name's subfolder it lives under -- so every
+    configuration subfolder is searched.
+    """
     store_dir = store_dir or default_store_dir()
-    path = store_dir / f"{hash_}.h5"
-    if not path.exists():
+    path = next(store_dir.glob(f"*/{hash_}.h5"), None)
+    if path is None:
         raise FileNotFoundError(f"No saved configuration with hash {hash_!r} in {store_dir}.")
     return load_h5(path)
 
@@ -185,10 +223,11 @@ def list_store(*, store_dir: Optional[Path] = None) -> List[Tuple[str, str]]:
     """List every saved configuration as (name, hash) pairs, newest first.
 
     Silently skips any file that isn't a valid saved configuration (e.g. a
-    plain CADET-Core h5 someone dropped into the store directory by hand).
+    plain CADET-Core h5 someone dropped into a configuration's subfolder by
+    hand, or a run's own raw solver-output h5 sitting alongside it).
     """
     store_dir = store_dir or default_store_dir()
-    paths = sorted(store_dir.glob("*.h5"), key=lambda p: p.stat().st_mtime, reverse=True)
+    paths = sorted(store_dir.glob("*/*.h5"), key=lambda p: p.stat().st_mtime, reverse=True)
     entries = []
     for path in paths:
         try:

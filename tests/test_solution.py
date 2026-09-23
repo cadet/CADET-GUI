@@ -74,7 +74,8 @@ def test_solutionwidget_bind_to_config_adopts_an_already_set_store_dir(tmp_path)
     sw = SolutionWidget()
     sw.bind_to_config(cw)
 
-    assert sw.history.store_dir == (tmp_path / "project").resolve()
+    expected = configuration_store.config_dir(cw.config_name, store_dir=tmp_path / "project")
+    assert sw.history.store_dir == expected
 
 
 def test_solutionwidget_bind_to_config_follows_later_store_dir_changes(tmp_path):
@@ -86,7 +87,8 @@ def test_solutionwidget_bind_to_config_follows_later_store_dir_changes(tmp_path)
     cw.persistence._store_dir_field.value = str(tmp_path / "project")
     cw.persistence._on_set_store_dir(None)
 
-    assert sw.history.store_dir == (tmp_path / "project").resolve()
+    expected = configuration_store.config_dir(cw.config_name, store_dir=tmp_path / "project")
+    assert sw.history.store_dir == expected
 
 
 def test_solutionwidget_bind_to_config_does_not_override_an_explicit_history_folder(tmp_path):
@@ -147,6 +149,36 @@ def test_solutionwidget_run_populates_signals_and_plots():
     assert sw._signal_picker.option_labels  # non-empty
     assert sw._signal_picker.value is not None
     assert "finished" in sw.status.value.lower()
+
+
+def test_solutionwidget_does_not_save_outputs_by_default(tmp_path):
+    sw = SolutionWidget(process=built_process())
+    sw.history.store_dir = tmp_path
+    sw._on_run(None)
+
+    assert list(tmp_path.glob("*.png")) == []
+    assert list(tmp_path.glob("*.csv")) == []
+
+
+def test_solutionwidget_saves_outputs_when_opted_in(tmp_path):
+    sw = SolutionWidget(process=built_process())
+    sw.history.store_dir = tmp_path
+    sw._save_outputs_checkbox.value = True
+    sw._on_run(None)
+
+    pngs = list(tmp_path.glob("*.png"))
+    csvs = list(tmp_path.glob("*.csv"))
+    assert pngs  # one pair per signal
+    assert csvs
+    assert len(pngs) == len(csvs) == len(sw._signal_picker.option_labels)
+
+
+def test_solutionwidget_does_not_save_outputs_without_a_store_dir():
+    sw = SolutionWidget(process=built_process())
+    sw._save_outputs_checkbox.value = True
+    sw._on_run(None)  # no store_dir set -- must not raise despite the checkbox
+
+    assert sw.result is not None
 
 
 def test_signal_list_collapses_inlet_and_outlet_units_to_one_entry_each():

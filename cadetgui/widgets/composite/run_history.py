@@ -61,10 +61,6 @@ class RunHistoryWidget:
 
         self._store_dir_field = TextField(label="Storage folder:", value="")
         self._btn_set_store_dir = W.Button(description="Set folder", icon="folder-open")
-        self._store_dir_note = W.HTML(
-            "<em>Leave blank to keep history in memory only (lost on kernel restart).</em>"
-        )
-        self._store_dir_note.add_class("cadetgui-note")
         self._btn_set_store_dir.on_click(self._on_set_store_dir)
 
         self.root = W.VBox(
@@ -72,7 +68,6 @@ class RunHistoryWidget:
                 W.HTML(style_tag()),
                 self._picker,
                 W.HBox([self._store_dir_field, self._btn_set_store_dir]),
-                self._store_dir_note,
             ]
         )
         self.root.add_class("cadetgui-panel")
