@@ -187,13 +187,22 @@ def test_solutionwidget_run_populates_signals_and_plots():
     assert "finished" in sw.status.value.lower()
 
 
-def test_solutionwidget_save_outputs_panel_starts_hidden():
+def test_solutionwidget_save_options_panel_starts_hidden():
     sw = SolutionWidget(process=built_process())
-    assert sw._save_outputs_box.layout.display == "none"
+    assert sw._save_options_box.layout.display == "none"
 
-    sw._on_toggle_save_outputs(None)
-    assert sw._save_outputs_box.layout.display == ""
-    assert sw._btn_save_outputs.description == "Hide save options"
+    sw._on_toggle_save_options(None)
+    assert sw._save_options_box.layout.display == ""
+    assert sw._btn_save_options.description == "Hide Save Options"
+
+
+def test_solutionwidget_save_options_panel_contains_the_storage_folder_field():
+    # The folder override and the save-outputs controls live in one combined
+    # panel now, not two separate "Show details"/"Save simulation outputs"
+    # toggles.
+    sw = SolutionWidget(process=built_process())
+    assert sw.history._store_dir_field in sw._save_options_box.children[0].children
+    assert sw.history._btn_set_store_dir in sw._save_options_box.children[0].children
 
 
 def test_solutionwidget_running_alone_saves_nothing_on_disk(tmp_path):

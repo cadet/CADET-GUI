@@ -159,19 +159,6 @@ def test_clearing_the_store_dir_field_reverts_to_in_memory_only(tmp_path):
     assert h.runs == []
 
 
-def test_details_box_starts_hidden_and_toggles(tmp_path):
-    h = RunHistoryWidget()
-    assert h._details_box.layout.display == "none"
-
-    h._on_toggle_details(None)
-    assert h._details_box.layout.display == ""
-    assert h._btn_toggle_details.description == "Hide details"
-
-    h._on_toggle_details(None)
-    assert h._details_box.layout.display == "none"
-    assert h._btn_toggle_details.description == "Show details"
-
-
 def test_setting_store_dir_via_the_ui_field_fires_the_manual_change_callback(tmp_path):
     seen = []
     h = RunHistoryWidget(on_manual_store_dir_change=seen.append)

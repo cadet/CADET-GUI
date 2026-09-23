@@ -19,6 +19,15 @@ def test_new_run_id_is_unique():
     assert run_store.new_run_id() != run_store.new_run_id()
 
 
+def test_new_run_id_is_timestamp_readable():
+    # Readable/sortable at a glance in a file browser, not an opaque uuid --
+    # a fixed-width date/time prefix plus a short disambiguating suffix.
+    run_id = run_store.new_run_id()
+    date_part, time_part, _suffix = run_id.split("_")
+    assert len(date_part) == 8  # YYYYMMDD
+    assert len(time_part) == 6  # HHMMSS
+
+
 def test_save_and_load_run_round_trips_metadata(tmp_path):
     run_id = run_store.new_run_id()
     saved = run_store.save_run(
@@ -68,7 +77,19 @@ def test_run_output_path_is_scoped_to_the_given_store_dir(tmp_path):
     run_id = run_store.new_run_id()
     path = run_store.run_output_path(run_id, store_dir=tmp_path)
 
-    assert path == tmp_path / f"{run_id}.h5"
+    assert path == tmp_path / f"run_{run_id}.h5"
+
+
+def test_run_files_are_prefixed_to_stand_out_from_a_configuration_save(tmp_path):
+    # A run's own h5/json and a configuration's saved h5 can live in the same
+    # per-configuration folder (see configuration_store.config_dir) -- the
+    # "run_" prefix (vs. configuration_store's "config_" prefix) is what
+    # makes the two kinds of file tell apart at a glance.
+    run_id = run_store.new_run_id()
+    run_store.save_run(run_id, "My Run", ok=True, store_dir=tmp_path)
+
+    assert (tmp_path / f"run_{run_id}.json").exists()
+    assert run_store.run_output_path(run_id, store_dir=tmp_path).name == f"run_{run_id}.h5"
 
 
 def test_load_run_results_rejects_a_failed_run(tmp_path):

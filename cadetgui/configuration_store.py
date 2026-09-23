@@ -193,12 +193,19 @@ def save_to_store(
     subfolder/file is reused (its metadata updated) instead of creating a
     duplicate copy under the new name -- the folder simply keeps whichever
     name first saved that content. Returns the path.
+
+    The `config_` filename prefix distinguishes it at a glance from a run's
+    own `run_<run_id>.h5` raw solver output, which can live in the same
+    per-configuration folder (see `run_store.run_output_path`).
     """
     store_dir = store_dir or default_store_dir()
     store_dir.mkdir(parents=True, exist_ok=True)
     hash_ = compute_hash(state)
-    existing = next(store_dir.glob(f"*/{hash_}.h5"), None)
-    path = existing if existing is not None else config_dir(name, store_dir=store_dir) / f"{hash_}.h5"
+    existing = next(store_dir.glob(f"*/config_{hash_}.h5"), None)
+    path = (
+        existing if existing is not None
+        else config_dir(name, store_dir=store_dir) / f"config_{hash_}.h5"
+    )
     save_h5(state, name, path, process=process)
     return path
 
@@ -213,7 +220,7 @@ def load_from_store(
     configuration subfolder is searched.
     """
     store_dir = store_dir or default_store_dir()
-    path = next(store_dir.glob(f"*/{hash_}.h5"), None)
+    path = next(store_dir.glob(f"*/config_{hash_}.h5"), None)
     if path is None:
         raise FileNotFoundError(f"No saved configuration with hash {hash_!r} in {store_dir}.")
     return load_h5(path)
@@ -224,15 +231,16 @@ def list_store(*, store_dir: Optional[Path] = None) -> List[Tuple[str, str]]:
 
     Silently skips any file that isn't a valid saved configuration (e.g. a
     plain CADET-Core h5 someone dropped into a configuration's subfolder by
-    hand, or a run's own raw solver-output h5 sitting alongside it).
+    hand). The `config_` glob already excludes a run's own raw solver-output
+    h5 sitting alongside it (see `run_store.run_output_path`'s `run_` prefix).
     """
     store_dir = store_dir or default_store_dir()
-    paths = sorted(store_dir.glob("*/*.h5"), key=lambda p: p.stat().st_mtime, reverse=True)
+    paths = sorted(store_dir.glob("*/config_*.h5"), key=lambda p: p.stat().st_mtime, reverse=True)
     entries = []
     for path in paths:
         try:
             name, _ = load_h5(path)
         except Exception:  # noqa: BLE001
             continue
-        entries.append((name, path.stem))
+        entries.append((name, path.stem.removeprefix("config_")))
     return entries

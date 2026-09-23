@@ -32,8 +32,8 @@ class SolutionWidget:
         self.result: Any = None
         self._config_widget: Optional[Any] = None
         self._listeners: list[Callable[[], None]] = []
-        # Once the user explicitly sets the run history's own folder (via its
-        # "Show details" -> "Set folder"), auto-following the bound
+        # Once the user explicitly sets the run history's own folder (via
+        # "Save Options" -> "Set folder"), auto-following the bound
         # configuration's folder stops -- see `_sync_history_store_dir`.
         self._history_store_dir_overridden = False
 
@@ -51,7 +51,12 @@ class SolutionWidget:
             on_manual_store_dir_change=self._on_history_store_dir_manually_set
         )
 
-        self._btn_save_outputs = W.Button(description="Save simulation outputs", icon="save")
+        # "Save Options" groups everything about *where*/*what* gets written
+        # to disk in one place: the run history's storage folder (normally
+        # just following the bound configuration, see `_sync_history_store_dir`,
+        # but overridable here) together with what to save on demand for the
+        # currently shown result.
+        self._btn_save_options = W.Button(description="Save Options", icon="save")
         self._save_outputs_scope = ChoiceField(label="Signal(s):", options=[])
         self._save_outputs_plots_checkbox = W.Checkbox(
             description="Save plots (PNG)", value=True, indent=False
@@ -62,8 +67,10 @@ class SolutionWidget:
         self._btn_confirm_save_outputs = W.Button(description="Save", icon="check")
         self._save_outputs_status = W.HTML()
         self._save_outputs_status.add_class("cadetgui-status")
-        self._save_outputs_box = W.VBox(
+        self._save_options_box = W.VBox(
             [
+                W.HBox([self.history._store_dir_field, self.history._btn_set_store_dir]),
+                W.HTML("<hr>"),
                 self._save_outputs_scope,
                 self._save_outputs_plots_checkbox,
                 self._save_outputs_csv_checkbox,
@@ -76,7 +83,7 @@ class SolutionWidget:
         self._btn_run.on_click(self._on_run)
         self._btn_clear.on_click(self._on_clear)
         self._btn_load_config.on_click(self._on_load_config)
-        self._btn_save_outputs.on_click(self._on_toggle_save_outputs)
+        self._btn_save_options.on_click(self._on_toggle_save_options)
         self._btn_confirm_save_outputs.on_click(self._on_confirm_save_outputs)
         self._signal_picker.observe(self._on_signal_change, names="selected_index")
         self.history.add_listener(self._on_history_pick)
@@ -97,8 +104,8 @@ class SolutionWidget:
                 W.HTML("<div class='cadetgui-panel-title'>Solution</div>"),
                 toolbar,
                 history_row,
-                self._btn_save_outputs,
-                self._save_outputs_box,
+                self._btn_save_options,
+                self._save_options_box,
                 self._signal_picker,
                 self._plot_out,
                 self.status,
@@ -137,8 +144,8 @@ class SolutionWidget:
         already defaults to a real folder (`~/.cadetgui/configurations`) even
         when the user never set one explicitly, so this always resolves to
         somewhere real. Picking a different folder for the run history is
-        still possible, just tucked under its own "Show details" rather than
-        offered as a first-class choice (see `_sync_history_store_dir`).
+        still possible, just tucked under "Save Options" rather than offered
+        as a first-class choice (see `_sync_history_store_dir`).
         """
         self._config_widget = config_widget
         config_widget.add_listener(self.set_process)
@@ -349,15 +356,15 @@ class SolutionWidget:
         options = [("All outputs", "__all__"), *classify_signal_ports(self.result)]
         self._save_outputs_scope.set_options(options, keep_value=True)
 
-    def _on_toggle_save_outputs(self, _btn: Any) -> None:
-        shown = toggle_box(self._save_outputs_box)
-        self._btn_save_outputs.description = "Hide save options" if shown else "Save simulation outputs"
+    def _on_toggle_save_options(self, _btn: Any) -> None:
+        shown = toggle_box(self._save_options_box)
+        self._btn_save_options.description = "Hide Save Options" if shown else "Save Options"
 
     def _on_confirm_save_outputs(self, _btn: Any) -> None:
         """Save the currently loaded result's plots and/or raw data, on demand.
 
         Scope (all signals vs. one) and which artifact types (PNG/CSV) come
-        from the panel `_on_toggle_save_outputs` reveals -- this only ever
+        from the panel `_on_toggle_save_options` reveals -- this only ever
         acts on `self.result`, whatever's currently shown (a fresh run or a
         past one picked from history), never a whole run's worth implicitly.
         """

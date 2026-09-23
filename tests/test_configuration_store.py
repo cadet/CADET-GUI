@@ -89,7 +89,7 @@ def test_save_to_store_and_load_from_store_round_trip(tmp_path):
     state = _sample_state()
     path = save_to_store(state, "My Config", store_dir=tmp_path)
 
-    assert path.name == f"{compute_hash(state)}.h5"
+    assert path.name == f"config_{compute_hash(state)}.h5"
     assert path.parent == tmp_path / "My_Config"
     name, loaded = load_from_store(compute_hash(state), store_dir=tmp_path)
     assert name == "My Config"

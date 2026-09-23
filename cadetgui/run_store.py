@@ -23,7 +23,7 @@ __all__ = [
 
 @dataclass(frozen=True)
 class RunRecordState:
-    """Persisted run metadata. The raw CADET-Core output (if any) is a sibling `<run_id>.h5`."""
+    """Persisted run metadata. The raw CADET-Core output (if any) is a sibling `run_<run_id>.h5`."""
 
     run_id: str
     label: str
@@ -43,12 +43,18 @@ def default_run_store_dir() -> Path:
 
 
 def new_run_id() -> str:
-    """Return a fresh identifier for one run, shared by its manifest and raw-output file."""
-    return uuid.uuid4().hex
+    """Return a fresh identifier for one run, shared by its manifest and raw-output file.
+
+    Timestamp-first so a folder's files sort chronologically and are
+    recognizable at a glance rather than as opaque hex -- the trailing hex
+    suffix only exists to keep two runs started in the same second unique,
+    not for identification.
+    """
+    return f"{dt.datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:6]}"
 
 
 def _manifest_path(run_id: str, store_dir: Path) -> Path:
-    return store_dir / f"{run_id}.json"
+    return store_dir / f"run_{run_id}.json"
 
 
 def run_output_path(run_id: str, *, store_dir: Optional[Path] = None) -> Path:
@@ -56,9 +62,12 @@ def run_output_path(run_id: str, *, store_dir: Optional[Path] = None) -> Path:
 
     Only meaningful for the file-based simulator path (`Cadet(use_dll=False)`,
     the default) -- a run made via the CAPI (`use_dll=True`) never writes one.
+    The `run_` prefix (matching its manifest) distinguishes it at a glance
+    from a configuration's own `config_<hash>.h5` sitting in the same
+    per-configuration folder (see `configuration_store.config_dir`).
     """
     store_dir = store_dir or default_run_store_dir()
-    return store_dir / f"{run_id}.h5"
+    return store_dir / f"run_{run_id}.h5"
 
 
 def save_run(
@@ -104,7 +113,7 @@ def load_run(run_id: str, *, store_dir: Optional[Path] = None) -> RunRecordState
 def list_runs(*, store_dir: Optional[Path] = None) -> List[RunRecordState]:
     """List every recorded run, newest first. Silently skips unreadable manifests."""
     store_dir = store_dir or default_run_store_dir()
-    paths = sorted(store_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    paths = sorted(store_dir.glob("run_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
     records = []
     for path in paths:
         try:
