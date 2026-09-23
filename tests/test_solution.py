@@ -196,6 +196,21 @@ def test_solutionwidget_save_options_panel_starts_hidden():
     assert sw._btn_save_options.description == "Hide Save Options"
 
 
+def test_solutionwidget_save_options_button_uses_a_chevron_not_a_save_icon():
+    # The floppy-disk icon belongs on the button that actually saves
+    # something (_btn_confirm_save_outputs); this one only expands a panel.
+    sw = SolutionWidget()
+    assert sw._btn_save_options.icon == "chevron-down"
+    assert sw._btn_confirm_save_outputs.icon == "save"
+
+
+def test_solutionwidget_layout_places_save_options_below_the_plot():
+    sw = SolutionWidget()
+    children = list(sw.root.children)
+    assert children.index(sw._plot_out) < children.index(sw._btn_save_options)
+    assert children.index(sw._btn_save_options) < children.index(sw._save_options_box)
+
+
 def test_solutionwidget_save_options_panel_contains_the_storage_folder_field():
     # The folder override and the save-outputs controls live in one combined
     # panel now, not two separate "Show details"/"Save simulation outputs"
@@ -212,8 +227,7 @@ def test_solutionwidget_running_alone_saves_nothing_on_disk(tmp_path):
     sw.history.store_dir = tmp_path
     sw._on_run(None)
 
-    assert list(tmp_path.glob("*.png")) == []
-    assert list(tmp_path.glob("*.csv")) == []
+    assert not (tmp_path / "results").exists()
 
 
 def test_solutionwidget_save_outputs_all_signals_both_types(tmp_path):
@@ -226,12 +240,14 @@ def test_solutionwidget_save_outputs_all_signals_both_types(tmp_path):
     sw._save_outputs_scope.value = "__all__"
     sw._on_confirm_save_outputs(None)
 
-    pngs = list(tmp_path.glob("*.png"))
-    csvs = list(tmp_path.glob("*.csv"))
+    results_dir = tmp_path / "results"
+    pngs = list(results_dir.glob("*.png"))
+    csvs = list(results_dir.glob("*.csv"))
     n_signals = len(sw._signal_picker.option_labels)
     assert len(pngs) == n_signals
     assert len(csvs) == n_signals
     assert "Saved" in sw._save_outputs_status.value
+    assert str(results_dir) in sw._save_outputs_status.value
 
 
 def test_solutionwidget_save_outputs_csv_only(tmp_path):
@@ -244,8 +260,9 @@ def test_solutionwidget_save_outputs_csv_only(tmp_path):
     sw._save_outputs_scope.value = "__all__"
     sw._on_confirm_save_outputs(None)
 
-    assert list(tmp_path.glob("*.png")) == []
-    assert len(list(tmp_path.glob("*.csv"))) == len(sw._signal_picker.option_labels)
+    results_dir = tmp_path / "results"
+    assert list(results_dir.glob("*.png")) == []
+    assert len(list(results_dir.glob("*.csv"))) == len(sw._signal_picker.option_labels)
 
 
 def test_solutionwidget_save_outputs_specific_signal_only(tmp_path):
@@ -259,8 +276,9 @@ def test_solutionwidget_save_outputs_specific_signal_only(tmp_path):
     sw._save_outputs_scope.value = specific
     sw._on_confirm_save_outputs(None)
 
-    assert len(list(tmp_path.glob("*.png"))) == 1
-    assert list(tmp_path.glob("*.csv")) == []
+    results_dir = tmp_path / "results"
+    assert len(list(results_dir.glob("*.png"))) == 1
+    assert list(results_dir.glob("*.csv")) == []
 
 
 def test_solutionwidget_save_outputs_does_nothing_when_neither_type_is_selected(tmp_path):
@@ -272,8 +290,7 @@ def test_solutionwidget_save_outputs_does_nothing_when_neither_type_is_selected(
     sw._save_outputs_csv_checkbox.value = False
     sw._on_confirm_save_outputs(None)
 
-    assert list(tmp_path.glob("*.png")) == []
-    assert list(tmp_path.glob("*.csv")) == []
+    assert not (tmp_path / "results").exists()
     assert "Nothing selected" in sw._save_outputs_status.value
 
 
@@ -295,7 +312,7 @@ def test_solutionwidget_save_outputs_names_files_by_run_id(tmp_path):
     sw._save_outputs_scope.value = "__all__"
     sw._on_confirm_save_outputs(None)
 
-    pngs = list(tmp_path.glob("*.png"))
+    pngs = list((tmp_path / "results").glob("*.png"))
     assert pngs
     assert all(p.name.startswith(run_id) for p in pngs)
 

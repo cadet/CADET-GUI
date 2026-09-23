@@ -56,7 +56,7 @@ class SolutionWidget:
         # just following the bound configuration, see `_sync_history_store_dir`,
         # but overridable here) together with what to save on demand for the
         # currently shown result.
-        self._btn_save_options = W.Button(description="Save Options", icon="save")
+        self._btn_save_options = W.Button(description="Save Options", icon="chevron-down")
         self._save_outputs_scope = ChoiceField(label="Signal(s):", options=[])
         self._save_outputs_plots_checkbox = W.Checkbox(
             description="Save plots (PNG)", value=True, indent=False
@@ -64,7 +64,7 @@ class SolutionWidget:
         self._save_outputs_csv_checkbox = W.Checkbox(
             description="Save data (CSV)", value=False, indent=False
         )
-        self._btn_confirm_save_outputs = W.Button(description="Save", icon="check")
+        self._btn_confirm_save_outputs = W.Button(description="Save", icon="save")
         self._save_outputs_status = W.HTML()
         self._save_outputs_status.add_class("cadetgui-status")
         self._save_options_box = W.VBox(
@@ -104,10 +104,10 @@ class SolutionWidget:
                 W.HTML("<div class='cadetgui-panel-title'>Solution</div>"),
                 toolbar,
                 history_row,
-                self._btn_save_options,
-                self._save_options_box,
                 self._signal_picker,
                 self._plot_out,
+                self._btn_save_options,
+                self._save_options_box,
                 self.status,
             ]
         )
@@ -367,6 +367,9 @@ class SolutionWidget:
         from the panel `_on_toggle_save_options` reveals -- this only ever
         acts on `self.result`, whatever's currently shown (a fresh run or a
         past one picked from history), never a whole run's worth implicitly.
+        Written into a "results" subfolder of the run history's storage
+        folder, kept separate from the configuration/run h5 files that live
+        directly in it.
         """
         if self.result is None:
             self._save_outputs_status.value = "<span style='color:#b00020'>No result to save.</span>"
@@ -399,6 +402,8 @@ class SolutionWidget:
             if run is not None and run.result is self.result and run.run_id
             else run_store.new_run_id()
         )
+        results_dir = self.history.store_dir / "results"
+        results_dir.mkdir(parents=True, exist_ok=True)
 
         import matplotlib.pyplot as plt
         import numpy as np
@@ -409,19 +414,19 @@ class SolutionWidget:
             stem = f"{stem_prefix}_{configuration_store.safe_config_dirname(f'{unit}_{port}')}"
             if save_plots:
                 fig, ax = solution.plot()
-                fig.savefig(self.history.store_dir / f"{stem}.png", dpi=150, bbox_inches="tight")
+                fig.savefig(results_dir / f"{stem}.png", dpi=150, bbox_inches="tight")
                 plt.close(fig)
                 saved += 1
             if save_csv:
                 data = np.column_stack([solution.time, solution.solution])
                 header = "time," + ",".join(solution.component_system.names)
                 np.savetxt(
-                    self.history.store_dir / f"{stem}.csv", data, delimiter=",",
+                    results_dir / f"{stem}.csv", data, delimiter=",",
                     header=header, comments="",
                 )
                 saved += 1
 
-        self._save_outputs_status.value = f"<em>Saved {saved} file(s) to {self.history.store_dir}.</em>"
+        self._save_outputs_status.value = f"<em>Saved {saved} file(s) to {results_dir}.</em>"
 
     def display(self) -> None:
         """Render this widget in a Jupyter cell."""
