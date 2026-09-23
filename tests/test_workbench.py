@@ -35,7 +35,7 @@ def test_workbench_wires_parameter_estimation_to_configuration():
     assert wb.solution.result is None  # the Simulation tab's own run state is untouched
 
 
-def test_workbench_shows_only_the_instrument_pane_initially():
+def test_workbench_shows_only_the_system_pane_initially():
     wb = WorkbenchWidget()
 
     assert wb.instrument.root.layout.display == ""
@@ -60,7 +60,9 @@ def test_workbench_instrument_edits_flow_through_to_configuration_and_solution()
     wb = WorkbenchWidget()
     first_process = wb.solution.process
 
-    wb.instrument.components = ["Salt", "Protein"]
+    # Components live on ConfigurationWidget now (item #32) -- it feeds the
+    # bound System topology, not the other way around.
+    wb.configuration.components = ["Salt", "Protein"]
 
     assert wb.solution.process is wb.configuration.process
     assert wb.solution.process is not first_process
@@ -97,22 +99,25 @@ def test_workbench_accepts_prebuilt_widgets():
 
 
 def test_workbench_include_builds_only_the_requested_steps():
-    wb = WorkbenchWidget(include=("Instrument", "Configuration", "Simulation"))
+    wb = WorkbenchWidget(include=("System", "Configuration", "Simulation"))
 
     assert wb.instrument is not None
     assert wb.configuration is not None
     assert wb.solution is not None
     assert wb.parameter_estimation is None
-    assert list(wb._nav.options) == ["Instrument", "Configuration", "Simulation"]
+    assert list(wb._nav.options) == ["System", "Configuration", "Simulation"]
     assert wb.solution.process is wb.configuration.process
 
 
-def test_workbench_excluding_instrument_leaves_configuration_unbound():
+def test_workbench_excluding_system_still_builds_a_standalone_configuration():
+    # Item #32: the System (Instrument) step is an optional layer, not a
+    # precondition -- ConfigurationWidget builds a real bare-column
+    # simulation on its own.
     wb = WorkbenchWidget(include=("Configuration", "Simulation"))
 
     assert wb.instrument is None
-    assert wb.configuration.process is None  # nothing to build against
-    assert wb.solution.process is None
+    assert wb.configuration.process is not None
+    assert wb.solution.process is wb.configuration.process
 
 
 def test_workbench_include_rejects_unknown_step():
