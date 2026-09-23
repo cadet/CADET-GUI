@@ -17,9 +17,17 @@ def _isolated_store(tmp_path, monkeypatch):
 
 
 def built():
-    """A default InstrumentWidget + bound ConfigurationWidget pair."""
+    """A default InstrumentWidget + bound ConfigurationWidget pair, with the
+    LC system explicitly turned on.
+
+    "Use LC system" itself defaults to off (see
+    `test_use_lc_system_toggle_defaults_to_off`) -- this module is mostly
+    about instrument-based behavior once it's on, so this helper turns it on
+    rather than every test doing so itself.
+    """
     iw = InstrumentWidget()
     cw = ConfigurationWidget(instrument=iw)
+    iw._use_lc_system_checkbox.value = True
     return iw, cw
 
 
@@ -651,17 +659,26 @@ def test_bypassing_column_builds_a_process_with_no_column_at_all():
     assert cw.process is not None  # the process template itself needs no column
 
 
-def test_unit_checkboxes_default_to_checked_meaning_every_unit_is_included():
-    iw, cw = built()
-    assert all(cb.value for cb in iw._unit_checkboxes.values())
-    assert iw.bypass_units() == []
+def test_unit_checkboxes_default_to_only_column_checked():
+    # A fresh InstrumentWidget, not `built()` -- that helper explicitly turns
+    # "Use LC system" on for the rest of this module, which would hide the
+    # real default this test is checking.
+    iw = InstrumentWidget()
+    assert iw._unit_checkboxes["column"].value is True
+    assert all(
+        cb.value is False for name, cb in iw._unit_checkboxes.items() if name != "column"
+    )
+    assert set(iw.bypass_units()) == set(iw._unit_checkboxes) - {"column"}
 
 
-def test_use_lc_system_toggle_defaults_to_on():
-    iw, cw = built()
-    assert iw.enabled is True
-    assert iw._flow_path_section.layout.display == ""
-    assert type(cw.process).__name__ == "PulseInjection"
+def test_use_lc_system_toggle_defaults_to_off():
+    iw = InstrumentWidget()
+    cw = ConfigurationWidget(instrument=iw)
+    assert iw.enabled is False
+    assert iw._flow_path_section.layout.display == "none"
+    # Standalone build, same as if no InstrumentWidget were bound at all.
+    assert type(cw.process).__name__ == "Process"
+    assert cw.process.name == "pulse_feed"
 
 
 def test_disabling_use_lc_system_makes_cstr_selectable_and_builds_standalone():
@@ -838,7 +855,8 @@ def test_store_dir_defaults_to_none_and_uses_the_default_store(tmp_path):
 
     cw.persistence._on_save(None)
     # default store dir is monkeypatched to tmp_path by the isolated_store fixture
-    assert (tmp_path / f"{cw.config_hash}.h5").exists()
+    expected_dir = configuration_store.config_dir("Default Store Config", store_dir=tmp_path)
+    assert (expected_dir / f"config_{cw.config_hash}.h5").exists()
 
 
 def test_setting_a_custom_store_dir_is_used_for_save_and_import(tmp_path):
@@ -853,7 +871,8 @@ def test_setting_a_custom_store_dir_is_used_for_save_and_import(tmp_path):
     assert custom.is_dir()  # created on set, even before anything is saved
 
     cw.persistence._on_save(None)
-    assert (custom / f"{cw.config_hash}.h5").exists()
+    expected_dir = configuration_store.config_dir("Custom Folder Config", store_dir=custom)
+    assert (expected_dir / f"config_{cw.config_hash}.h5").exists()
 
     _, cw2 = built()
     cw2.persistence._store_dir_field.value = str(custom)
@@ -941,7 +960,8 @@ def test_persist_to_store_saves_and_returns_the_path(tmp_path):
 
     path = cw.persist_to_store()
 
-    assert path == tmp_path / f"{cw.config_hash}.h5"
+    expected_dir = configuration_store.config_dir("Persisted Config", store_dir=tmp_path)
+    assert path == expected_dir / f"config_{cw.config_hash}.h5"
     assert path.exists()
 
 
