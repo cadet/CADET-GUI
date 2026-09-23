@@ -162,7 +162,16 @@ def run_optimization(
     except Exception as exc:  # noqa: BLE001
         return OptimizerRunResult({}, None, False, str(exc))
 
-    problem.set_variables(results.x[0])  # write the best point onto the evaluation object(s)
+    # `results.x[0]` is the full, dependency-resolved point (one entry per
+    # `problem.variable_names`, in that order -- confirmed live: a dependent
+    # variable's resolved value is included, not just the independent ones a
+    # mid-run objective evaluation receives). `set_variables` accepts exactly
+    # that shape for a problem with no dependent variables (every current
+    # caller: cadetgui's own hand-built estimation problems, and every
+    # CADETProcess.characterization.CharacterizeXxx stage this module
+    # supports never uses `add_variable_dependency`); a problem that does
+    # isn't supported here.
+    problem.set_variables(results.x[0])
     x_best = dict(zip(problem.variable_names, (float(v) for v in results.x[0])))
     return OptimizerRunResult(x_best, float(results.f_best[0]), True, "Optimization finished.")
 
