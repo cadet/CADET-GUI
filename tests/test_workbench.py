@@ -18,8 +18,10 @@ def _isolated_store(tmp_path, monkeypatch):
 def test_workbench_builds_and_wires_the_four_widgets():
     wb = WorkbenchWidget()
 
-    assert wb.instrument.flow_sheet is not None  # auto-committed on construction
-    assert wb.configuration.process is not None  # bind_to_instrument picked it up
+    # "Use LC system" defaults to off -- configuration still auto-builds a
+    # standalone process (same fallback as no InstrumentWidget bound at all).
+    assert wb.instrument.flow_sheet is None
+    assert wb.configuration.process is not None  # standalone build, auto-committed
     assert wb.solution.process is wb.configuration.process  # bind_to_config picked it up
 
 
