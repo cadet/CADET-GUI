@@ -34,6 +34,20 @@ def built_process():
     return built_configuration().process
 
 
+def built_process_with_instrument():
+    """Like `built_process()`, but with "Use LC system" explicitly turned on.
+
+    For tests that specifically need the LCFlowSheet-based process (its
+    buffer/feed/waste units etc.), not just any valid process -- most tests
+    in this module don't care which template built it, so `built_process()`
+    stays on the (now standalone-by-default) plain path.
+    """
+    iw = InstrumentWidget()
+    cw = ConfigurationWidget(instrument=iw)
+    iw._use_lc_system_checkbox.value = True
+    return cw.process
+
+
 def test_solutionwidget_starts_with_no_process():
     sw = SolutionWidget()
     assert sw.process is None
@@ -42,7 +56,7 @@ def test_solutionwidget_starts_with_no_process():
 
 def test_solutionwidget_set_process_updates_label():
     sw = SolutionWidget()
-    sw.set_process(built_process())
+    sw.set_process(built_process_with_instrument())
     assert "pulse_injection" in sw._process_label.value
 
 
@@ -357,7 +371,7 @@ def test_signal_list_collapses_inlet_and_outlet_units_to_one_entry_each():
     # An LCFlowSheet has many Inlet units (buffer_a..d, feed_inlet) and two
     # Outlets (outlet, waste); non-Inlet/Outlet units (column, tubing, mixer)
     # still expose both raw ports.
-    sw = SolutionWidget(process=built_process())
+    sw = SolutionWidget(process=built_process_with_instrument())
     sw._on_run(None)
 
     labels = sw._signal_picker.option_labels
@@ -371,7 +385,7 @@ def test_signal_list_collapses_inlet_and_outlet_units_to_one_entry_each():
 
 
 def test_signal_list_source_and_sink_options_point_at_the_real_port():
-    sw = SolutionWidget(process=built_process())
+    sw = SolutionWidget(process=built_process_with_instrument())
     sw._on_run(None)
 
     options = dict(sw._signal_picker._options)
@@ -394,7 +408,7 @@ def test_classify_signal_ports_is_usable_standalone_from_the_adapter():
     from cadetgui.cadetprocessadapter import classify_signal_ports
     from cadetgui.simulation import run_process
 
-    process = built_process()
+    process = built_process_with_instrument()
     result = run_process(process)
     options = dict(classify_signal_ports(result))
     assert options["feed_inlet: Source"] == ("feed_inlet", "outlet")
