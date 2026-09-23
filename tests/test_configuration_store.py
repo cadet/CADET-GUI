@@ -22,9 +22,6 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 def _sample_instrument(**overrides) -> InstrumentState:
     defaults = dict(
-        components=["Salt", "Protein"],
-        column_key="Lumped Rate Model Without Pores (LRM)",
-        binding_key="Linear",
         include_sample_loop=True,
         sample_loop_volume=50e-9,
         sample_loop_diameter_auto=True,
@@ -35,10 +32,15 @@ def _sample_instrument(**overrides) -> InstrumentState:
     return InstrumentState(**defaults)
 
 
-def _sample_state(*, instrument: InstrumentState | None = None, **overrides) -> ConfigurationState:
+def _sample_state(
+    *, instrument: InstrumentState | None = "__default__", **overrides
+) -> ConfigurationState:
     defaults = dict(
-        instrument=instrument or _sample_instrument(),
+        components=["Salt", "Protein"],
+        column_key="Lumped Rate Model Without Pores (LRM)",
+        binding_key="Linear",
         template_key="Load–Wash–Elute (LWE)",
+        instrument=_sample_instrument() if instrument == "__default__" else instrument,
         multiplex_state={"axial_dispersion": False},
         show_optional_column=False,
         show_optional_binding=True,
@@ -72,6 +74,40 @@ def test_save_and_load_h5_round_trips_the_full_state(tmp_path):
     assert name == "My Config"
     assert loaded == state
     assert compute_hash(loaded) == compute_hash(state)
+
+
+def test_save_and_load_h5_round_trips_a_standalone_state_with_no_instrument(tmp_path):
+    # HDF5 has no NoneType -- instrument=None must round-trip cleanly, not
+    # crash on save or come back as some other falsy value on load.
+    state = _sample_state(instrument=None)
+    path = tmp_path / "standalone.h5"
+
+    save_h5(state, "Standalone Config", path)
+    name, loaded = load_h5(path)
+
+    assert name == "Standalone Config"
+    assert loaded == state
+    assert loaded.instrument is None
+
+
+def test_save_and_load_h5_round_trips_nested_unit_values(tmp_path):
+    # unit_values is a dict-of-dicts (per mixer/tubing unit) -- make sure the
+    # H5 round trip doesn't flatten or mangle the nesting.
+    state = _sample_state(
+        instrument=_sample_instrument(
+            unit_values={
+                "mixer": {"init_liquid_volume": 2.5e-5},
+                "tubing_pre_column": {"length": 0.33, "diameter": 0.001, "axial_dispersion": 2e-8},
+            }
+        )
+    )
+    path = tmp_path / "unit_values.h5"
+
+    save_h5(state, "Nested Config", path)
+    _, loaded = load_h5(path)
+
+    assert loaded.instrument.unit_values == state.instrument.unit_values
+    assert loaded == state
 
 
 def test_load_h5_rejects_a_file_with_no_cadetgui_group(tmp_path):

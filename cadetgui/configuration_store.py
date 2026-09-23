@@ -29,24 +29,39 @@ __all__ = [
 
 @dataclass(frozen=True)
 class InstrumentState:
-    """The hashed, JSON-safe payload needed to reconstruct an InstrumentWidget."""
+    """The hashed, JSON-safe payload needed to reconstruct an InstrumentWidget.
 
-    components: List[str]
-    column_key: str
-    binding_key: str
+    Topology only -- component names and column/binding *type* now live
+    directly on `ConfigurationState` (its own pickers own that choice, see
+    ARCHITECTURE.md's "instrument attachment optional" section), not nested
+    in here.
+    """
+
+    use_lc_system: bool = True
     include_sample_loop: bool = True
     sample_loop_volume: float = 50e-9
     sample_loop_diameter_auto: bool = True
     sample_loop_diameter: float = 0.75e-3
     bypass_units: List[str] = field(default_factory=list)
+    # Per-unit parameter values for the mixer/tubing dead-volume units
+    # (`{"mixer": {"init_liquid_volume": ...}, "tubing_pre_column": {...}, ...}`),
+    # keyed by unit name -- see ARCHITECTURE.md's "Units In Flow Path" section.
+    unit_values: Dict[str, Dict[str, float]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
 class ConfigurationState:
-    """The hashed, JSON-safe payload needed to reconstruct a ConfigurationWidget."""
+    """The hashed, JSON-safe payload needed to reconstruct a ConfigurationWidget.
 
-    instrument: InstrumentState
+    `instrument` is `None` when no InstrumentWidget was bound -- the
+    configuration was a standalone bare-column simulation.
+    """
+
+    components: List[str]
+    column_key: str
+    binding_key: str
     template_key: str
+    instrument: Optional[InstrumentState] = None
     multiplex_state: Dict[str, bool] = field(default_factory=dict)
     show_optional_column: bool = False
     show_optional_binding: bool = False
@@ -126,12 +141,19 @@ def save_h5(
         except Exception:  # noqa: BLE001
             pass
 
+    # HDF5 has no NoneType -- `instrument=None` (standalone config, no
+    # InstrumentWidget bound) is stored as an empty dict instead; load_h5
+    # treats an empty/missing "instrument" the same way.
+    payload = asdict(state)
+    if payload.get("instrument") is None:
+        payload["instrument"] = {}
+
     h5.root.cadetgui = {
         "name": name,
         "hash": compute_hash(state),
         "created": dt.datetime.now().isoformat(),
         "cadetgui_version": _cadetgui_version,
-        "state": asdict(state),
+        "state": payload,
     }
     h5.filename = str(path)
     h5.save()
@@ -153,20 +175,28 @@ def load_h5(path: "Path | str") -> Tuple[str, ConfigurationState]:
         raise ValueError(f"{path} has no 'cadetgui' group -- not a saved configuration.")
 
     payload = gui["state"]
-    instrument_payload = payload["instrument"]
-    instrument = InstrumentState(
-        components=instrument_payload["components"],
-        column_key=instrument_payload["column_key"],
-        binding_key=instrument_payload["binding_key"],
-        include_sample_loop=instrument_payload.get("include_sample_loop", True),
-        sample_loop_volume=instrument_payload.get("sample_loop_volume", 50e-9),
-        sample_loop_diameter_auto=instrument_payload.get("sample_loop_diameter_auto", True),
-        sample_loop_diameter=instrument_payload.get("sample_loop_diameter", 0.75e-3),
-        bypass_units=list(instrument_payload.get("bypass_units", [])),
+    instrument_payload = payload.get("instrument") or {}
+    instrument = (
+        InstrumentState(
+            use_lc_system=instrument_payload.get("use_lc_system", True),
+            include_sample_loop=instrument_payload.get("include_sample_loop", True),
+            sample_loop_volume=instrument_payload.get("sample_loop_volume", 50e-9),
+            sample_loop_diameter_auto=instrument_payload.get("sample_loop_diameter_auto", True),
+            sample_loop_diameter=instrument_payload.get("sample_loop_diameter", 0.75e-3),
+            bypass_units=list(instrument_payload.get("bypass_units", [])),
+            unit_values={
+                k: dict(v) for k, v in instrument_payload.get("unit_values", {}).items()
+            },
+        )
+        if instrument_payload
+        else None
     )
     state = ConfigurationState(
-        instrument=instrument,
+        components=payload["components"],
+        column_key=payload["column_key"],
+        binding_key=payload["binding_key"],
         template_key=payload["template_key"],
+        instrument=instrument,
         multiplex_state=payload.get("multiplex_state", {}),
         show_optional_column=payload.get("show_optional_column", False),
         show_optional_binding=payload.get("show_optional_binding", False),
