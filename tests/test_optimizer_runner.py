@@ -61,11 +61,25 @@ def test_run_optimization_stops_promptly_once_cancelled():
         time.sleep(0.3)
         cancel_event.set()
 
+    # A tiny per-evaluation sleep -- otherwise this trivial 2-variable
+    # quadratic converges in well under 0.3s and the cancel below never
+    # actually races a still-running optimization.
+    def slow_problem() -> OptimizationProblem:
+        def objective(v):
+            time.sleep(0.05)
+            return (v[0] - 2.0) ** 2 + (v[1] + 1.0) ** 2
+
+        problem = OptimizationProblem("slow_trivial")
+        problem.add_variable("x", lb=-5, ub=5, transform="auto")
+        problem.add_variable("y", lb=-5, ub=5, transform="auto")
+        problem.add_objective(objective)
+        return problem
+
     threading.Thread(target=cancel_soon, daemon=True).start()
 
     start = time.monotonic()
     result = run_optimization(
-        _trivial_problem(), "Nelder-Mead", {"maxiter": 100_000}, x0=[0.0, 0.0],
+        slow_problem(), "Nelder-Mead", {"maxiter": 100_000}, x0=[0.0, 0.0],
         cancel_event=cancel_event,
     )
     elapsed = time.monotonic() - start
