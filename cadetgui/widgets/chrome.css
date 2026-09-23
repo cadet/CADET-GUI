@@ -83,14 +83,18 @@
 /* A lighter, un-bordered nested box inside a .cadetgui-section -- e.g. one
    flow-path unit's own toggle + parameter form, or the sample loop's own
    toggle + fields, each visually distinct from its sibling units instead of
-   sitting flush at the same level as the section's own controls. */
+   sitting flush at the same level as the section's own controls. A light
+   horizontal rule *between* consecutive subsections reads as a plainer list
+   separator than a vertical bar down the side of each one. */
 .cadetgui-subsection {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px 10px 8px 14px;
-  border-left: 2px solid var(--cg-border);
-  border-radius: 0 var(--cg-radius) var(--cg-radius) 0;
+  padding: 10px 4px;
+}
+
+.cadetgui-subsection + .cadetgui-subsection {
+  border-top: 1px solid color-mix(in srgb, var(--cg-border) 55%, transparent);
 }
 
 .cadetgui-subsection .cadetgui-field {
