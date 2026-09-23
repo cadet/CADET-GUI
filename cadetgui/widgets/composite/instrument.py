@@ -115,7 +115,7 @@ class InstrumentWidget:
         self._unit_forms: Dict[str, FormRenderer] = {}
 
         self._use_lc_system_checkbox = W.Checkbox(
-            description="Use LC system", value=True, indent=False
+            description="Use LC system", value=False, indent=False
         )
         self._use_lc_system_checkbox.observe(self._on_use_lc_system_change, names="value")
 
@@ -132,11 +132,13 @@ class InstrumentWidget:
             label="Sample loop diameter", value=0.75e-3, units="m",
         )
 
-        # Checked by default -- every unit starts in the flow path;
-        # unchecking one removes it (e.g. to characterize the system before
-        # adding a column).
+        # Only "column" starts checked -- the minimal useful flow path once
+        # "Use LC system" is turned on; mixer/tubing segments are opt-in from
+        # there (e.g. to characterize the system before adding periphery).
         self._unit_checkboxes: Dict[str, W.Checkbox] = {
-            name: W.Checkbox(description=_UNIT_LABELS[name], value=True, indent=False)
+            name: W.Checkbox(
+                description=_UNIT_LABELS[name], value=(name == "column"), indent=False
+            )
             for name in BYPASSABLE_UNITS
         }
         # Filled in by _rebuild_unit_forms() with each configurable unit's
