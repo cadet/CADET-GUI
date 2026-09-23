@@ -9,6 +9,7 @@ import ipywidgets as W
 
 from ... import run_store
 from .._chrome import style_tag
+from .._settings_popover import toggle_box
 from ..elements import ChoiceField, TextField
 
 __all__ = ["RunHistoryWidget", "RunRecord"]
@@ -45,29 +46,48 @@ class RunHistoryWidget:
     Callers `record()` a run and `add_listener()` to react when the user picks
     one to view.
 
-    In-memory only unless `store_dir` is set (constructor kwarg, or the
-    "Storage folder" field): a run history is only as project-scoped as the
-    folder it's pointed at -- there is no other scoping concept, separating
-    projects means using separate folders.
+    `store_dir` (constructor kwarg, or the "Storage folder" field hidden
+    under "Show details") is usually left to whatever a caller drives it to
+    (e.g. `SolutionWidget` follows its bound configuration's own folder) --
+    a run history is only as project-scoped as the folder it's pointed at,
+    there is no other scoping concept, separating projects means using
+    separate folders. `on_manual_store_dir_change`, if given, fires with the
+    new folder whenever the user sets one through the "Set folder" button
+    specifically (not on a programmatic `store_dir =`), so a caller doing its
+    own auto-following can tell a deliberate user override from its own sync.
     """
 
-    def __init__(self, *, store_dir: "Path | str | None" = None) -> None:
+    def __init__(
+        self,
+        *,
+        store_dir: "Path | str | None" = None,
+        on_manual_store_dir_change: Optional[Callable[[Optional[Path]], None]] = None,
+    ) -> None:
         self.runs: List[RunRecord] = []
         self._listeners: List[Callable[[RunRecord], None]] = []
         self._store_dir: Optional[Path] = None
+        self._on_manual_store_dir_change = on_manual_store_dir_change
 
         self._picker = ChoiceField(label="Run:", options=[])
         self._picker.observe(self._on_pick, names="selected_index")
 
+        self._btn_toggle_details = W.Button(description="Show details", icon="chevron-down")
+        self._btn_toggle_details.on_click(self._on_toggle_details)
+
         self._store_dir_field = TextField(label="Storage folder:", value="")
         self._btn_set_store_dir = W.Button(description="Set folder", icon="folder-open")
         self._btn_set_store_dir.on_click(self._on_set_store_dir)
+        self._details_box = W.VBox(
+            [W.HBox([self._store_dir_field, self._btn_set_store_dir])],
+            layout=W.Layout(display="none"),
+        )
 
         self.root = W.VBox(
             [
                 W.HTML(style_tag()),
                 self._picker,
-                W.HBox([self._store_dir_field, self._btn_set_store_dir]),
+                self._btn_toggle_details,
+                self._details_box,
             ]
         )
         self.root.add_class("cadetgui-panel")
@@ -190,7 +210,13 @@ class RunHistoryWidget:
         try:
             self.store_dir = self._store_dir_field.value.strip() or None
         except Exception:  # noqa: BLE001
-            pass
+            return
+        if self._on_manual_store_dir_change is not None:
+            self._on_manual_store_dir_change(self.store_dir)
+
+    def _on_toggle_details(self, _btn: Any) -> None:
+        shown = toggle_box(self._details_box)
+        self._btn_toggle_details.description = "Hide details" if shown else "Show details"
 
     def _on_pick(self, change: dict) -> None:
         if change.get("name") != "selected_index":

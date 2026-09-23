@@ -78,11 +78,22 @@ def test_solutionwidget_bind_to_config_adopts_an_already_set_store_dir(tmp_path)
     assert sw.history.store_dir == expected
 
 
+def test_solutionwidget_bind_to_config_defaults_to_the_configuration_folder_even_unset(tmp_path):
+    # `default_store_dir` is monkeypatched to `tmp_path` by `_isolated_store` --
+    # so this exercises "the configuration folder itself defaults to a real
+    # folder" without the user (or the test) ever setting one explicitly.
+    cw = built_configuration()
+    sw = SolutionWidget()
+    sw.bind_to_config(cw)
+
+    expected = configuration_store.config_dir(cw.config_name, store_dir=None)
+    assert sw.history.store_dir == expected
+
+
 def test_solutionwidget_bind_to_config_follows_later_store_dir_changes(tmp_path):
     cw = built_configuration()
     sw = SolutionWidget()
     sw.bind_to_config(cw)
-    assert sw.history.store_dir is None
 
     cw.persistence._store_dir_field.value = str(tmp_path / "project")
     cw.persistence._on_set_store_dir(None)
@@ -92,18 +103,43 @@ def test_solutionwidget_bind_to_config_follows_later_store_dir_changes(tmp_path)
 
 
 def test_solutionwidget_bind_to_config_does_not_override_an_explicit_history_folder(tmp_path):
+    # The override has to come through the run history's own "Set folder" UI
+    # -- a bare `history.store_dir = ...` assignment is what the auto-follow
+    # sync itself uses, so it can't be what distinguishes a deliberate
+    # override (see `_on_history_store_dir_manually_set`).
     own_dir = tmp_path / "runs-only"
     own_dir.mkdir()
     cw = built_configuration()
 
     sw = SolutionWidget()
-    sw.history.store_dir = own_dir
+    sw.history._store_dir_field.value = str(own_dir)
+    sw.history._on_set_store_dir(None)
     sw.bind_to_config(cw)
 
     cw.persistence._store_dir_field.value = str(tmp_path / "project")
     cw.persistence._on_set_store_dir(None)
 
     assert sw.history.store_dir == own_dir.resolve()
+
+
+def test_solutionwidget_resuming_auto_follow_by_clearing_the_override(tmp_path):
+    own_dir = tmp_path / "runs-only"
+    own_dir.mkdir()
+    cw = built_configuration()
+    cw.persistence.store_dir = tmp_path / "project"
+    (tmp_path / "project").mkdir()
+
+    sw = SolutionWidget()
+    sw.bind_to_config(cw)
+    sw.history._store_dir_field.value = str(own_dir)
+    sw.history._on_set_store_dir(None)
+    assert sw.history.store_dir == own_dir.resolve()
+
+    sw.history._store_dir_field.value = ""
+    sw.history._on_set_store_dir(None)
+
+    expected = configuration_store.config_dir(cw.config_name, store_dir=tmp_path / "project")
+    assert sw.history.store_dir == expected
 
 
 def test_solutionwidget_run_without_process_shows_error():
@@ -151,7 +187,18 @@ def test_solutionwidget_run_populates_signals_and_plots():
     assert "finished" in sw.status.value.lower()
 
 
-def test_solutionwidget_does_not_save_outputs_by_default(tmp_path):
+def test_solutionwidget_save_outputs_panel_starts_hidden():
+    sw = SolutionWidget(process=built_process())
+    assert sw._save_outputs_box.layout.display == "none"
+
+    sw._on_toggle_save_outputs(None)
+    assert sw._save_outputs_box.layout.display == ""
+    assert sw._btn_save_outputs.description == "Hide save options"
+
+
+def test_solutionwidget_running_alone_saves_nothing_on_disk(tmp_path):
+    # Confirming the save button is a separate, on-demand action -- not
+    # something that fires automatically just because a store_dir is set.
     sw = SolutionWidget(process=built_process())
     sw.history.store_dir = tmp_path
     sw._on_run(None)
@@ -160,25 +207,97 @@ def test_solutionwidget_does_not_save_outputs_by_default(tmp_path):
     assert list(tmp_path.glob("*.csv")) == []
 
 
-def test_solutionwidget_saves_outputs_when_opted_in(tmp_path):
+def test_solutionwidget_save_outputs_all_signals_both_types(tmp_path):
     sw = SolutionWidget(process=built_process())
     sw.history.store_dir = tmp_path
-    sw._save_outputs_checkbox.value = True
     sw._on_run(None)
+
+    sw._save_outputs_plots_checkbox.value = True
+    sw._save_outputs_csv_checkbox.value = True
+    sw._save_outputs_scope.value = "__all__"
+    sw._on_confirm_save_outputs(None)
 
     pngs = list(tmp_path.glob("*.png"))
     csvs = list(tmp_path.glob("*.csv"))
-    assert pngs  # one pair per signal
-    assert csvs
-    assert len(pngs) == len(csvs) == len(sw._signal_picker.option_labels)
+    n_signals = len(sw._signal_picker.option_labels)
+    assert len(pngs) == n_signals
+    assert len(csvs) == n_signals
+    assert "Saved" in sw._save_outputs_status.value
 
 
-def test_solutionwidget_does_not_save_outputs_without_a_store_dir():
+def test_solutionwidget_save_outputs_csv_only(tmp_path):
     sw = SolutionWidget(process=built_process())
-    sw._save_outputs_checkbox.value = True
-    sw._on_run(None)  # no store_dir set -- must not raise despite the checkbox
+    sw.history.store_dir = tmp_path
+    sw._on_run(None)
 
-    assert sw.result is not None
+    sw._save_outputs_plots_checkbox.value = False
+    sw._save_outputs_csv_checkbox.value = True
+    sw._save_outputs_scope.value = "__all__"
+    sw._on_confirm_save_outputs(None)
+
+    assert list(tmp_path.glob("*.png")) == []
+    assert len(list(tmp_path.glob("*.csv"))) == len(sw._signal_picker.option_labels)
+
+
+def test_solutionwidget_save_outputs_specific_signal_only(tmp_path):
+    sw = SolutionWidget(process=built_process())
+    sw.history.store_dir = tmp_path
+    sw._on_run(None)
+
+    specific = sw._signal_picker.value  # the default-selected (sink) signal
+    sw._save_outputs_plots_checkbox.value = True
+    sw._save_outputs_csv_checkbox.value = False
+    sw._save_outputs_scope.value = specific
+    sw._on_confirm_save_outputs(None)
+
+    assert len(list(tmp_path.glob("*.png"))) == 1
+    assert list(tmp_path.glob("*.csv")) == []
+
+
+def test_solutionwidget_save_outputs_does_nothing_when_neither_type_is_selected(tmp_path):
+    sw = SolutionWidget(process=built_process())
+    sw.history.store_dir = tmp_path
+    sw._on_run(None)
+
+    sw._save_outputs_plots_checkbox.value = False
+    sw._save_outputs_csv_checkbox.value = False
+    sw._on_confirm_save_outputs(None)
+
+    assert list(tmp_path.glob("*.png")) == []
+    assert list(tmp_path.glob("*.csv")) == []
+    assert "Nothing selected" in sw._save_outputs_status.value
+
+
+def test_solutionwidget_save_outputs_without_a_result_shows_an_error():
+    sw = SolutionWidget()
+    sw._on_confirm_save_outputs(None)
+
+    assert "No result" in sw._save_outputs_status.value
+
+
+def test_solutionwidget_save_outputs_names_files_by_run_id(tmp_path):
+    sw = SolutionWidget(process=built_process())
+    sw.history.store_dir = tmp_path
+    sw._on_run(None)
+    run_id = sw.history.selected.run_id
+
+    sw._save_outputs_plots_checkbox.value = True
+    sw._save_outputs_csv_checkbox.value = False
+    sw._save_outputs_scope.value = "__all__"
+    sw._on_confirm_save_outputs(None)
+
+    pngs = list(tmp_path.glob("*.png"))
+    assert pngs
+    assert all(p.name.startswith(run_id) for p in pngs)
+
+
+def test_solutionwidget_save_outputs_without_a_store_dir_shows_an_error():
+    sw = SolutionWidget(process=built_process())
+    sw._on_run(None)  # no store_dir set
+
+    sw._on_confirm_save_outputs(None)
+
+    assert "storage folder" in sw._save_outputs_status.value.lower()
 
 
 def test_signal_list_collapses_inlet_and_outlet_units_to_one_entry_each():
