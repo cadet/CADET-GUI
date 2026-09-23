@@ -307,9 +307,10 @@ class InstrumentWidget:
     def _make_on_unit_built(self, name: str) -> Callable[[Any], None]:
         def _on_built(built: Any) -> None:
             # Collapse CADET-Process's list-wrapped scalars (every field here
-            # is a plain, non-multiplexed FloatField -- see interface.json's
-            # "TubularReactor" entry) back to the bare float the form itself
-            # shows, not the raw (possibly `[v]`-wrapped) attribute.
+            # is a plain, non-multiplexed FloatField -- see
+            # cadetprocessadapter.py's `_FORCE_SCALAR` for "TubularReactor")
+            # back to the bare float the form itself shows, not the raw
+            # (possibly `[v]`-wrapped) attribute.
             values = {}
             for p in getattr(built, "required_parameters", []):
                 v = getattr(built, p)

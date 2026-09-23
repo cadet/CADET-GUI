@@ -461,7 +461,7 @@ MULTIPLEXABLE_COLUMN_PARAMS = frozenset({"axial_dispersion", "film_diffusion", "
 # segment gets no multiplex toggle at all, unlike MULTIPLEXABLE_COLUMN_PARAMS
 # above, so it must never render as a per-component list regardless of
 # `multiplex`. A GUI-layer decision (which fields to render, how), so it
-# lives here rather than in interface.json.
+# lives here rather than in cadetgui/parameters.
 _FORCE_SCALAR = frozenset({("TubularReactor", "axial_dispersion")})
 
 
@@ -470,9 +470,9 @@ def _category_and_model(obj: Any) -> tuple[Optional[str], str]:
     if isinstance(obj, BindingBaseClass):
         return "binding", model_name
     # TubularReactorBase covers both real columns (ChromatographicColumnBase,
-    # its subclass) and plain tubing/mixer dead-volume segments
-    # (TubularReactor itself -- see interface.json's "column"/"TubularReactor"
-    # entry, which shares the same length/diameter/axial_dispersion fields).
+    # its subclass) and plain tubing/mixer dead-volume segments (TubularReactor
+    # itself, which shares the same length/diameter/axial_dispersion
+    # descriptors, inherited from TubularReactorBase).
     if isinstance(obj, (TubularReactorBase, Cstr)):
         return "column", model_name
     return None, model_name
@@ -491,8 +491,8 @@ def _resolve_param(
     Ground truth comes from `parameters.get_parameters()` via
     `category`/`model_name` (nested per-model, since e.g. `Langmuir.capacity`
     and `StericMassAction.capacity` differ in shape despite the same name) --
-    `component_dependent`/`dtype`/bounds are introspected live off the real
-    CADET-Process descriptor there, not hand-typed; only `unit` is curated.
+    `component_dependent`/`dtype`/bounds/`unit` are all introspected live off
+    the real CADET-Process descriptor there, not hand-typed.
     Falls back to inferring from the object's current value for an
     unregistered category/model/parameter, or one live introspection
     couldn't resolve a real descriptor for. `multiplex` overrides
@@ -568,16 +568,10 @@ def build_parameter_config_spec(
     # hash seed -- confirmed by observing `total_porosity` and
     # `axial_dispersion` swap which one is index 0 between separate `python`
     # invocations of the identical code. The *set* of names is correct, only
-    # the order isn't. Re-order by this model's position in
-    # `parameters/interface.json` instead (a curated, deliberately-ordered
-    # schema) so the rendered field/checklist order is actually stable and
-    # doesn't reshuffle every time a user restarts their kernel.
-    if category is not None:
-        try:
-            schema_order = list(_param_metadata_for(category, model_name))
-        except KeyError:
-            schema_order = []
-        names.sort(key=lambda n: schema_order.index(n) if n in schema_order else len(schema_order))
+    # the order isn't. Sorting alphabetically sidesteps the hash-seed
+    # randomness entirely, giving a stable rendered field/checklist order
+    # without needing a curated ordering anywhere.
+    names.sort()
 
     # is_kinetic isn't in CADET-Process's own required_parameters, but every
     # binding model with a real isotherm needs it settable. `names` is only

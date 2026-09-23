@@ -1,15 +1,25 @@
 from __future__ import annotations
 
-from cadetgui.parameters import get_parameter, get_parameters, required_parameters
+from cadetgui.parameters import (
+    get_co_group,
+    get_parameter,
+    get_parameters,
+    required_parameters,
+)
 
 
-def test_column_shared_parameters_resolve_via_ref():
+def test_column_shared_parameters_match_across_models():
     grm = get_parameters("column", "GeneralRateModel")
     lrmp = get_parameters("column", "LumpedRateModelWithPores")
-    # bed_porosity is a $ref in LumpedRateModelWithPores pointing at GeneralRateModel's
-    # entry -- must resolve to the same actual dict, not stay a literal {"$ref": ...}.
+    # bed_porosity means the same thing (same unit/description) for both models --
+    # each is introspected live off its own model's descriptor, not shared/copied
+    # data, so this checks they actually agree rather than just trusting they do.
     assert lrmp["bed_porosity"] == grm["bed_porosity"]
-    assert "$ref" not in str(lrmp["bed_porosity"])
+
+
+def test_get_parameters_returns_names_alphabetically():
+    names = list(get_parameters("column", "GeneralRateModel"))
+    assert names == sorted(names)
 
 
 def test_column_shared_geometry_present_on_every_tubular_model():
@@ -146,14 +156,13 @@ def test_default_is_live_where_cadetprocess_has_one():
 
 
 def test_every_registered_parameter_resolves_a_real_live_descriptor():
-    # component_dependent/dtype/co_name are introspected off the actual
-    # CADET-Process descriptor now (cadetgui/parameters/__init__.py), not
-    # hand-typed in interface.json. If a future interface.json entry names a
-    # (category, model) not in _MODEL_CLASSES, or an attribute that isn't a
-    # real descriptor and has no `_name`-prefixed fallback (see `_descriptor`
-    # -- q/cp/surface_diffusion resolve this way), live introspection quietly
-    # returns nothing instead of raising -- this test is what catches that
-    # silently, everywhere the schema claims a model, in one place.
+    # component_dependent/dtype/co_name/unit/description are all introspected
+    # off the actual CADET-Process descriptor (cadetgui/parameters/__init__.py),
+    # nothing hand-typed. `get_parameters()` only includes names that already
+    # resolve to a real descriptor (see `_descriptor` -- q/cp/surface_diffusion
+    # resolve via their `_name`-prefixed private descriptor), so this test is
+    # mostly a smoke check that every registered (category, model) still does,
+    # everywhere _MODEL_CLASSES claims a model, in one place.
     for category, model in [
         ("column", "GeneralRateModel"),
         ("column", "LumpedRateModelWithPores"),
@@ -170,3 +179,22 @@ def test_every_registered_parameter_resolves_a_real_live_descriptor():
             assert "dtype" in meta, f"{category}/{model}/{name} has no live dtype"
             assert "component_dependent" in meta, f"{category}/{model}/{name} has no live shape"
             assert "co_name" in meta, f"{category}/{model}/{name} has no live co_name"
+            assert "unit" in meta, f"{category}/{model}/{name} has no live unit"
+            assert "description" in meta, f"{category}/{model}/{name} has no live description"
+
+
+def test_unit_and_description_are_live_off_the_cadetprocess_descriptor():
+    # unit=/description= are now set directly on the CADET-Process descriptors
+    # (fau-advanced-separations/CADET-Process PR #435), not hand-copied into a
+    # cadetgui-side JSON file -- get_parameter() just reads them straight off.
+    length = get_parameter("column", "GeneralRateModel", "length")
+    assert length["unit"] == "m"
+    assert length["description"] == "Column length."
+
+
+def test_get_co_group_is_the_one_thing_left_that_cant_come_from_live_introspection():
+    # CADET-Process writes the solver group as a plain uppercase HDF5 path,
+    # not through a cp_name<->co_name map the way column/binding parameters
+    # are -- this is the one piece of metadata cadetgui still has to hand-type.
+    assert get_co_group("SolverTimeIntegratorParameters") == "/solver/time_integrator"
+    assert get_co_group("NotAModel") is None
