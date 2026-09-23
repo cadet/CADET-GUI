@@ -142,6 +142,33 @@ def test_solutionwidget_resuming_auto_follow_by_clearing_the_override(tmp_path):
     assert sw.history.store_dir == expected
 
 
+def test_solutionwidget_history_store_dir_follows_a_live_rename(tmp_path):
+    cw = built_configuration()
+    sw = SolutionWidget()
+    sw.bind_to_config(cw)
+    first = sw.history.store_dir
+
+    cw.persistence._name_field.value = "Renamed Config"
+
+    expected = configuration_store.config_dir("Renamed Config", store_dir=None)
+    assert sw.history.store_dir == expected
+    assert sw.history.store_dir != first
+
+
+def test_solutionwidget_history_store_dir_stops_following_once_overridden(tmp_path):
+    own_dir = tmp_path / "runs-only"
+    own_dir.mkdir()
+    cw = built_configuration()
+    sw = SolutionWidget()
+    sw.bind_to_config(cw)
+    sw.history._store_dir_field.value = str(own_dir)
+    sw.history._on_set_store_dir(None)
+
+    cw.persistence._name_field.value = "Renamed Config"
+
+    assert sw.history.store_dir == own_dir.resolve()
+
+
 def test_solutionwidget_run_without_process_shows_error():
     sw = SolutionWidget()
     sw._on_run(None)

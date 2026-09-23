@@ -36,6 +36,9 @@ class SolutionWidget:
         # "Save Options" -> "Set folder"), auto-following the bound
         # configuration's folder stops -- see `_sync_history_store_dir`.
         self._history_store_dir_overridden = False
+        # Suspends `_sync_history_store_dir` while `_on_history_pick` is
+        # hydrating a past run -- see that method and `set_process`.
+        self._suspend_store_dir_sync = False
 
         self._process_label = W.HTML()
         self._btn_run = W.Button(description="Run simulation", icon="play", button_style="success")
@@ -120,18 +123,24 @@ class SolutionWidget:
     def set_process(self, process: Any) -> None:
         """Set the process to run on the next Run click.
 
-        Deliberately does *not* re-sync the run history's storage folder --
-        `set_process` also fires mid-hydration (`_hydrate` -> `import_from_store`
-        can rename the bound configuration to match a past run's saved state,
-        which triggers this via `ConfigurationWidget._notify()`), and reacting
-        there would reassign `history.store_dir` while `_on_history_pick` is
-        still using `self.runs`, wiping the very selection being hydrated.
-        Following a live rename isn't needed for "default to the
-        configuration's folder" anyway -- `bind_to_config` and the folder's
-        own change listener already cover it.
+        Also re-syncs the run history's storage folder, so a renamed
+        configuration's saves/results always follow the current name --
+        `set_process` fires on every rebuild, including a name change (see
+        `ConfigurationPersistence._on_name_change` -> `ConfigurationWidget.
+        _notify()`). Guarded by `_suspend_store_dir_sync`: `set_process` also
+        fires mid-hydration (`_hydrate` -> `import_from_store` can rename the
+        bound configuration to match a *past* run's saved state), and
+        reacting there would reassign `history.store_dir` while
+        `_on_history_pick` is still using `self.runs`, wiping the very
+        selection being hydrated -- see
+        `_hydrate_suspending_store_dir_sync`, which suspends this around
+        just that call and deliberately does not catch up afterward (a
+        historical run's transient rename isn't the user's own edit).
         """
         self.process = process
         self._update_process_label()
+        if not self._suspend_store_dir_sync:
+            self._sync_history_store_dir()
 
     def bind_to_config(self, config_widget: Any) -> None:
         """Track a ConfigurationWidget's built process automatically.
@@ -277,7 +286,7 @@ class SolutionWidget:
             self.status.value = f"<span style='color:#b00020'>Simulation failed: {run.error}</span>"
             return
         if run.result is None:
-            run.result = self._hydrate(run)
+            run.result = self._hydrate_suspending_store_dir_sync(run)
             if run.result is None:
                 self.result = None
                 self._signal_picker.set_options([])
@@ -285,6 +294,26 @@ class SolutionWidget:
                 return
         self._load_result(run.result)
         self.status.value = f"<em>Viewing: {run.label}</em>"
+
+    def _hydrate_suspending_store_dir_sync(self, run: RunRecord) -> Any:
+        """Run `_hydrate` with the storage-folder-follows-renames sync suspended.
+
+        `_hydrate` -> `import_from_store` can rename the bound configuration
+        to match a past run's saved state (see `set_process`'s docstring) --
+        suspended so that doesn't reassign `history.store_dir`/wipe
+        `self.runs` mid-hydration. Deliberately *not* re-synced afterward
+        either: the run being viewed is historical, not the configuration the
+        user is actively editing, so its folder shouldn't jump to match a
+        transient rename that's just a side effect of viewing it -- and doing
+        so would wipe the very selection `_on_history_pick` just populated.
+        A genuine rename (typing in the name field) still syncs normally,
+        since that goes through `set_process` outside of this suspension.
+        """
+        self._suspend_store_dir_sync = True
+        try:
+            return self._hydrate(run)
+        finally:
+            self._suspend_store_dir_sync = False
 
     def _hydrate(self, run: RunRecord) -> Any:
         """Reconstruct a persisted-but-not-yet-loaded run's result, best-effort.
