@@ -16,6 +16,7 @@ from CADETProcess.processModel import (
     ChromatographicColumnBase,
     ComponentSystem,
     Cstr,
+    FlowSheet,
     GeneralRateModel,
     Inlet,
     Langmuir,
@@ -23,7 +24,9 @@ from CADETProcess.processModel import (
     LumpedRateModelWithoutPores,
     LumpedRateModelWithPores,
     Outlet,
+    Process,
     StericMassAction,
+    TubularReactorBase,
 )
 
 from .parameters import get_parameters as _param_metadata_for
@@ -90,6 +93,10 @@ PARAMS: dict[str, FieldSpec] = {
         "cycle_time", "float", "Cycle time", 6000.0,
         validate=require_positive, units="s",
     ),
+    "pulse_duration": FieldSpec(
+        "pulse_duration", "float", "Pulse duration", 60.0,
+        validate=require_positive, units="s",
+    ),
     "delta_t_wash": FieldSpec(
         "delta_t_wash", "float", "Wash duration", 600.0,
         validate=require_positive, units="s",
@@ -112,6 +119,11 @@ class ModelSpec:
     title: str
     fields: list[FieldSpec] = field(default_factory=list)
     build: Callable[[Mapping[str, Any]], Any] | None = None
+    # Standalone (no-Instrument) templates wire their own FlowSheet directly --
+    # there's no LCFlowSheet/model-builder class for a bare feed-into-unit
+    # setup -- so `export_script()` uses this instead of its LCFlowSheet-based
+    # default pattern when set. None for every INSTRUMENT_TEMPLATES entry.
+    export: Callable[[Mapping[str, Any]], list[str]] | None = None
 
 
 def _pick(keys: Sequence[str]) -> list[FieldSpec]:
@@ -257,6 +269,87 @@ def breakthrough_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
     return ModelSpec(title="Breakthrough", fields=fields, build=_build)
 
 
+def pulse_feed_spec(unit: Any) -> ModelSpec:
+    """Build the standalone Pulse Feed template's ModelSpec for a bare column/unit.
+
+    Used only when `ConfigurationWidget` has no InstrumentWidget bound -- there
+    is no CADET-Process model-builder class for a plain feed-into-unit setup
+    (unlike LCFlowSheet's own richer templates), so this wires a minimal
+    `FlowSheet` (feed -> unit -> outlet) directly, with the same primitives
+    `LCFlowSheet` itself is built from. Works with any unit operation, not
+    just a `ChromatographicColumnBase` -- e.g. `Cstr`, which can never be an
+    `LCFlowSheet` column but is a perfectly good standalone simulation target.
+    """
+    names = tuple(unit.component_system.names)
+
+    def _c_feed(v: Mapping[str, Any]) -> list[float]:
+        c_feed = [0.0] * (len(names) or 1)
+        if v["component"] in names:
+            c_feed[names.index(v["component"])] = float(v["concentration"])
+        return c_feed
+
+    def _build(v: Mapping[str, Any]) -> Any:
+        component_system = unit.component_system
+        feed = Inlet(component_system, name="feed")
+        feed.flow_rate = float(v["flow_rate"])
+        outlet = Outlet(component_system, name="outlet")
+
+        flow_sheet = FlowSheet(component_system)
+        flow_sheet.add_unit(feed, feed_inlet=True)
+        flow_sheet.add_unit(unit)
+        flow_sheet.add_unit(outlet, product_outlet=True)
+        flow_sheet.add_connection(feed, unit)
+        flow_sheet.add_connection(unit, outlet)
+
+        process = Process(flow_sheet, "pulse_feed")
+        process.cycle_time = float(v["cycle_time"])
+        process.add_duration("pulse_duration", float(v["pulse_duration"]))
+
+        c_feed = _c_feed(v)
+        process.add_event("pulse_on", "flow_sheet.feed.c", c_feed)
+        process.add_event("pulse_off", "flow_sheet.feed.c", [0.0] * len(c_feed))
+        process.add_event_dependency("pulse_off", ["pulse_on", "pulse_duration"], [1, 1])
+        return process
+
+    def _export(v: Mapping[str, Any]) -> list[str]:
+        c_feed = _c_feed(v)
+        c_off = [0.0] * len(c_feed)
+        return [
+            "",
+            "feed = Inlet(component_system, name='feed')",
+            f"feed.flow_rate = {float(v['flow_rate'])!r}",
+            "outlet = Outlet(component_system, name='outlet')",
+            "",
+            "flow_sheet = FlowSheet(component_system)",
+            "flow_sheet.add_unit(feed, feed_inlet=True)",
+            "flow_sheet.add_unit(column)",
+            "flow_sheet.add_unit(outlet, product_outlet=True)",
+            "flow_sheet.add_connection(feed, column)",
+            "flow_sheet.add_connection(column, outlet)",
+            "",
+            "process = Process(flow_sheet, 'pulse_feed')",
+            f"process.cycle_time = {float(v['cycle_time'])!r}",
+            f"process.add_duration('pulse_duration', {float(v['pulse_duration'])!r})",
+            f"process.add_event('pulse_on', 'flow_sheet.feed.c', {c_feed!r})",
+            f"process.add_event('pulse_off', 'flow_sheet.feed.c', {c_off!r})",
+            "process.add_event_dependency('pulse_off', ['pulse_on', 'pulse_duration'], [1, 1])",
+        ]
+
+    fields = [
+        FieldSpec(
+            "component", "choice", "Component", names[0] if names else None,
+            options=tuple((n, n) for n in names),
+        ),
+        FieldSpec(
+            "concentration", "float", "Pulse concentration", 10.0, units=CONCENTRATION_UNITS,
+        ),
+        *_pick(["flow_rate", "pulse_duration", "cycle_time"]),
+    ]
+    return ModelSpec(
+        title="Pulse Feed (Single Component)", fields=fields, build=_build, export=_export
+    )
+
+
 # PhasedProcess's fully generic phase-list composition is out of scope here --
 # see REQUIREMENTS.md's "generic user-authored event widget" open decision.
 INSTRUMENT_TEMPLATES: dict[str, Callable[[LCFlowSheet], ModelSpec]] = {
@@ -265,6 +358,15 @@ INSTRUMENT_TEMPLATES: dict[str, Callable[[LCFlowSheet], ModelSpec]] = {
     "Load–Wash–Elute (LWE)": lwe_spec,
     "Step Elution": step_elution_spec,
     "Breakthrough": breakthrough_spec,
+}
+
+# Used instead of INSTRUMENT_TEMPLATES when ConfigurationWidget has no
+# InstrumentWidget bound -- REQUIREMENTS.md item #32 ("instrument attachment
+# optional, not required for a simple simulation"). Deliberately one entry for
+# now, matching this codebase's narrow-slice-first pattern; extend when a
+# second bare-column workflow is actually needed.
+STANDALONE_TEMPLATES: dict[str, Callable[[Any], ModelSpec]] = {
+    "Pulse Feed (Single Component)": pulse_feed_spec,
 }
 
 # Units `LCFlowSheet(bypass_units=...)` accepts (CADET-Process's own
@@ -276,14 +378,23 @@ BYPASSABLE_UNITS: tuple[str, ...] = (
 
 # `LCFlowSheet(ColumnModel=...)` takes the class itself -- it instantiates and
 # names the column ("column") internally, so this is a plain class registry,
-# not an instance-factory like the old `DEFAULT_COLUMN_FACTORIES`. CSTR isn't
-# a `ChromatographicColumnBase` and doesn't fit LCFlowSheet's column slot --
-# it's not carried forward from the old "Pulse Feed" workaround, which is gone.
+# not an instance-factory like the old `DEFAULT_COLUMN_FACTORIES`. CSTR is
+# back (REQUIREMENTS.md item #32) since it's a real, useful standalone
+# simulation target -- it's just never offered once an Instrument is bound
+# (see INSTRUMENT_COMPATIBLE_COLUMNS below), since it isn't a
+# `ChromatographicColumnBase` and doesn't fit LCFlowSheet's column slot.
 COLUMN_MODELS: Dict[str, type] = {
     "General Rate Model (GRM)": GeneralRateModel,
     "Lumped Rate Model With Pores (LRMP)": LumpedRateModelWithPores,
     "Lumped Rate Model Without Pores (LRM)": LumpedRateModelWithoutPores,
+    "Continuous Stirred Tank Reactor (CSTR)": Cstr,
 }
+
+# Derived, not hand-maintained -- a column model is instrument-compatible iff
+# it's a real ChromatographicColumnBase (LCFlowSheet's own constraint).
+INSTRUMENT_COMPATIBLE_COLUMNS: frozenset[str] = frozenset(
+    key for key, cls in COLUMN_MODELS.items() if issubclass(cls, ChromatographicColumnBase)
+)
 
 # "None" first so a ChoiceField over this dict defaults to it -- LCFlowSheet
 # leaves the column's own default (NoBinding) in place when BindingModel=None.
@@ -344,12 +455,25 @@ def _seed_default(category: str, model_name: str, name: str) -> float:
 # every component either way.
 MULTIPLEXABLE_COLUMN_PARAMS = frozenset({"axial_dispersion", "film_diffusion", "pore_diffusion"})
 
+# `TubularReactor.axial_dispersion` is genuinely component-dependent at the
+# CADET-Process level (same SizedUnsignedList(size="n_comp") as a real
+# column's, confirmed directly) -- but a plain tubing/mixer dead-volume
+# segment gets no multiplex toggle at all, unlike MULTIPLEXABLE_COLUMN_PARAMS
+# above, so it must never render as a per-component list regardless of
+# `multiplex`. A GUI-layer decision (which fields to render, how), so it
+# lives here rather than in interface.json.
+_FORCE_SCALAR = frozenset({("TubularReactor", "axial_dispersion")})
+
 
 def _category_and_model(obj: Any) -> tuple[Optional[str], str]:
     model_name = type(obj).__name__
     if isinstance(obj, BindingBaseClass):
         return "binding", model_name
-    if isinstance(obj, ChromatographicColumnBase) or isinstance(obj, Cstr):
+    # TubularReactorBase covers both real columns (ChromatographicColumnBase,
+    # its subclass) and plain tubing/mixer dead-volume segments
+    # (TubularReactor itself -- see interface.json's "column"/"TubularReactor"
+    # entry, which shares the same length/diameter/axial_dispersion fields).
+    if isinstance(obj, (TubularReactorBase, Cstr)):
         return "column", model_name
     return None, model_name
 
@@ -364,12 +488,17 @@ def _resolve_param(
 ) -> tuple[Any, str, Optional[Transform], dict[str, float], Optional[str]]:
     """Resolve one parameter's kind/bounds/units/default.
 
-    Ground truth comes from `parameters/interface.json` via
+    Ground truth comes from `parameters.get_parameters()` via
     `category`/`model_name` (nested per-model, since e.g. `Langmuir.capacity`
-    and `StericMassAction.capacity` differ in shape despite the same name).
+    and `StericMassAction.capacity` differ in shape despite the same name) --
+    `component_dependent`/`dtype`/bounds are introspected live off the real
+    CADET-Process descriptor there, not hand-typed; only `unit` is curated.
     Falls back to inferring from the object's current value for an
-    unregistered category/model/parameter. `multiplex` overrides
-    `component_dependent` for `MULTIPLEXABLE_COLUMN_PARAMS` only.
+    unregistered category/model/parameter, or one live introspection
+    couldn't resolve a real descriptor for. `multiplex` overrides
+    `component_dependent` for `MULTIPLEXABLE_COLUMN_PARAMS` only;
+    `_FORCE_SCALAR` overrides it unconditionally for names that must never
+    render per-component regardless of `multiplex`.
     """
     meta = None
     if category is not None:
@@ -380,15 +509,17 @@ def _resolve_param(
 
     current = getattr(obj, name, None)
 
-    if meta is None:
+    if meta is None or meta.get("dtype") is None or meta.get("component_dependent") is None:
         kind = _infer_kind(current)
         transform = parse_float_list if kind == "float_list" else None
-        return current, kind, transform, {}, None
+        return current, kind, transform, {}, None if meta is None else meta.get("unit")
 
     dtype = meta["dtype"]
     component_dependent = meta["component_dependent"]
     if multiplex is not None and name in MULTIPLEXABLE_COLUMN_PARAMS:
         component_dependent = bool(multiplex.get(name, False))
+    if (model_name, name) in _FORCE_SCALAR:
+        component_dependent = False
     kind = "float_list" if (dtype == "float" and component_dependent) else dtype
 
     if current is not None and isinstance(current, (list, tuple)) and kind == "float":

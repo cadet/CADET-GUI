@@ -492,7 +492,7 @@ def test_run_estimation_with_total_selected_still_succeeds():
 
 def test_run_estimation_with_a_specific_component_selected_succeeds():
     cw, pw = _bound_widgets()
-    cw._instrument.components = ["Component 1", "Component 2"]  # needs a real 2nd component
+    cw.components = ["Component 1", "Component 2"]  # needs a real 2nd component
     pw._on_preview(None)
     unit, port = pw._signal_picker.value
     sol = pw._display_result.solution[unit][port]

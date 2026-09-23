@@ -309,7 +309,7 @@ def test_run_estimation_with_a_component_name_ignores_other_components():
     # A reference built from just "Component 2" should recover the same fit
     # whether "Component 1" is perturbed or not -- it's never looked at.
     cw = built_widget()
-    cw._instrument.components = ["Component 1", "Component 2"]  # needs a real 2nd component
+    cw.components = ["Component 1", "Component 2"]  # needs a real 2nd component
     process, column = cw.process, cw._column_form.built
     original_porosity = column.total_porosity
 
