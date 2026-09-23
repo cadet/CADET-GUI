@@ -19,13 +19,13 @@ def _isolated_store(tmp_path, monkeypatch):
     monkeypatch.setattr(configuration_store, "default_store_dir", lambda: tmp_path)
 
 
-def test_builds_all_nine_panes_by_default():
+def test_builds_all_ten_panes_by_default():
     wb = CharacterizationWorkbenchWidget()
 
     assert list(wb._nav.options) == [
         "System", "Configuration",
         "Periphery: pre-injection", "Periphery: detectors", "Periphery: pre-injection + mixer",
-        "Bed", "Particles", "Adsorption", "Capacity",
+        "Bed", "Particles", "Adsorption", "Capacity", "History",
     ]
     assert wb._nav.index == 0
 
@@ -91,6 +91,42 @@ def test_include_narrows_which_panes_are_built_and_shown():
 def test_include_rejects_unknown_step():
     with pytest.raises(ValueError):
         CharacterizationWorkbenchWidget(include=("System", "Not A Step"))
+
+
+def test_every_stage_shares_the_same_history():
+    wb = CharacterizationWorkbenchWidget()
+
+    for stage in wb._stages.values():
+        assert stage.history is wb.history
+
+
+def test_reapply_routes_to_the_stage_whose_write_targets_match():
+    wb = CharacterizationWorkbenchWidget()
+
+    push = wb.history.record(
+        "bed", {"bed_porosity": 0.5, "axial_dispersion": 3e-7},
+    )
+    before = wb._stages["Particles"]._config.process.flow_sheet.column.bed_porosity
+
+    wb.history._on_reapply_click(None)  # "Re-apply" on the just-recorded push
+
+    after = wb.configuration.process.flow_sheet.column.bed_porosity
+    assert after == pytest.approx(0.5)
+    assert after != before
+
+
+def test_reapply_disambiguates_between_the_two_periphery_panes():
+    wb = CharacterizationWorkbenchWidget()
+
+    push = wb.history.record("periphery", {"tubing_detectors_length": 1.5})
+    wb.history._picker.selected_index = list(wb.history.pushes).index(push)
+
+    wb.history._on_reapply_click(None)
+
+    detectors_form = wb.instrument._unit_forms["tubing_detectors"]
+    pre_injection_form = wb.instrument._unit_forms["tubing_pre_injection"]
+    assert detectors_form.collect_values()["length"] == pytest.approx(1.5)
+    assert pre_injection_form.collect_values()["length"] != pytest.approx(1.5)
 
 
 def test_accepts_prebuilt_instrument_and_configuration_unmodified():

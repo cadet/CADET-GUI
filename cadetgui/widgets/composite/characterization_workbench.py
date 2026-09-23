@@ -10,6 +10,7 @@ from .._sidebar_shell import SidebarShell, collect_panes, validate_steps
 from .characterization import CharacterizationWidget
 from .configuration import ConfigurationWidget
 from .instrument import InstrumentWidget
+from .parameter_history import ParameterHistoryWidget, ParameterPushRecord
 
 __all__ = ["CharacterizationWorkbenchWidget"]
 
@@ -22,7 +23,7 @@ _STAGE_STEPS = (
     "Adsorption",
     "Capacity",
 )
-_STEPS = ("System", "Configuration") + _STAGE_STEPS
+_STEPS = ("System", "Configuration") + _STAGE_STEPS + ("History",)
 
 
 class CharacterizationWorkbenchWidget:
@@ -84,23 +85,38 @@ class CharacterizationWorkbenchWidget:
                 "Steric Mass Action (SMA)"
             ]
 
+        # Shared across every stage pane -- each stage's "Push to
+        # Configuration" records here too, so "History" sees every push
+        # made from any pane, in order.
+        self.history = ParameterHistoryWidget()
+        self.history.add_reapply_listener(self._on_reapply)
+
         self._stages: Dict[str, CharacterizationWidget] = {}
         stage_factories = {
             "Periphery: pre-injection": lambda: CharacterizationWidget(
                 "periphery", config=self.configuration, instrument=self.instrument,
-                tubing_unit="tubing_pre_injection",
+                history=self.history, tubing_unit="tubing_pre_injection",
             ),
             "Periphery: detectors": lambda: CharacterizationWidget(
                 "periphery", config=self.configuration, instrument=self.instrument,
-                tubing_unit="tubing_detectors",
+                history=self.history, tubing_unit="tubing_detectors",
             ),
             "Periphery: pre-injection + mixer": lambda: CharacterizationWidget(
                 "pre_injection", config=self.configuration, instrument=self.instrument,
+                history=self.history,
             ),
-            "Bed": lambda: CharacterizationWidget("bed", config=self.configuration),
-            "Particles": lambda: CharacterizationWidget("particles", config=self.configuration),
-            "Adsorption": lambda: CharacterizationWidget("adsorption", config=self.configuration),
-            "Capacity": lambda: CharacterizationWidget("capacity", config=self.configuration),
+            "Bed": lambda: CharacterizationWidget(
+                "bed", config=self.configuration, history=self.history,
+            ),
+            "Particles": lambda: CharacterizationWidget(
+                "particles", config=self.configuration, history=self.history,
+            ),
+            "Adsorption": lambda: CharacterizationWidget(
+                "adsorption", config=self.configuration, history=self.history,
+            ),
+            "Capacity": lambda: CharacterizationWidget(
+                "capacity", config=self.configuration, history=self.history,
+            ),
         }
         for name in _STAGE_STEPS:
             if name in steps:
@@ -112,6 +128,7 @@ class CharacterizationWorkbenchWidget:
                 "System": self.instrument.root if "System" in steps else None,
                 "Configuration": self.configuration.root if "Configuration" in steps else None,
                 **{name: widget.root for name, widget in self._stages.items()},
+                "History": self.history.root if "History" in steps else None,
             },
         )
         self._shell = SidebarShell(panes)
@@ -127,6 +144,22 @@ class CharacterizationWorkbenchWidget:
         self.root = W.VBox([W.HTML(style_tag()), top_bar, self._shell.body])
         self.root.add_class("cadetgui-panel")
         self.root.add_class("cadetgui-workbench")
+
+    def _on_reapply(self, push: ParameterPushRecord) -> None:
+        """Route a "Re-apply" click to whichever stage's own write_targets match.
+
+        `push.stage` alone doesn't disambiguate: "Periphery: pre-injection"
+        and "Periphery: detectors" both have `stage == "periphery"` but
+        write back to different tubing units, so this matches on the
+        pushed parameter *names* instead -- each stage's `write_targets`
+        keys are a distinct set (e.g. `tubing_pre_injection_length` only
+        ever belongs to the pre-injection pane), so exactly one stage's
+        keys are ever a superset of a given push's.
+        """
+        for widget in self._stages.values():
+            if set(push.values) <= set(widget._spec.write_targets):
+                widget._write_fitted_values(push.values)
+                return
 
     def display(self) -> None:
         """Render this widget in a Jupyter cell."""

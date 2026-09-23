@@ -18,7 +18,7 @@ from CADETProcess.comparison.difference import SSE
 from CADETProcess.simulator import Cadet
 
 from ...cadetprocessadapter import FieldSpec, classify_signal_ports
-from ...optimizer_runner import RunSpec
+from ...optimizer_runner import OptimizerRunResult, RunSpec
 from ...parameter_estimation import (
     CalibrationMethod,
     build_reference,
@@ -31,6 +31,7 @@ from ._optimizer_runner_panel import OptimizerRunnerPanel
 from .configuration import ConfigurationWidget
 from .data_import import DataImportWidget
 from .instrument import InstrumentWidget
+from .parameter_history import ParameterHistoryWidget
 
 __all__ = ["CharacterizationWidget"]
 
@@ -204,6 +205,15 @@ class CharacterizationWidget:
     Reuses `OptimizerRunnerPanel` (cadetgui/widgets/composite/
     _optimizer_runner_panel.py) for the actual run/cancel/live-plot/accept
     chrome -- this widget only builds the `RunSpec` it drives.
+
+    `history`, when given (a shared `ParameterHistoryWidget`, typically one
+    `CharacterizationWorkbenchWidget` instance per notebook), gets one
+    entry recorded on every successful Push -- which parameters, from which
+    dataset(s), with what optimizer/objective, so "which experiment
+    determined this value" stays answerable across the whole pipeline, not
+    just this one pane. Optional: a stage pushed to without one simply
+    isn't recorded anywhere beyond the live config, same as before this
+    existed.
     """
 
     def __init__(
@@ -213,6 +223,7 @@ class CharacterizationWidget:
         config: ConfigurationWidget,
         instrument: Optional[InstrumentWidget] = None,
         data: Optional[DataImportWidget] = None,
+        history: Optional[ParameterHistoryWidget] = None,
         tubing_unit: Optional[str] = None,
     ) -> None:
         if stage == "periphery":
@@ -243,6 +254,10 @@ class CharacterizationWidget:
         self._config = config
         self._instrument = instrument
         self.data = data or DataImportWidget()
+        # Optional -- a stage pushed to without a shared history simply
+        # isn't recorded anywhere beyond the live config, same as before
+        # this existed.
+        self.history = history
 
         # What this stage actually determines, up front and at a glance --
         # separate from the bound-override editor below (secondary/optional:
@@ -402,6 +417,37 @@ class CharacterizationWidget:
             wrapped = type(current)([value]) if isinstance(current, (list, tuple)) else value
             setattr(unit, target.field, wrapped)
 
+    def _read_fitted_values(self, process: Any) -> Dict[str, float]:
+        """Read the fitted values back off `process`'s real attributes.
+
+        Inverse of `_apply_values_to_process`, via the same `write_targets`
+        mapping. Used instead of trusting `OptimizerRunResult.x_best`
+        directly once a run finishes: the lonza_poc reference project's own
+        ARCHITECTURE.md documents this exact failure mode under "Ordering"
+        -- a sibling module there read fitted values straight from the
+        optimizer's result vector rather than off the process, and "the
+        store receives whatever the optimizer's vector holds, in whatever
+        space and order the problem happens to use, with no point at which
+        the process itself confirms the value landed where the path says."
+        By the time this is called, `run_optimization` has already called
+        `problem.set_variables(results.x[0])` on `process` (one of the
+        deep-copied per-dataset processes `_build_run_spec` built the
+        problem from), so reading it back here is a real confirmation, not
+        a formality.
+        """
+        flow_sheet = process.flow_sheet
+        values: Dict[str, float] = {}
+        for name, target in self._spec.write_targets.items():
+            if target.form == "instrument":
+                unit = flow_sheet[target.unit]
+            elif target.form == "column":
+                unit = flow_sheet.column
+            else:
+                unit = flow_sheet.column.binding_model
+            current = getattr(unit, target.field)
+            values[name] = current[0] if isinstance(current, (list, tuple)) else current
+        return values
+
     def _write_fitted_values(self, x_best: Mapping[str, float]) -> None:
         """Write `x_best` back through the live forms, not by mutating `.process` directly.
 
@@ -548,21 +594,45 @@ class CharacterizationWidget:
             )
             ax.legend()
 
-        def render_fit_table(x_best: Mapping[str, float]) -> str:
+        # `x_best`, as handed to `render_fit_table`/`accept` below, is
+        # `OptimizerRunResult.x_best` -- built from the optimizer's own
+        # result vector, not read off the process. Read the confirmed
+        # landed values back off `processes[0]` instead (see
+        # `_read_fitted_values`'s own docstring for why this isn't a
+        # formality) and use those everywhere a fitted value is shown,
+        # pushed, or recorded, ignoring `x_best`'s own content.
+        last_result: Dict[str, Any] = {}
+
+        def render_fit_table(_x_best: Mapping[str, float]) -> str:
+            confirmed = self._read_fitted_values(processes[0])
             rows = "".join(
-                f"<tr><td>{f.label or f.name}</td><td>{x_best[f.name]:.4g}</td></tr>"
-                for f in self._spec.fields if f.name in x_best
+                f"<tr><td>{f.label or f.name}</td><td>{confirmed[f.name]:.4g}</td></tr>"
+                for f in self._spec.fields if f.name in confirmed
             )
             return "<table><tr><th>Parameter</th><th>Fitted</th></tr>" + rows + "</table>"
 
-        def accept(x_best: Mapping[str, float]) -> None:
-            self._write_fitted_values(x_best)
+        def on_finished(result: OptimizerRunResult) -> None:
+            last_result["optimizer_name"] = result.optimizer_name
+            last_result["objective"] = result.objective
+
+        def accept(_x_best: Mapping[str, float]) -> None:
+            confirmed = self._read_fitted_values(processes[0])
+            self._write_fitted_values(confirmed)
+            if self.history is not None:
+                self.history.record(
+                    self.stage, confirmed,
+                    dataset_labels=[d.label for d in self._dataset_select.value],
+                    optimizer_name=last_result.get("optimizer_name"),
+                    objective=last_result.get("objective"),
+                    config_name=self._config.config_name or None,
+                    config_hash=self._config.config_hash,
+                )
             self.status.value = (
                 "<em>Applied fitted parameters to the configuration. "
                 "Save it from the Configuration panel to persist for the next stage.</em>"
             )
 
-        return RunSpec(problem, x0, render_preview, render_fit_table, accept)
+        return RunSpec(problem, x0, render_preview, render_fit_table, accept, on_finished)
 
     def display(self) -> None:
         """Render this widget in a Jupyter cell."""

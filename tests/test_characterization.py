@@ -11,6 +11,7 @@ from cadetgui.widgets.composite import (
     CharacterizationWidget,
     ConfigurationWidget,
     InstrumentWidget,
+    ParameterHistoryWidget,
 )
 from cadetgui.widgets.composite.data_import import ExperimentalDataset
 
@@ -146,6 +147,42 @@ def test_periphery_stage_fits_and_accept_writes_into_the_instrument_unit_form(
     )
     # Unrelated fields on the same unit are left untouched by the merge.
     assert after["diameter"] == before["diameter"]
+
+
+@pytest.mark.slow
+def test_accept_records_a_history_entry_with_provenance_and_confirmed_values(
+    _synchronous_threads,
+):
+    iw, cw = _built_with_instrument()
+    iw._unit_checkboxes["tubing_pre_injection"].value = True
+    history = ParameterHistoryWidget()
+    w = CharacterizationWidget(
+        "periphery", config=cw, instrument=iw, tubing_unit="tubing_pre_injection",
+        history=history,
+    )
+    w.data.datasets.append(_dataset("pulse"))
+    w._refresh_dataset_options()
+    w._dataset_select.value = tuple(w.data.datasets)
+    w._on_preview(None)
+    w._signal_picker.selected_index = 0
+    w._runner._knob_fields["Nelder-Mead"][0].value = 15
+    w._runner._on_run(None)
+
+    assert history.pushes == []  # nothing recorded before an explicit accept
+
+    w._runner._on_accept(None)
+
+    assert len(history.pushes) == 1
+    push = history.pushes[0]
+    assert push.stage == "periphery"
+    assert push.dataset_labels == ["pulse"]
+    assert push.optimizer_name == "Nelder-Mead"
+    assert push.objective is not None
+    unit_form_values = iw._unit_forms["tubing_pre_injection"].collect_values()
+    assert push.values["tubing_pre_injection_length"] == pytest.approx(unit_form_values["length"])
+    assert push.values["tubing_pre_injection_axial_dispersion"] == pytest.approx(
+        unit_form_values["axial_dispersion"]
+    )
 
 
 @pytest.mark.slow
