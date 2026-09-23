@@ -137,6 +137,16 @@ def test_choicefield_set_options_keeps_matching_value():
     assert c.selected_index == 0
 
 
+def test_choicefield_set_options_falls_back_to_first_option_when_current_value_is_gone():
+    # Real bug: previously fell through to selected_index=None here (silently
+    # unselected) instead of the same "no options -> None, else index 0"
+    # fallback the empty-options case already had.
+    c = ChoiceField(options=[("A", 1), ("B", 2)], value=2)
+    c.set_options([("C", 3), ("D", 4)])
+    assert c.selected_index == 0
+    assert c.value == 3
+
+
 def test_choicefield_validate_observes_selected_index():
     def not_none(v):
         if v is None:
