@@ -1,5 +1,6 @@
 """Task widgets assembled from elements + forms."""
 from .characterization import CharacterizationWidget
+from .characterization_workbench import CharacterizationWorkbenchWidget
 from .configuration import ConfigurationWidget
 from .data_import import DataImportWidget, ExperimentalDataset
 from .instrument import InstrumentWidget
@@ -18,5 +19,6 @@ __all__ = [
     "ExperimentalDataset",
     "ParameterEstimationWidget",
     "CharacterizationWidget",
+    "CharacterizationWorkbenchWidget",
     "WorkbenchWidget",
 ]

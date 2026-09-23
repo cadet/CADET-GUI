@@ -244,6 +244,17 @@ class CharacterizationWidget:
         self._instrument = instrument
         self.data = data or DataImportWidget()
 
+        # What this stage actually determines, up front and at a glance --
+        # separate from the bound-override editor below (secondary/optional:
+        # most of the time the default bounds are fine), so "which
+        # parameters does this pane push to the configuration" is answered
+        # in one line without reading the whole form.
+        parameter_names = ", ".join(f.label or f.name for f in self._spec.fields)
+        determines_header = W.HTML(
+            f"<div class='cadetgui-panel-title'>{self._spec.label}</div>"
+            f"<em>Determines: {parameter_names}.</em>"
+        )
+
         # One (lb, ub) FloatText pair per stage variable -- a bound-override
         # editor, not a single-value form (FormRenderer/ModelSpec commit one
         # value per field, the wrong shape for this).
@@ -259,7 +270,7 @@ class CharacterizationWidget:
             for f, (lb, ub) in zip(self._spec.fields, self._bound_fields.values())
         ]
         bounds_section = W.VBox(
-            [W.HTML(f"<div class='cadetgui-panel-title'>{self._spec.label}</div>"), *bounds_rows]
+            [W.HTML("<div class='cadetgui-section-title'>Search bounds</div>"), *bounds_rows]
         )
         bounds_section.add_class("cadetgui-panel")
         bounds_section.add_class("cadetgui-section")
@@ -314,7 +325,9 @@ class CharacterizationWidget:
         data_section.add_class("cadetgui-panel")
         data_section.add_class("cadetgui-section")
 
-        self._runner = OptimizerRunnerPanel(build_run_spec=self._build_run_spec)
+        self._runner = OptimizerRunnerPanel(
+            build_run_spec=self._build_run_spec, accept_label="Push to Configuration",
+        )
 
         self.status = W.HTML("<em>Ready.</em>")
         self.status.add_class("cadetgui-status")
@@ -322,6 +335,7 @@ class CharacterizationWidget:
         self.root = W.VBox(
             [
                 W.HTML(style_tag()),
+                determines_header,
                 data_section,
                 bounds_section,
                 W.HBox(

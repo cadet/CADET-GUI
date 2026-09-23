@@ -41,7 +41,12 @@ class OptimizerRunnerPanel:
     # `ParameterEstimationWidget` made for its own plots.
     _FIGSIZE = get_fig_size("1_col")
 
-    def __init__(self, *, build_run_spec: Callable[[], Union[RunSpec, str]]) -> None:
+    def __init__(
+        self,
+        *,
+        build_run_spec: Callable[[], Union[RunSpec, str]],
+        accept_label: str = "Accept fitted parameters",
+    ) -> None:
         self._build_run_spec = build_run_spec
         self._run_done = threading.Event()
         self._cancel_event = threading.Event()
@@ -71,7 +76,7 @@ class OptimizerRunnerPanel:
             layout=W.Layout(display="none"),
         )
         self._btn_accept = W.Button(
-            description="Accept fitted parameters", icon="check",
+            description=accept_label, icon="check",
             layout=W.Layout(display="none"),
         )
         self._live_plot_checkbox = W.Checkbox(description="Live plot", value=False, indent=False)
