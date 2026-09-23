@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import datetime as dt
-import json
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Optional
 
 from . import __version__ as _cadetgui_version
+from ._record_store import list_records, load_record, save_record
 
 __all__ = [
     "RunRecordState",
@@ -53,10 +53,6 @@ def new_run_id() -> str:
     return f"{dt.datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:6]}"
 
 
-def _manifest_path(run_id: str, store_dir: Path) -> Path:
-    return store_dir / f"run_{run_id}.json"
-
-
 def run_output_path(run_id: str, *, store_dir: Optional[Path] = None) -> Path:
     """Where a run's raw CADET-Core output h5 belongs, whether or not it exists yet.
 
@@ -87,7 +83,6 @@ def save_run(
     is called with `ok=True`.
     """
     store_dir = store_dir or default_run_store_dir()
-    store_dir.mkdir(parents=True, exist_ok=True)
     state = RunRecordState(
         run_id=run_id,
         label=label,
@@ -97,30 +92,20 @@ def save_run(
         config_name=config_name,
         error=error,
     )
-    _manifest_path(run_id, store_dir).write_text(json.dumps(asdict(state), indent=2))
+    save_record("run", run_id, state, store_dir)
     return state
 
 
 def load_run(run_id: str, *, store_dir: Optional[Path] = None) -> RunRecordState:
     """Read one run's metadata by id."""
     store_dir = store_dir or default_run_store_dir()
-    path = _manifest_path(run_id, store_dir)
-    if not path.exists():
-        raise FileNotFoundError(f"No recorded run {run_id!r} in {store_dir}.")
-    return RunRecordState(**json.loads(path.read_text()))
+    return load_record("run", run_id, RunRecordState, store_dir)
 
 
 def list_runs(*, store_dir: Optional[Path] = None) -> List[RunRecordState]:
     """List every recorded run, newest first. Silently skips unreadable manifests."""
     store_dir = store_dir or default_run_store_dir()
-    paths = sorted(store_dir.glob("run_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
-    records = []
-    for path in paths:
-        try:
-            records.append(RunRecordState(**json.loads(path.read_text())))
-        except Exception:  # noqa: BLE001
-            continue
-    return records
+    return list_records("run", RunRecordState, store_dir)
 
 
 def load_run_results(

@@ -112,6 +112,7 @@ class OptimizerRunResult:
     success: bool
     message: str
     cancelled: bool = False
+    optimizer_name: str = ""
 
 
 def run_optimization(
@@ -157,10 +158,11 @@ def run_optimization(
         results = optimizer.optimize(problem, x0=list(x0), save_results=False)
     except OptimizationCancelled:
         return OptimizerRunResult(
-            {}, None, False, "Optimization cancelled by user.", cancelled=True
+            {}, None, False, "Optimization cancelled by user.",
+            cancelled=True, optimizer_name=optimizer_name,
         )
     except Exception as exc:  # noqa: BLE001
-        return OptimizerRunResult({}, None, False, str(exc))
+        return OptimizerRunResult({}, None, False, str(exc), optimizer_name=optimizer_name)
 
     # `results.x[0]` is the full, dependency-resolved point (one entry per
     # `problem.variable_names`, in that order -- confirmed live: a dependent
@@ -173,7 +175,10 @@ def run_optimization(
     # isn't supported here.
     problem.set_variables(results.x[0])
     x_best = dict(zip(problem.variable_names, (float(v) for v in results.x[0])))
-    return OptimizerRunResult(x_best, float(results.f_best[0]), True, "Optimization finished.")
+    return OptimizerRunResult(
+        x_best, float(results.f_best[0]), True, "Optimization finished.",
+        optimizer_name=optimizer_name,
+    )
 
 
 @dataclass(frozen=True)

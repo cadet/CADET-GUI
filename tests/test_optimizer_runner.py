@@ -28,6 +28,7 @@ def test_run_optimization_converges_and_reports_named_x_best():
     assert result.x_best["x"] == pytest.approx(2.0, abs=0.05)
     assert result.x_best["y"] == pytest.approx(-1.0, abs=0.05)
     assert result.objective < 1e-2
+    assert result.optimizer_name == "Nelder-Mead"
 
 
 def test_run_optimization_reports_the_error_instead_of_raising():
