@@ -95,7 +95,10 @@ class SolutionWidget:
         )
         toolbar.add_class("cadetgui-toolbar")
 
-        history_row = W.HBox([self.history.root, self._btn_load_config])
+        # `self.history._picker` directly, not `self.history.root` -- the
+        # latter wraps it in its own flex-column panel, which was throwing
+        # off horizontal alignment with the button sitting next to it.
+        history_row = W.HBox([self.history._picker, self._btn_load_config])
         history_row.add_class("cadetgui-toolbar")
 
         self.root = W.VBox(

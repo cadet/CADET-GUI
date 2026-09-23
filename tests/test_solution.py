@@ -515,6 +515,14 @@ def test_solutionwidget_run_history_label_uses_the_configuration_name():
     assert sw.history.selected.label == "My Named Config"
 
 
+def test_solutionwidget_run_picker_and_load_config_button_share_one_row():
+    sw = SolutionWidget()
+    history_row = next(
+        c for c in sw.root.children if sw._btn_load_config in getattr(c, "children", ())
+    )
+    assert sw.history._picker in history_row.children
+
+
 def test_solutionwidget_load_config_button_hidden_without_a_hash():
     sw = SolutionWidget(process=built_process())
     sw._on_run(None)  # no bound ConfigurationWidget -> no hash
