@@ -1,8 +1,7 @@
 /* Shared chrome for composite/form widgets (FormRenderer, ConfigurationWidget,
    SolutionWidget) — these compose plain ipywidgets containers, not anywidget
    elements, so this gets injected via a <style> HTML child rather than an
-   anywidget `_css`. Same --cg-* token names as elements/_shared.css so both
-   layers read as one system. */
+   anywidget `_css`. Tokens come from tokens.css (prepended at load, see _tokens.py). */
 
 .cadetgui-spinner {
   display: inline-block;
@@ -21,35 +20,11 @@
 }
 
 .cadetgui-panel {
-  --cg-fg: #1f2937;
-  --cg-muted: #6b7280;
-  --cg-border: #d1d5db;
-  --cg-brand: #005b82; /* CADET logo navy -- fixed, not theme-swapped */
-  --cg-focus: #005b82;
-  --cg-danger: #dc2626;
-  --cg-success: #059669;
-  --cg-warn: #b45309;
-  --cg-bg: #ffffff;
-  --cg-radius: 8px;
-
   display: flex;
   flex-direction: column;
   gap: 12px;
   font-family: system-ui, -apple-system, sans-serif;
   color: var(--cg-fg);
-}
-
-@media (prefers-color-scheme: dark) {
-  .cadetgui-panel {
-    --cg-fg: #e5e7eb;
-    --cg-muted: #9ca3af;
-    --cg-border: #4b5563;
-    --cg-focus: #4fa8d1;
-    --cg-danger: #f87171;
-    --cg-success: #34d399;
-    --cg-warn: #fbbf24;
-    --cg-bg: #1f2937;
-  }
 }
 
 .cadetgui-panel-title {

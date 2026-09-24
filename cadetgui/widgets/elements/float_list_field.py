@@ -5,6 +5,7 @@ from typing import List, Optional, Sequence
 
 import traitlets as T
 
+from .._tokens import with_tokens
 from .base import Element, Validator
 
 __all__ = ["FloatListField"]
@@ -31,7 +32,7 @@ class FloatListField(Element):
     component_names = T.List(T.Unicode()).tag(sync=True)
 
     _esm = _DIR / "float_list_field.js"
-    _css = _DIR / "_shared.css"
+    _css = with_tokens(_DIR / "_shared.css")
 
     def __init__(
         self,

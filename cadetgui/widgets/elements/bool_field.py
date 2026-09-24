@@ -5,6 +5,7 @@ from typing import Optional
 
 import traitlets as T
 
+from .._tokens import with_tokens
 from .base import Element, Validator
 
 __all__ = ["BoolField"]
@@ -18,7 +19,7 @@ class BoolField(Element):
     value = T.Bool(False).tag(sync=True)
 
     _esm = _DIR / "bool_field.js"
-    _css = _DIR / "_shared.css"
+    _css = with_tokens(_DIR / "_shared.css")
 
     def __init__(
         self,

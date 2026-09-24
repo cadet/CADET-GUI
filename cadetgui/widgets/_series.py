@@ -10,7 +10,7 @@ __all__ = ["decimate_minmax", "solution_series"]
 def decimate_minmax(
     times: np.ndarray, values: np.ndarray, max_points: int = 2000
 ) -> tuple[list[float], list[float]]:
-    """Thin a long trace to about `max_points`, keeping each bucket's min and max so peaks survive."""
+    """Thin a long trace to ~`max_points`, keeping each bucket's min and max so peaks survive."""
     n = len(times)
     if n <= max_points:
         return times.tolist(), values.tolist()

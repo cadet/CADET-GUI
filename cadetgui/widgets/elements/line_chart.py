@@ -6,6 +6,8 @@ from typing import Any, Optional, Sequence
 import anywidget
 import traitlets as T
 
+from .._tokens import with_tokens
+
 __all__ = ["LineChart", "EventTimelineChart", "ChromatogramChart"]
 
 _DIR = Path(__file__).parent
@@ -32,7 +34,7 @@ class LineChart(anywidget.AnyWidget):
     view_height = T.Int(220).tag(sync=True)
 
     _esm = _DIR / "line_chart.js"
-    _css = _DIR / "line_chart.css"
+    _css = with_tokens(_DIR / "line_chart.css")
 
     def __init__(
         self,

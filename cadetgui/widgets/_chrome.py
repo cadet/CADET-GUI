@@ -3,7 +3,9 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
-_CSS = (Path(__file__).parent / "chrome.css").read_text()
+from ._tokens import with_tokens
+
+_CSS = with_tokens(Path(__file__).parent / "chrome.css")
 _LOGO_PNG = (Path(__file__).parent / "assets" / "cadet_logo.png").read_bytes()
 _LOGO_DATA_URI = f"data:image/png;base64,{base64.b64encode(_LOGO_PNG).decode('ascii')}"
 

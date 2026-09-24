@@ -5,6 +5,7 @@ from typing import Any, List, Optional, Sequence, Tuple
 
 import traitlets as T
 
+from .._tokens import with_tokens
 from .base import Element, Validator
 
 __all__ = ["ChoiceField"]
@@ -26,7 +27,7 @@ class ChoiceField(Element):
     _value_trait_name = "selected_index"
 
     _esm = _DIR / "choice_field.js"
-    _css = _DIR / "_shared.css"
+    _css = with_tokens(_DIR / "_shared.css")
 
     def __init__(
         self,

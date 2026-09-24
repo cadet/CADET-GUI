@@ -5,6 +5,7 @@ from typing import Optional
 
 import traitlets as T
 
+from .._tokens import with_tokens
 from .base import Element, Validator
 
 __all__ = ["FloatField"]
@@ -20,7 +21,7 @@ class FloatField(Element):
     max = T.Float(allow_none=True, default_value=None).tag(sync=True)
 
     _esm = _DIR / "float_field.js"
-    _css = _DIR / "_shared.css"
+    _css = with_tokens(_DIR / "_shared.css")
 
     def __init__(
         self,

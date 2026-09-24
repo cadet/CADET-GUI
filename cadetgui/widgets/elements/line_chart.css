@@ -1,24 +1,9 @@
-/* Own copy of the shared tokens (anywidget gives each element its own CSS
-   instance, no cross-file sharing) -- see _shared.css's header comment. */
-.cadetgui-chart {
-  --cg-fg: #1f2937;
-  --cg-muted: #6b7280;
-  --cg-border: #d1d5db;
-  --cg-bg: #ffffff;
-  --cg-radius: 6px;
+/* Shared tokens come from tokens.css (prepended at load, see _tokens.py). */
 
+.cadetgui-chart {
   position: relative;
   font-family: system-ui, -apple-system, sans-serif;
   color: var(--cg-fg);
-}
-
-@media (prefers-color-scheme: dark) {
-  .cadetgui-chart {
-    --cg-fg: #e5e7eb;
-    --cg-muted: #9ca3af;
-    --cg-border: #4b5563;
-    --cg-bg: #1f2937;
-  }
 }
 
 .cadetgui-chart-svg {
@@ -82,7 +67,7 @@
   gap: 5px;
   padding: 2px 6px;
   border: 1px solid transparent;
-  border-radius: var(--cg-radius);
+  border-radius: var(--cg-radius-sm);
   background: none;
   color: var(--cg-fg);
   font: inherit;
@@ -125,7 +110,7 @@
   right: 0;
   padding: 1px 8px;
   border: 1px solid var(--cg-border);
-  border-radius: var(--cg-radius);
+  border-radius: var(--cg-radius-sm);
   background: var(--cg-bg);
   color: var(--cg-muted);
   font: inherit;
@@ -147,7 +132,7 @@
   pointer-events: none;
   background: var(--cg-bg);
   border: 1px solid var(--cg-border);
-  border-radius: var(--cg-radius);
+  border-radius: var(--cg-radius-sm);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   padding: 6px 9px;
   font-size: 12px;

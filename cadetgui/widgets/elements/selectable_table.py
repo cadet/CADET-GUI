@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import traitlets as T
 
+from .._tokens import with_tokens
 from .choice_field import ChoiceField
 
 __all__ = ["SelectableTable"]
@@ -37,7 +38,7 @@ class SelectableTable(ChoiceField):
     empty_text = T.Unicode("Nothing here yet.").tag(sync=True)
 
     _esm = _DIR / "selectable_table.js"
-    _css = _DIR / "selectable_table.css"
+    _css = with_tokens(_DIR / "selectable_table.css")
 
     def __init__(
         self,

@@ -1,17 +1,9 @@
 /* Shared styling for atomic elements. Class names are shared across element
    JS files (float_field.js, etc.) so this one stylesheet covers all of them.
-   Tokens are declared on .cadetgui-field so every element (each gets its own
-   copy of this file injected by anywidget) carries its own light/dark values. */
+   Shared tokens come from tokens.css (prepended at load, see _tokens.py). */
 
 .cadetgui-field {
-  --cg-fg: #1f2937;
-  --cg-muted: #6b7280;
   --cg-unit: #828d99;
-  --cg-border: #d1d5db;
-  --cg-focus: #005b82;
-  --cg-danger: #dc2626;
-  --cg-bg: #ffffff;
-  --cg-radius: 6px;
   /* One step darker than --cg-muted, toward --cg-fg -- distinguishes a
      field's own label from a component-name sub-label, which stays at
      plain --cg-muted. Derived rather than a second hardcoded hex per
@@ -30,13 +22,7 @@
 
 @media (prefers-color-scheme: dark) {
   .cadetgui-field {
-    --cg-fg: #e5e7eb;
-    --cg-muted: #9ca3af;
     --cg-unit: #5b6472;
-    --cg-border: #4b5563;
-    --cg-focus: #4fa8d1;
-    --cg-danger: #f87171;
-    --cg-bg: #1f2937;
   }
 }
 
@@ -78,7 +64,7 @@
   width: 100px;
   padding: 4px 8px;
   border: 1px solid var(--cg-border);
-  border-radius: var(--cg-radius);
+  border-radius: var(--cg-radius-sm);
   background: var(--cg-bg);
   color: var(--cg-fg);
   font: inherit;
@@ -103,7 +89,7 @@
   min-width: 260px;
   padding: 4px 8px;
   border: 1px solid var(--cg-border);
-  border-radius: var(--cg-radius);
+  border-radius: var(--cg-radius-sm);
   background: var(--cg-bg);
   color: var(--cg-fg);
   font: inherit;
@@ -246,7 +232,7 @@
   width: 100px;
   padding: 4px 8px;
   border: 1px solid var(--cg-border);
-  border-radius: var(--cg-radius);
+  border-radius: var(--cg-radius-sm);
   background: var(--cg-bg);
   color: var(--cg-fg);
   font: inherit;
@@ -255,7 +241,7 @@
 .cadetgui-field-list-row button,
 .cadetgui-field-list-add {
   border: 1px solid var(--cg-border);
-  border-radius: var(--cg-radius);
+  border-radius: var(--cg-radius-sm);
   background: var(--cg-bg);
   color: var(--cg-muted);
   font: inherit;
