@@ -92,7 +92,6 @@ class WorkbenchWidget:
         )
         self._shell = SidebarShell(panes)
         self._nav = self._shell.nav  # exposed for scripting/tests, same name as before the split
-        self._wire_status()
 
         top_bar = W.HTML(
             "<div class='cadetgui-topbar'>"
@@ -104,36 +103,6 @@ class WorkbenchWidget:
         self.root = W.VBox([W.HTML(style_tag()), top_bar, self._shell.body])
         self.root.add_class("cadetgui-panel")
         self.root.add_class("cadetgui-workbench")
-
-    def _wire_status(self) -> None:
-        if self.configuration is not None:
-            self.configuration.add_listener(self._refresh_status)
-        if self.parameter_estimation is not None:
-            self.parameter_estimation.data.add_listener(self._refresh_status)
-        self._refresh_status()
-
-    def _refresh_status(self, *_args: object) -> None:
-        """Flag steps that can't do anything useful yet, without blocking navigation."""
-        config_problem = None
-        if self.configuration is not None:
-            config_problem = self.configuration.name_error("running a simulation")
-            if config_problem is None and self.configuration.process is None:
-                config_problem = "No valid process is built yet."
-
-        warnings = {
-            "Configuration": config_problem,
-            "Simulation": config_problem,
-            "Parameter Estimation": config_problem
-            or (
-                "Load an experimental dataset first."
-                if self.parameter_estimation is not None
-                and not self.parameter_estimation.data.datasets
-                else None
-            ),
-        }
-        for label, message in warnings.items():
-            if label in self._shell.panes:
-                self._shell.set_warning(label, message)
 
     def display(self) -> None:
         """Render this widget in a Jupyter cell."""

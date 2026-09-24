@@ -14,10 +14,12 @@ from .parameter_history import ParameterHistoryWidget, ParameterPushRecord
 
 __all__ = ["CharacterizationWorkbenchWidget"]
 
-_STAGE_STEPS = (
+_PERIPHERY_STEPS = (
     "Periphery: pre-injection",
     "Periphery: detectors",
     "Periphery: pre-injection + mixer",
+)
+_STAGE_STEPS = _PERIPHERY_STEPS + (
     "Bed",
     "Particles",
     "Adsorption",
@@ -131,7 +133,7 @@ class CharacterizationWorkbenchWidget:
                 "History": self.history.root if "History" in steps else None,
             },
         )
-        self._shell = SidebarShell(panes)
+        self._shell = SidebarShell(panes, groups={"Periphery": _PERIPHERY_STEPS})
         self._nav = self._shell.nav
         self._wire_status()
 

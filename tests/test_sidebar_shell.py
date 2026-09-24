@@ -136,3 +136,84 @@ def test_set_warning_rejects_an_unknown_step():
 
     with pytest.raises(KeyError):
         shell.set_warning("Z", "nope")
+
+
+def _grouped():
+    panes = {name: _pane() for name in ("A", "G: x", "G: y", "B")}
+    shell = SidebarShell(list(panes.items()), groups={"G": ["G: x", "G: y"]})
+    return shell, panes
+
+
+def _keys(shell):
+    return [key for _, key in shell.nav.options]
+
+
+def test_group_collapses_children_under_one_header():
+    shell, _ = _grouped()
+
+    assert _keys(shell) == ["A", "G", "B"]
+
+
+def test_clicking_a_group_header_expands_and_collapses_without_switching_panes():
+    shell, panes = _grouped()
+
+    shell.nav.value = "G"
+
+    assert _keys(shell) == ["A", "G", "G: x", "G: y", "B"]
+    assert [label for label, _ in shell.nav.options][2:4] == ["x", "y"]
+    assert panes["A"].layout.display == ""
+    assert shell.nav.value == "A"
+
+    shell.nav.value = "G"
+
+    assert _keys(shell) == ["A", "G", "B"]
+
+
+def test_showing_a_child_expands_its_group_and_collapsed_group_stays_clickable():
+    shell, panes = _grouped()
+
+    shell.show("G: y")
+
+    assert _keys(shell) == ["A", "G", "G: x", "G: y", "B"]
+    assert shell.nav.value == "G: y"
+    assert panes["G: y"].layout.display == ""
+
+    shell.nav.value = "G"
+
+    assert _keys(shell) == ["A", "G", "B"]
+    assert shell.nav.value is None
+    assert panes["G: y"].layout.display == ""
+
+    shell.nav.value = "G"
+
+    assert shell.nav.value == "G: y"
+
+
+def test_selecting_a_child_via_nav_switches_pane():
+    shell, panes = _grouped()
+    shell.show("G: x")
+
+    shell.nav.value = "G: y"
+
+    assert panes["G: y"].layout.display == ""
+    assert panes["G: x"].layout.display == "none"
+
+
+def test_group_header_shows_a_child_warning_only_while_collapsed():
+    shell, _ = _grouped()
+
+    shell.set_warning("G: y", "no data")
+
+    assert shell.nav.icons == ("", "exclamation-triangle", "")
+    assert "no data" in shell.nav.tooltips[1]
+
+    shell.show("G: y")
+
+    assert shell.nav.icons == ("", "", "", "exclamation-triangle", "")
+
+
+def test_group_validation():
+    with pytest.raises(ValueError):
+        SidebarShell([("A", _pane())], groups={"A": ["A"]})
+    shell = SidebarShell([("A", _pane())], groups={"G": ["Z"]})
+    assert list(shell.nav.options) == ["A"]

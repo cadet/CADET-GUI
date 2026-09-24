@@ -22,12 +22,28 @@ def _isolated_store(tmp_path, monkeypatch):
 def test_builds_all_ten_panes_by_default():
     wb = CharacterizationWorkbenchWidget()
 
-    assert list(wb._nav.options) == [
+    assert list(wb._shell.panes) == [
         "System", "Configuration",
         "Periphery: pre-injection", "Periphery: detectors", "Periphery: pre-injection + mixer",
         "Bed", "Particles", "Adsorption", "Capacity", "History",
     ]
     assert wb._nav.index == 0
+
+
+def test_periphery_is_one_collapsible_sidebar_entry():
+    wb = CharacterizationWorkbenchWidget()
+
+    assert [key for _, key in wb._nav.options] == [
+        "System", "Configuration", "Periphery",
+        "Bed", "Particles", "Adsorption", "Capacity", "History",
+    ]
+
+    wb._nav.value = "Periphery"
+
+    assert [label for label, _ in wb._nav.options][2:6] == [
+        "\u25be Periphery", "pre-injection", "detectors", "pre-injection + mixer",
+    ]
+    assert wb._nav.value == "System"
 
 
 def test_default_instrument_and_configuration_are_seeded_for_every_stage_to_work():
@@ -64,14 +80,14 @@ def test_only_the_first_pane_is_visible_initially():
     wb = CharacterizationWorkbenchWidget()
 
     assert wb.instrument.root.layout.display == ""
-    for name in list(wb._nav.options)[1:]:
+    for name in list(wb._shell.panes)[1:]:
         assert wb._shell.panes[name].layout.display == "none"
 
 
 def test_nav_switches_the_visible_pane():
     wb = CharacterizationWorkbenchWidget()
 
-    wb._nav.index = 5  # "Bed"
+    wb._shell.show("Bed")
 
     assert wb._shell.panes["Bed"].layout.display == ""
     assert wb._shell.panes["System"].layout.display == "none"
@@ -141,19 +157,32 @@ def test_accepts_prebuilt_instrument_and_configuration_unmodified():
     assert not wb.instrument.enabled  # untouched, unlike the default-constructed case
 
 
+def _warned(wb):
+    keys = [o[1] if isinstance(o, tuple) else o for o in wb._nav.options]
+    return {key for key, tip in zip(keys, wb._nav.tooltips) if tip}
+
+
+def test_collapsed_periphery_group_shows_its_childrens_warning():
+    wb = CharacterizationWorkbenchWidget(include=("System", "Periphery: detectors"))
+
+    assert _warned(wb) == {"Periphery"}
+
+    wb._shell.show("Periphery: detectors")
+
+    assert _warned(wb) == {"Periphery: detectors"}
+
+
 def test_stage_panes_are_flagged_until_they_have_a_dataset():
     import numpy as np
     from cadetgui.widgets.composite.data_import import ExperimentalDataset
 
     wb = CharacterizationWorkbenchWidget(include=("System", "Configuration", "Bed", "Capacity"))
-    warned = {
-        label for label, tip in zip(wb._nav.options, wb._nav.tooltips) if tip
-    }
+    warned = _warned(wb)
     assert warned == {"Bed", "Capacity"}
 
     bed = wb._stages["Bed"]
     bed.data.datasets.append(ExperimentalDataset("d", np.array([0.0, 1.0]), np.array([0.0, 1.0])))
     bed.data._notify()
 
-    warned = {label for label, tip in zip(wb._nav.options, wb._nav.tooltips) if tip}
+    warned = _warned(wb)
     assert warned == {"Capacity"}

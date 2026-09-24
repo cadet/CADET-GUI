@@ -440,14 +440,19 @@
   color: var(--cg-fg);
 }
 
+.cadetgui-sidebar-nav .widget-toggle-button .fa {
+  margin-right: 0;
+}
+
 .cadetgui-sidebar-nav .widget-toggle-button .fa-exclamation-triangle {
+  margin-right: var(--cg-space-2);
   color: var(--cg-warn);
 }
 
 .cadetgui-sidebar-nav .widget-toggle-button.mod-active {
   background: color-mix(in srgb, var(--cg-focus) 12%, transparent);
   border-color: transparent;
-  box-shadow: inset 3px 0 0 var(--cg-accent);
+  box-shadow: inset 3px 0 0 var(--cg-focus);
   color: var(--cg-focus);
   font-weight: 600;
 }
