@@ -28,11 +28,11 @@
 }
 
 .cadetgui-panel-title {
-  margin: 0 0 4px 0;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--cg-border);
-  font-size: 15px;
-  font-weight: 600;
+  margin: 0 0 var(--cg-space-1) 0;
+  padding-bottom: var(--cg-space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--cg-border) 70%, transparent);
+  font-size: 17px;
+  font-weight: 650;
   color: var(--cg-fg);
 }
 
@@ -42,19 +42,39 @@
 }
 
 .cadetgui-section-title {
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: var(--cg-space-2);
+  font-size: var(--cg-text-lg);
   font-weight: 600;
-  color: var(--cg-muted);
+  color: var(--cg-fg);
+}
+
+.cadetgui-section-title::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--cg-focus);
 }
 
 .cadetgui-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  border: 1px solid var(--cg-border);
+  gap: var(--cg-space-3);
+  padding: var(--cg-space-4);
+  border: 1px solid color-mix(in srgb, var(--cg-border) 70%, transparent);
+  border-radius: var(--cg-radius-lg);
+  background: var(--cg-surface);
+  box-shadow: var(--cg-shadow);
+}
+
+/* A card inside a card stays flat, so stacked shadows don't pile up. */
+.cadetgui-section .cadetgui-section {
   border-radius: var(--cg-radius);
-  background: color-mix(in srgb, var(--cg-border) 6%, transparent);
+  background: color-mix(in srgb, var(--cg-border) 8%, var(--cg-surface));
+  box-shadow: none;
 }
 
 /* A lighter, un-bordered nested box inside a .cadetgui-section -- e.g. one
@@ -92,11 +112,18 @@
 
 .cadetgui-section.cadetgui-settings-box {
   gap: 4px;
-  background: color-mix(in srgb, var(--cg-fg) 12%, var(--cg-bg));
+  background: color-mix(in srgb, var(--cg-fg) 8%, var(--cg-surface));
+  box-shadow: none;
 }
 
 .cadetgui-settings-box .cadetgui-section-title {
   margin-bottom: 4px;
+  font-size: var(--cg-text);
+  color: var(--cg-muted);
+}
+
+.cadetgui-settings-box .cadetgui-section-title::before {
+  display: none;
 }
 
 .cadetgui-status {
@@ -347,5 +374,8 @@
 .cadetgui-workbench-content {
   flex: 1 1 480px;
   min-width: 0;
-  padding: 16px;
+  align-self: stretch;
+  padding: var(--cg-space-4);
+  background: var(--cg-page);
+  border-radius: 0 0 var(--cg-radius-lg) 0;
 }
