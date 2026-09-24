@@ -29,11 +29,12 @@ def test_workbench_wires_parameter_estimation_to_configuration():
     wb = WorkbenchWidget()
 
     assert wb.parameter_estimation.param_space._param_add_picker.option_labels  # populated on bind
-    assert wb.parameter_estimation._signal_picker.option_labels == []  # nothing previewed yet
+    assert wb.parameter_estimation._signal_picker.option_labels  # populated on bind, no preview
+    assert wb.parameter_estimation._display_result is None
 
     wb.parameter_estimation._on_preview(None)
 
-    assert wb.parameter_estimation._signal_picker.option_labels
+    assert wb.parameter_estimation._display_result is not None
     assert wb.solution.result is None  # the Simulation tab's own run state is untouched
 
 
