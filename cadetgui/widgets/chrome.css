@@ -306,14 +306,17 @@
 .cadetgui-topbar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 18px;
-  border-radius: var(--cg-radius) var(--cg-radius) 0 0;
+  gap: var(--cg-space-3);
+  padding: var(--cg-space-3) var(--cg-space-5);
+  border: 1px solid color-mix(in srgb, var(--cg-border) 70%, transparent);
+  border-radius: var(--cg-radius-lg) var(--cg-radius-lg) 0 0;
   /* Fixed white, not var(--cg-bg): the logo PNG's ink is a fixed navy, so it
      needs a fixed light backdrop in both themes -- a dark-mode --cg-bg would
      wash out the wordmark, which can't recolor itself. */
   background: #ffffff;
-  border-bottom: 3px solid var(--cg-brand);
+  box-shadow: var(--cg-shadow);
+  position: relative;
+  z-index: 1;
 }
 
 .cadetgui-topbar img {
@@ -322,25 +325,37 @@
 }
 
 .cadetgui-topbar-title {
-  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: var(--cg-space-3);
+  font-size: var(--cg-text-lg);
   font-weight: 600;
   color: var(--cg-brand);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+}
+
+.cadetgui-topbar-title::before {
+  content: "";
+  width: 1px;
+  height: 18px;
+  background: #d1d5db;
 }
 
 .cadetgui-workbench-body {
   display: flex;
   flex-flow: row wrap;
   align-items: flex-start;
-  border: 1px solid var(--cg-border);
+  border: 1px solid color-mix(in srgb, var(--cg-border) 70%, transparent);
   border-top: none;
-  border-radius: 0 0 var(--cg-radius) var(--cg-radius);
+  border-radius: 0 0 var(--cg-radius-lg) var(--cg-radius-lg);
+  overflow: hidden;
 }
 
 .cadetgui-sidebar-nav {
-  flex: 0 0 180px;
-  padding: 14px 10px;
-  border-right: 1px solid var(--cg-border);
+  flex: 0 0 200px;
+  padding: var(--cg-space-3) var(--cg-space-2);
+  border-right: 1px solid color-mix(in srgb, var(--cg-border) 70%, transparent);
+  background: var(--cg-surface);
   align-self: stretch;
 }
 
@@ -350,29 +365,40 @@
 .cadetgui-sidebar-nav > div {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .cadetgui-sidebar-nav .widget-toggle-button {
   width: 100%;
+  height: auto;
+  min-height: 34px;
   justify-content: flex-start;
   text-align: left;
+  padding: 0 var(--cg-space-3);
+  border-radius: var(--cg-radius);
   background: transparent;
   border-color: transparent;
+  box-shadow: none;
+  color: var(--cg-muted);
+  font-size: var(--cg-text);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.cadetgui-sidebar-nav .widget-toggle-button:hover:not(.mod-active) {
+  background: color-mix(in srgb, var(--cg-fg) 6%, transparent);
+  color: var(--cg-fg);
 }
 
 .cadetgui-sidebar-nav .widget-toggle-button .fa-exclamation-triangle {
   color: var(--cg-warn);
 }
 
-.cadetgui-sidebar-nav .widget-toggle-button.mod-active .fa-exclamation-triangle {
-  color: #fcd34d;
-}
-
 .cadetgui-sidebar-nav .widget-toggle-button.mod-active {
-  background: var(--cg-focus);
-  border-color: var(--cg-focus);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--cg-focus) 12%, transparent);
+  border-color: transparent;
+  box-shadow: inset 3px 0 0 var(--cg-accent);
+  color: var(--cg-focus);
+  font-weight: 600;
 }
 
 .cadetgui-workbench-content {
@@ -381,5 +407,4 @@
   align-self: stretch;
   padding: var(--cg-space-4);
   background: var(--cg-page);
-  border-radius: 0 0 var(--cg-radius-lg) 0;
 }
