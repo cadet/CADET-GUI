@@ -97,14 +97,16 @@ _SOLVER_CO_GROUPS: dict[str, str] = {
 def get_co_group(model: str) -> str | None:
     """CADET-Core H5 group path for a solver-category model, e.g.
     `get_co_group("SolverTimeIntegratorParameters") == "/solver/time_integrator"`.
-    `None` for anything not registered."""
+    `None` for anything not registered.
+    """
     return _SOLVER_CO_GROUPS.get(model)
 
 
 @lru_cache(maxsize=1)
 def _inverse_co_name_maps() -> dict[tuple[str, str], dict[str, str]]:
     """`(category, model_name) -> {cp_name: co_name}`, inverted from CADET-Process's
-    own parameter maps (see module docstring)."""
+    own parameter maps (see module docstring).
+    """
     out: dict[tuple[str, str], dict[str, str]] = {}
     for category, param_map in _CO_NAME_MAPS.items():
         for model_name, entry in param_map.items():
@@ -134,7 +136,8 @@ def _live_metadata(category: str, model_name: str, name: str) -> dict[str, Any] 
     """Full metadata for one parameter, introspected off the real CADET-Process
     descriptor. `None` if `(category, model_name)` isn't registered in
     `_MODEL_CLASSES` or the attribute can't be resolved to a real descriptor
-    (see `_descriptor`)."""
+    (see `_descriptor`).
+    """
     cls = _MODEL_CLASSES.get((category, model_name))
     if cls is None:
         return None
@@ -202,7 +205,8 @@ def _required_parameters_live(category: str, model: str) -> frozenset[str]:
     """The real required-parameter set for a fresh, minimally-built `model`
     instance -- see the module docstring for why this must be a real instance,
     not `cls._required_parameters`. Cached: the underlying CADET-Process
-    objects only need constructing once per (category, model)."""
+    objects only need constructing once per (category, model).
+    """
     cls = _MODEL_CLASSES.get((category, model))
     if cls is None:
         return frozenset()
@@ -214,6 +218,7 @@ def required_parameters(category: str, model: str) -> list[str]:
     """Return the subset of `get_parameters(...)` CADET-Process requires to
     build `model`, in alphabetical order (CADET-Process's own order is
     hash-seed-random across process runs, not a stable fact to return -- see
-    `ai-docs/UPSTREAM_ISSUES.md` #4)."""
+    `ai-docs/UPSTREAM_ISSUES.md` #4).
+    """
     required = _required_parameters_live(category, model)
     return [name for name in get_parameters(category, model) if name in required]

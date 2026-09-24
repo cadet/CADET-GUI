@@ -88,14 +88,16 @@ _UNSAFE_DIRNAME_CHARS = re.compile(r"[^\w\-.]")
 
 def safe_config_dirname(name: str) -> str:
     """Filesystem-safe subfolder name for a configuration -- whitespace becomes
-    underscores, anything else unsafe in a folder name is dropped."""
+    underscores, anything else unsafe in a folder name is dropped.
+    """
     cleaned = _UNSAFE_DIRNAME_CHARS.sub("", name.strip().replace(" ", "_"))
     return cleaned or "unnamed"
 
 
 def config_dir(name: str, *, store_dir: Optional[Path] = None) -> Path:
     """The per-configuration subfolder one configuration's own save file, and
-    any run results saved alongside it, live under. Created on demand."""
+    any run results saved alongside it, live under. Created on demand.
+    """
     store_dir = store_dir or default_store_dir()
     path = store_dir / safe_config_dirname(name)
     path.mkdir(parents=True, exist_ok=True)
