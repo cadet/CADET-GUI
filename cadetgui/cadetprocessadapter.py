@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Literal, Mapping, Optional, Sequence
 
@@ -57,6 +58,20 @@ def require_positive(x: Any) -> None:
     """Raise ValueError unless x is a positive number."""
     if float(x) <= 0:
         raise ValueError("Must be > 0.")
+
+
+def require_finite_above(minimum: float = 0.0, *, inclusive: bool = False) -> Validator:
+    """Return a validator rejecting NaN/inf and values below (or at, unless inclusive) `minimum`."""
+
+    def _validate(x: Any) -> None:
+        value = float(x)
+        if not math.isfinite(value):
+            raise ValueError("Must be a finite number.")
+        if value < minimum or (value == minimum and not inclusive):
+            comparison = ">=" if inclusive else ">"
+            raise ValueError(f"Must be {comparison} {minimum:g}.")
+
+    return _validate
 
 
 def parse_float_list(v: Any) -> list[float]:

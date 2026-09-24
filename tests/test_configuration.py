@@ -686,6 +686,33 @@ def test_unbound_configuration_still_offers_pulse_feed_and_cstr():
     assert type(cw.process).__name__ == "Process"
 
 
+def test_invalid_system_input_clears_the_process_until_it_is_fixed():
+    iw, cw = built()
+    seen = []
+    cw.add_listener(seen.append)
+    assert cw.process is not None
+
+    iw._loop_volume_field.value = 0.0
+
+    assert cw.process is None
+    assert seen[-1] is None
+    assert "invalid" in cw.status.value
+
+    iw._loop_volume_field.value = 5e-8
+
+    assert cw.process is not None
+    assert seen[-1] is cw.process
+
+
+def test_model_form_edit_does_not_resurrect_a_process_while_the_system_is_invalid():
+    iw, cw = built()
+    iw._loop_volume_field.value = 0.0
+
+    cw._model_form.element("flow_rate").value = 2e-6
+
+    assert cw.process is None
+
+
 def test_instrument_state_round_trips_through_snapshot_and_apply_state():
     iw, cw = built()
     iw._unit_checkboxes["mixer"].value = True

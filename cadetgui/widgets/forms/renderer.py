@@ -72,11 +72,16 @@ class FormRenderer:
     """Render a ModelSpec into a form of Elements; auto-commits on every valid change."""
 
     def __init__(
-        self, spec: ModelSpec, *, on_built: Optional[Callable[[Any], None]] = None
+        self,
+        spec: ModelSpec,
+        *,
+        on_built: Optional[Callable[[Any], None]] = None,
+        on_invalid: Optional[Callable[[str], None]] = None,
     ) -> None:
         self.spec = spec
         self.built: Any = None
         self._on_built = on_built
+        self._on_invalid = on_invalid
         self.status = W.HTML("<em>Ready.</em>")
         # Set around set_values()'s per-element writes so each one's own
         # observer doesn't trigger its own commit -- one commit for the whole
@@ -107,6 +112,13 @@ class FormRenderer:
         """Whether every rendered field currently passes its validator."""
         return all(el.is_valid for el in self._elements.values())
 
+    def _first_error(self) -> str:
+        for f in self.spec.fields:
+            error = self._elements[f.name].error
+            if error:
+                return f"{f.label or f.name}: {error}"
+        return ""
+
     def element(self, name: str) -> Element:
         """Return the Element rendered for one field, keyed by FieldSpec.name."""
         return self._elements[name]
@@ -129,6 +141,8 @@ class FormRenderer:
             self.status.value = (
                 status_html("error", "Fix the highlighted field(s) to continue.")
             )
+            if self._on_invalid is not None:
+                self._on_invalid(self._first_error())
             return
         try:
             values = self.collect_values()
@@ -141,6 +155,8 @@ class FormRenderer:
         except Exception as exc:  # noqa: BLE001
             self.built = None
             self.status.value = status_html("error", str(exc))
+            if self._on_invalid is not None:
+                self._on_invalid(str(exc))
 
     def _on_reset(self, _btn: Any) -> None:
         self.set_values({})

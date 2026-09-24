@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any, Callable, Dict, List, Optional
 
 import ipywidgets as W
@@ -10,7 +11,9 @@ from ...cadetprocessadapter import (
     BINDING_MODELS,
     BYPASSABLE_UNITS,
     COLUMN_MODELS,
+    ModelSpec,
     build_parameter_config_spec,
+    require_finite_above,
 )
 from ...configuration_store import InstrumentState
 from .._chrome import style_tag
@@ -44,6 +47,21 @@ _UNIT_SEED_DEFAULTS: Dict[str, Dict[str, float]] = {
     "tubing_post_column": _TUBING_SEED_DEFAULTS,
     "tubing_detectors": _TUBING_SEED_DEFAULTS,
 }
+
+_ZERO_ALLOWED_PARAMS = frozenset({"axial_dispersion"})
+
+
+def _with_bounds_validation(spec: ModelSpec) -> ModelSpec:
+    """Give every scalar float field a validator: finite, and above (or at) its lower bound."""
+    fields = []
+    for f in spec.fields:
+        if f.kind == "float" and f.validate is None:
+            minimum = f.min if f.min is not None else 0.0
+            inclusive = f.name in _ZERO_ALLOWED_PARAMS or minimum < 0
+            f = replace(f, validate=require_finite_above(minimum, inclusive=inclusive))
+        fields.append(f)
+    return replace(spec, fields=fields)
+
 
 _UNIT_LABELS: Dict[str, str] = {
     "mixer": "Mixer",
@@ -89,13 +107,16 @@ class InstrumentWidget:
     both default to something sane (one generic component, LRM/Linear) so
     this widget still builds a real flow sheet dropped standalone into a
     notebook cell (EXT-001). Builds and exposes `.flow_sheet`, auto-committing
-    on every valid change; `add_listener` fires with it on every successful
-    build.
+    on every valid change; `add_listener` fires with it on every build. While
+    any System input is invalid the offending field shows the error,
+    `.flow_sheet` is `None` and listeners are told so -- never a stale sheet
+    that contradicts the visible fields.
     """
 
     def __init__(self) -> None:
         self._listeners: List[Callable[[Any], None]] = []
-        self.flow_sheet: Optional[LCFlowSheet] = None
+        self._built_sheet: Optional[LCFlowSheet] = None
+        self._problems: Dict[str, str] = {}
         # Set around apply_state()'s field writes so each one's own observer
         # doesn't trigger its own rebuild -- one rebuild for the whole
         # restored selection instead of one per field touched.
@@ -119,12 +140,14 @@ class InstrumentWidget:
         )
         self._loop_volume_field = FloatField(
             label="Sample loop volume", value=50e-9, units=r"\mathrm{m}^{3}",
+            validate=self._validate_loop_volume,
         )
         self._loop_diameter_auto_checkbox = W.Checkbox(
             description="Auto-derive diameter from volume", value=True, indent=False
         )
         self._loop_diameter_field = FloatField(
             label="Sample loop diameter", value=0.75e-3, units=r"\mathrm{m}",
+            validate=self._validate_loop_diameter,
         )
 
         # Only "column" starts checked; mixer/tubing segments are opt-in.
@@ -201,6 +224,19 @@ class InstrumentWidget:
         self._apply_loop_field_visibility()
         self._rebuild()
 
+    @property
+    def flow_sheet(self) -> Optional[LCFlowSheet]:
+        """The current LC flow sheet, or `None` while any System input is invalid."""
+        return None if self._problems else self._built_sheet
+
+    def _validate_loop_volume(self, value: Any) -> None:
+        if self._sample_loop_checkbox.value:
+            require_finite_above()(value)
+
+    def _validate_loop_diameter(self, value: Any) -> None:
+        if self._sample_loop_checkbox.value and not self._loop_diameter_auto_checkbox.value:
+            require_finite_above()(value)
+
     def add_listener(self, fn: Callable[[Any], None]) -> None:
         """Register a callback fired with `.flow_sheet` on every successful build."""
         self._listeners.append(fn)
@@ -271,6 +307,8 @@ class InstrumentWidget:
         self._loop_diameter_auto_checkbox.layout.display = "" if include_loop else "none"
         auto = self._loop_diameter_auto_checkbox.value
         self._loop_diameter_field.layout.display = "" if (include_loop and not auto) else "none"
+        self._loop_volume_field._run_validate()
+        self._loop_diameter_field._run_validate()
 
     def bypass_units(self) -> List[str]:
         """Currently-unchecked unit names -- excluded from the flow path."""
@@ -288,8 +326,36 @@ class InstrumentWidget:
                 v = getattr(built, p)
                 values[p] = v[0] if isinstance(v, (list, tuple)) else v
             self._unit_values[name] = values
+            self._resolve_problem(_UNIT_LABELS[name])
 
         return _on_built
+
+    def _make_on_unit_invalid(self, name: str) -> Callable[[str], None]:
+        def _on_invalid(message: str) -> None:
+            self._report_problem(_UNIT_LABELS[name], message)
+
+        return _on_invalid
+
+    def _report_problem(self, source: str, message: str) -> None:
+        was_valid = not self._problems
+        self._problems[source] = message
+        self._refresh_status()
+        if was_valid:
+            self._notify()
+
+    def _resolve_problem(self, source: str) -> None:
+        if self._problems.pop(source, None) is None:
+            return
+        self._refresh_status()
+        if not self._problems and self._built_sheet is not None:
+            self._notify()
+
+    def _refresh_status(self) -> None:
+        if self._problems:
+            detail = "; ".join(f"{source}: {message}" for source, message in self._problems.items())
+            self.status.value = status_html("error", f"Invalid System inputs -- {detail}")
+        else:
+            self.status.value = "<em>System built.</em>"
 
     def _rebuild_unit_forms(self, flow_sheet: LCFlowSheet, bypass: List[str]) -> None:
         """(Re)build each configurable unit's own parameter form against the fresh flow sheet.
@@ -317,12 +383,31 @@ class InstrumentWidget:
             for pname, value in (self._unit_values.get(name) or _UNIT_SEED_DEFAULTS[name]).items():
                 setattr(unit, pname, value)
             form = FormRenderer(
-                build_parameter_config_spec(unit), on_built=self._make_on_unit_built(name)
+                _with_bounds_validation(build_parameter_config_spec(unit)),
+                on_built=self._make_on_unit_built(name),
+                on_invalid=self._make_on_unit_invalid(name),
             )
             self._unit_forms[name] = form
             box.children = (form.root,)
 
+    def _loop_field_problems(self) -> Dict[str, str]:
+        problems = {}
+        for label, element in (
+            ("Sample loop volume", self._loop_volume_field),
+            ("Sample loop diameter", self._loop_diameter_field),
+        ):
+            if element.error:
+                problems[label] = element.error
+        return problems
+
     def _rebuild(self) -> None:
+        self._problems = self._loop_field_problems()
+        if self._problems:
+            self._built_sheet = None
+            self._refresh_status()
+            self._notify()
+            return
+
         try:
             cs = ComponentSystem(list(self._component_names))
             bypass = self.bypass_units()
@@ -343,12 +428,15 @@ class InstrumentWidget:
                 bypass_units=bypass or None,
             )
         except Exception as exc:  # noqa: BLE001
-            self.status.value = status_html("error", str(exc))
+            self._built_sheet = None
+            self._problems = {"System": str(exc)}
+            self._refresh_status()
+            self._notify()
             return
 
-        self.flow_sheet = flow_sheet
+        self._built_sheet = flow_sheet
         self._rebuild_unit_forms(flow_sheet, bypass)
-        self.status.value = "<em>System built.</em>"
+        self._refresh_status()
         self._notify()
 
     def display(self) -> None:

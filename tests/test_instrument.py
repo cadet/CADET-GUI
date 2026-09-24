@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import warnings
 
+import pytest
 from cadetgui.widgets.composite import InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -107,3 +108,102 @@ def test_unit_values_round_trip_through_snapshot_and_apply_state():
 
     assert iw2.flow_sheet.mixer.init_liquid_volume == 2.5e-5
     assert iw2._unit_forms["tubing_detectors"].element("axial_dispersion").value == 3e-8
+
+
+@pytest.mark.parametrize("bad", [0.0, -1e-9, float("nan"), float("inf")])
+def test_bad_sample_loop_volume_flags_the_field_and_withholds_the_flow_sheet(bad):
+    iw = InstrumentWidget()
+    seen = []
+    iw.add_listener(seen.append)
+
+    iw._loop_volume_field.value = bad
+
+    assert iw._loop_volume_field.error
+    assert iw.flow_sheet is None
+    assert seen[-1] is None
+    assert "Sample loop volume" in iw.status.value
+
+
+def test_sample_loop_volume_recovers_after_a_bad_value():
+    iw = InstrumentWidget()
+    seen = []
+    iw.add_listener(seen.append)
+    iw._loop_volume_field.value = 0.0
+
+    iw._loop_volume_field.value = 2e-7
+
+    assert iw._loop_volume_field.error == ""
+    assert iw.flow_sheet is not None
+    assert seen[-1] is iw.flow_sheet
+    assert "built" in iw.status.value
+
+
+@pytest.mark.parametrize("bad", [0.0, -1e-3])
+def test_bad_sample_loop_diameter_only_matters_when_not_auto_derived(bad):
+    iw = InstrumentWidget()
+    iw._loop_diameter_field.value = bad
+    assert iw._loop_diameter_field.error == ""
+    assert iw.flow_sheet is not None
+
+    iw._loop_diameter_auto_checkbox.value = False
+
+    assert iw._loop_diameter_field.error
+    assert iw.flow_sheet is None
+
+    iw._loop_diameter_field.value = 1e-3
+
+    assert iw._loop_diameter_field.error == ""
+    assert iw.flow_sheet is not None
+
+
+def test_bad_sample_loop_volume_is_ignored_while_the_loop_is_unchecked():
+    iw = InstrumentWidget()
+    iw._loop_volume_field.value = 0.0
+    assert iw.flow_sheet is None
+
+    iw._sample_loop_checkbox.value = False
+
+    assert iw._loop_volume_field.error == ""
+    assert iw.flow_sheet is not None
+
+
+@pytest.mark.parametrize(
+    ("unit", "param", "bad"),
+    [
+        ("mixer", "init_liquid_volume", 0.0),
+        ("mixer", "init_liquid_volume", -1.0),
+        ("tubing_pre_injection", "length", 0.0),
+        ("tubing_pre_injection", "diameter", -1e-3),
+        ("tubing_detectors", "axial_dispersion", -1.0),
+        ("tubing_pre_column", "length", float("nan")),
+        ("tubing_post_column", "diameter", float("inf")),
+    ],
+)
+def test_bad_unit_field_flags_the_field_and_withholds_the_flow_sheet_until_fixed(unit, param, bad):
+    iw = _fully_enabled_instrument()
+    seen = []
+    iw.add_listener(seen.append)
+    good = iw._unit_forms[unit].element(param).value
+
+    iw._unit_forms[unit].element(param).value = bad
+
+    assert iw._unit_forms[unit].element(param).error
+    assert iw.flow_sheet is None
+    assert seen == [None]
+    assert "Invalid System inputs" in iw.status.value
+
+    iw._unit_forms[unit].element(param).value = good
+
+    assert iw._unit_forms[unit].element(param).error == ""
+    assert iw.flow_sheet is not None
+    assert seen[-1] is iw.flow_sheet
+    assert len(seen) == 2
+
+
+def test_zero_axial_dispersion_is_accepted():
+    iw = _fully_enabled_instrument()
+
+    iw._unit_forms["tubing_detectors"].element("axial_dispersion").value = 0.0
+
+    assert iw._unit_forms["tubing_detectors"].element("axial_dispersion").error == ""
+    assert iw.flow_sheet is not None

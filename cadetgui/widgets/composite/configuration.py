@@ -406,8 +406,16 @@ class ConfigurationWidget:
             )
         return self._binding_cache[cache_key]
 
-    def _on_instrument_changed(self, _flow_sheet: Any) -> None:
+    def _on_instrument_changed(self, flow_sheet: Any) -> None:
         if self._suspend_rebuild:
+            return
+        if flow_sheet is None:
+            self.process = None
+            self.persistence.refresh_hash_display()
+            self._notify()
+            self.status.value = status_html(
+                "error", "The System has invalid inputs -- fix them to rebuild the process."
+            )
             return
         self._refresh_picker_options()
         self._sync_component_minimum()
@@ -493,6 +501,8 @@ class ConfigurationWidget:
         self._rebuild_forms()
 
     def _on_process_built(self, built: Any) -> None:
+        if self._instrument is not None and self._instrument.flow_sheet is None:
+            return
         self.process = built
         self.persistence.refresh_hash_display()
         self._notify()
