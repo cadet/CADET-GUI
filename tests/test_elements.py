@@ -6,6 +6,7 @@ from cadetgui.widgets.elements import (
     ChoiceField,
     ComponentListField,
     Element,
+    EventTimelineChart,
     FloatField,
     FloatListField,
     TextField,
@@ -62,6 +63,13 @@ def test_floatfield_ships_esm_and_css():
     f = FloatField()
     assert "function render" in f._esm
     assert ".cadetgui-field" in f._css
+
+
+@pytest.mark.parametrize(
+    "cls", [FloatField, FloatListField, BoolField, TextField, EventTimelineChart]
+)
+def test_unit_rendering_elements_ship_the_latex_unit_parser(cls):
+    assert "function parseUnit" in cls()._esm
 
 
 def test_textfield_get_set():

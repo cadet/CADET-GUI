@@ -50,7 +50,9 @@ class SolutionWidget:
             layout=W.Layout(display="none"),
         )
         self._signal_picker = ChoiceField(label="Signal:", options=[])
-        self._chart = ChromatogramChart(y_label="Concentration / mol/m^3")
+        self._chart = ChromatogramChart(
+            y_label=r"Concentration / \frac{\mathrm{mol}}{\mathrm{m}^{3}}"
+        )
         self._chart.layout.display = "none"
         self._plot_out = W.Output()
         self.status = W.HTML("<em>Ready.</em>")

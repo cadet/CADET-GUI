@@ -124,13 +124,13 @@ class InstrumentWidget:
             description="Sample loop", value=True, indent=False
         )
         self._loop_volume_field = FloatField(
-            label="Sample loop volume", value=50e-9, units="m^3",
+            label="Sample loop volume", value=50e-9, units=r"\mathrm{m}^{3}",
         )
         self._loop_diameter_auto_checkbox = W.Checkbox(
             description="Auto-derive diameter from volume", value=True, indent=False
         )
         self._loop_diameter_field = FloatField(
-            label="Sample loop diameter", value=0.75e-3, units="m",
+            label="Sample loop diameter", value=0.75e-3, units=r"\mathrm{m}",
         )
 
         # Only "column" starts checked -- the minimal useful flow path once

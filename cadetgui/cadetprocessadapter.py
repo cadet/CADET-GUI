@@ -72,9 +72,9 @@ def parse_float_list(v: Any) -> list[float]:
     return vals
 
 
-CONCENTRATION_UNITS = "mol/m^3_IV"
+CONCENTRATION_UNITS = r"\frac{\mathrm{mol}}{\mathrm{m}^{3}_{\mathrm{IV}}}"
 
-# Units: mol/m^3_IV (inlet.rst CONST_COEFF), s (solver.rst SECTION_TIMES),
+# Units: mol/m^3 interstitial (inlet.rst CONST_COEFF), s (solver.rst SECTION_TIMES),
 # flow_rate m^3/s by consistency with CADET-Core's other flow-rate fields.
 #
 # Concentration fields (c_buffer_a, c_buffer_b, c_sample) aren't here --
@@ -83,31 +83,31 @@ CONCENTRATION_UNITS = "mol/m^3_IV"
 PARAMS: dict[str, FieldSpec] = {
     "flow_rate": FieldSpec(
         "flow_rate", "float", "Flow rate", 1.0e-6,
-        validate=require_positive, units="m^3/s",
+        validate=require_positive, units=r"\frac{\mathrm{m}^{3}}{\mathrm{s}}",
     ),
     "flow_rate_wash": FieldSpec(
         "flow_rate_wash", "float", "Flow rate", 1.0e-6,
-        validate=require_positive, units="m^3/s",
+        validate=require_positive, units=r"\frac{\mathrm{m}^{3}}{\mathrm{s}}",
     ),
     "cycle_time": FieldSpec(
         "cycle_time", "float", "Cycle time", 6000.0,
-        validate=require_positive, units="s",
+        validate=require_positive, units=r"\mathrm{s}",
     ),
     "pulse_duration": FieldSpec(
         "pulse_duration", "float", "Pulse duration", 60.0,
-        validate=require_positive, units="s",
+        validate=require_positive, units=r"\mathrm{s}",
     ),
     "delta_t_wash": FieldSpec(
         "delta_t_wash", "float", "Wash duration", 600.0,
-        validate=require_positive, units="s",
+        validate=require_positive, units=r"\mathrm{s}",
     ),
     "delta_t_elute": FieldSpec(
         "delta_t_elute", "float", "Elution duration", 1200.0,
-        validate=require_positive, units="s",
+        validate=require_positive, units=r"\mathrm{s}",
     ),
     "delta_t_final_wash": FieldSpec(
         "delta_t_final_wash", "float", "Final wash duration", 600.0,
-        validate=require_positive, units="s",
+        validate=require_positive, units=r"\mathrm{s}",
     ),
 }
 

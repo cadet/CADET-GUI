@@ -74,11 +74,11 @@ def _tubing_fields(unit: str) -> tuple[FieldSpec, ...]:
     return (
         FieldSpec(
             f"{unit}_length", "float", label="Length",
-            min=1e-3, max=5.0, default=0.1, units="m",
+            min=1e-3, max=5.0, default=0.1, units=r"\mathrm{m}",
         ),
         FieldSpec(
             f"{unit}_axial_dispersion", "float", label="Axial dispersion",
-            min=1e-12, max=1e-4, default=1e-7, units="m^2/s",
+            min=1e-12, max=1e-4, default=1e-7, units=r"\frac{\mathrm{m}^{2}}{\mathrm{s}}",
         ),
     )
 
@@ -95,11 +95,11 @@ _STATIC_STAGE_SPECS: Dict[Stage, _StageSpec] = {
         fields=(
             FieldSpec(
                 "tubing_pre_injection_length", "float", label="Pre-injection tubing length",
-                min=1e-3, max=5.0, default=0.1, units="m",
+                min=1e-3, max=5.0, default=0.1, units=r"\mathrm{m}",
             ),
             FieldSpec(
                 "mixer_volume", "float", label="Mixer volume",
-                min=1e-9, max=1e-3, default=1e-6, units="m^3",
+                min=1e-9, max=1e-3, default=1e-6, units=r"\mathrm{m}^{3}",
             ),
         ),
         write_targets={
@@ -117,7 +117,7 @@ _STATIC_STAGE_SPECS: Dict[Stage, _StageSpec] = {
             FieldSpec("bed_porosity", "float", label="Bed porosity", min=0.2, max=0.8, default=0.4),
             FieldSpec(
                 "axial_dispersion", "float", label="Axial dispersion",
-                min=1e-12, max=1e-4, default=1e-7, units="m^2/s",
+                min=1e-12, max=1e-4, default=1e-7, units=r"\frac{\mathrm{m}^{2}}{\mathrm{s}}",
             ),
         ),
         write_targets={
@@ -132,7 +132,7 @@ _STATIC_STAGE_SPECS: Dict[Stage, _StageSpec] = {
         fields=(
             FieldSpec(
                 "film_diffusion", "float", label="Film diffusion",
-                min=1e-9, max=1e-3, default=1e-5, units="m/s",
+                min=1e-9, max=1e-3, default=1e-5, units=r"\frac{\mathrm{m}}{\mathrm{s}}",
             ),
         ),
         write_targets={"film_diffusion": _WriteTarget("column", None, "film_diffusion")},
@@ -169,7 +169,7 @@ _STATIC_STAGE_SPECS: Dict[Stage, _StageSpec] = {
         fields=(
             FieldSpec(
                 "capacity", "float", label="Capacity",
-                min=1.0, max=1000.0, default=100.0, units="mM",
+                min=1.0, max=1000.0, default=100.0, units=r"\mathrm{mM}",
             ),
         ),
         write_targets={"capacity": _WriteTarget("binding", None, "capacity")},
