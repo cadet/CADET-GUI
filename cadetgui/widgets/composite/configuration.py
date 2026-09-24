@@ -21,6 +21,7 @@ from ...cadetprocessadapter import (
     lwe_spec,
     require_positive,
     step_elution_spec,
+    template_required_units,
 )
 from ...configuration_store import ConfigurationState
 from .._chrome import style_tag
@@ -313,6 +314,7 @@ class ConfigurationWidget:
             self._refresh_picker_options()
             instrument.components = list(self._components.value)
             instrument.set_column_and_binding(self._column_picker.value, self._binding_picker.value)
+            self._sync_instrument_requirements()
         finally:
             self._suspend_rebuild = False
 
@@ -445,9 +447,25 @@ class ConfigurationWidget:
             self._binding_cache.clear()
             self._rebuild_forms()
 
+    def _sync_instrument_requirements(self) -> None:
+        """Tell a bound instrument which units the selected template can't be built without."""
+        if self._instrument is None:
+            return
+        model_fn = self._model_picker.value
+        was_suspended = self._suspend_rebuild
+        self._suspend_rebuild = True
+        try:
+            self._instrument.set_required_units(
+                template_required_units(model_fn),
+                reason=_key_for_value(self._active_registry(), model_fn) or "",
+            )
+        finally:
+            self._suspend_rebuild = was_suspended
+
     def _on_model_selection_change(self, change: dict) -> None:
         if change.get("name") != "selected_index":
             return
+        self._sync_instrument_requirements()
         self._sync_component_minimum()
         if self._maybe_autoadd_component():
             return  # setting self._components.value already rebuilt the forms
@@ -601,6 +619,7 @@ class ConfigurationWidget:
                     " that isn't registered here anymore."
                 )
             self._model_picker.value = template_factory
+            self._sync_instrument_requirements()
         finally:
             self._suspend_rebuild = False
 

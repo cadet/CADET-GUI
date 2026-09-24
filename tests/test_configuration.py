@@ -38,7 +38,7 @@ def test_configuration_widget_builds_process_automatically_with_defaults():
     _, cw = built()
 
     assert cw.process is not None
-    assert type(cw.process).__name__ == "PulseInjection"
+    assert type(cw.process).__name__ == "Step"
 
 
 def test_configuration_widget_notifies_listeners_on_a_valid_field_change():
@@ -665,14 +665,14 @@ def test_bound_configuration_offers_the_five_lc_templates_and_no_cstr_by_default
     cw = ConfigurationWidget(instrument=iw)
 
     assert cw._model_picker.option_labels == [
-        "Pulse Injection",
         "Step",
+        "Pulse Injection",
         "Load–Wash–Elute (LWE)",
         "Step Elution",
         "Breakthrough",
     ]
     assert "Continuous Stirred Tank Reactor (CSTR)" not in cw._column_picker.option_labels
-    assert type(cw.process).__name__ == "PulseInjection"
+    assert type(cw.process).__name__ == "Step"
 
 
 def test_unbound_configuration_still_offers_pulse_feed_and_cstr():
@@ -688,6 +688,7 @@ def test_unbound_configuration_still_offers_pulse_feed_and_cstr():
 
 def test_invalid_system_input_clears_the_process_until_it_is_fixed():
     iw, cw = built()
+    iw._sample_loop_checkbox.value = True
     seen = []
     cw.add_listener(seen.append)
     assert cw.process is not None
@@ -706,11 +707,86 @@ def test_invalid_system_input_clears_the_process_until_it_is_fixed():
 
 def test_model_form_edit_does_not_resurrect_a_process_while_the_system_is_invalid():
     iw, cw = built()
+    iw._sample_loop_checkbox.value = True
     iw._loop_volume_field.value = 0.0
 
     cw._model_form.element("flow_rate").value = 2e-6
 
     assert cw.process is None
+
+
+def test_bound_configuration_starts_on_step_with_no_sample_loop():
+    iw = InstrumentWidget()
+    cw = ConfigurationWidget(instrument=iw)
+
+    assert cw._model_picker.option_labels[cw._model_picker.selected_index] == "Step"
+    assert type(cw.process).__name__ == "Step"
+    assert iw._sample_loop_checkbox.value is False
+    assert iw._sample_loop_checkbox.disabled is False
+    assert set(iw.bypass_units()) == set(iw._unit_checkboxes) - {"column"}
+    assert "sample_loop" not in [u.name for u in iw.flow_sheet.units]
+
+
+@pytest.mark.parametrize(
+    ("label", "process_type"),
+    [
+        ("Pulse Injection", "PulseInjection"),
+        ("Load–Wash–Elute (LWE)", "LWE"),
+        ("Step Elution", "StepElution"),
+    ],
+)
+def test_templates_that_need_a_sample_loop_switch_it_on_and_lock_it(label, process_type):
+    iw, cw = built()
+    cw.components = ["Salt", "Protein"]
+    instrument_builds = []
+    process_builds = []
+    iw.add_listener(instrument_builds.append)
+    cw.add_listener(process_builds.append)
+
+    cw._model_picker.value = cw._registry[label]
+
+    assert iw._sample_loop_checkbox.value is True
+    assert iw._sample_loop_checkbox.disabled is True
+    assert label in iw._loop_lock_note.value
+    assert iw._loop_lock_note.layout.display == ""
+    assert "sample_loop" in [u.name for u in iw.flow_sheet.units]
+    assert type(cw.process).__name__ == process_type
+    assert len(instrument_builds) == 1
+    assert len(process_builds) == 1
+
+
+@pytest.mark.parametrize("label", ["Step", "Breakthrough"])
+def test_optional_loop_templates_unlock_it_and_restore_the_users_choice(label):
+    iw, cw = built()
+    cw._model_picker.value = cw._registry["Pulse Injection"]
+
+    cw._model_picker.value = cw._registry[label]
+
+    assert iw._sample_loop_checkbox.value is False
+    assert iw._sample_loop_checkbox.disabled is False
+    assert iw._loop_lock_note.layout.display == "none"
+    assert type(cw.process).__name__ == label
+
+    iw._sample_loop_checkbox.value = True
+    cw._model_picker.value = cw._registry["Step Elution"]
+    cw._model_picker.value = cw._registry[label]
+
+    assert iw._sample_loop_checkbox.value is True
+    assert iw._sample_loop_checkbox.disabled is False
+
+
+def test_locked_sample_loop_survives_a_state_round_trip():
+    iw, cw = built()
+    cw._model_picker.value = cw._registry["Pulse Injection"]
+    state = cw._snapshot_state()
+    assert state.instrument.include_sample_loop is True
+
+    iw2, cw2 = built()
+    cw2._apply_state("Imported", state)
+
+    assert type(cw2.process).__name__ == "PulseInjection"
+    assert iw2._sample_loop_checkbox.value is True
+    assert iw2._sample_loop_checkbox.disabled is True
 
 
 def test_instrument_state_round_trips_through_snapshot_and_apply_state():

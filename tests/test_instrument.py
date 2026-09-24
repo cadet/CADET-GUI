@@ -16,6 +16,12 @@ def _fully_enabled_instrument() -> InstrumentWidget:
     return iw
 
 
+def _instrument_with_loop() -> InstrumentWidget:
+    iw = InstrumentWidget()
+    iw._sample_loop_checkbox.value = True
+    return iw
+
+
 def test_configurable_units_get_real_parameter_forms_by_default():
     iw = _fully_enabled_instrument()
     assert set(iw._unit_forms) == {
@@ -112,7 +118,7 @@ def test_unit_values_round_trip_through_snapshot_and_apply_state():
 
 @pytest.mark.parametrize("bad", [0.0, -1e-9, float("nan"), float("inf")])
 def test_bad_sample_loop_volume_flags_the_field_and_withholds_the_flow_sheet(bad):
-    iw = InstrumentWidget()
+    iw = _instrument_with_loop()
     seen = []
     iw.add_listener(seen.append)
 
@@ -125,7 +131,7 @@ def test_bad_sample_loop_volume_flags_the_field_and_withholds_the_flow_sheet(bad
 
 
 def test_sample_loop_volume_recovers_after_a_bad_value():
-    iw = InstrumentWidget()
+    iw = _instrument_with_loop()
     seen = []
     iw.add_listener(seen.append)
     iw._loop_volume_field.value = 0.0
@@ -140,7 +146,7 @@ def test_sample_loop_volume_recovers_after_a_bad_value():
 
 @pytest.mark.parametrize("bad", [0.0, -1e-3])
 def test_bad_sample_loop_diameter_only_matters_when_not_auto_derived(bad):
-    iw = InstrumentWidget()
+    iw = _instrument_with_loop()
     iw._loop_diameter_field.value = bad
     assert iw._loop_diameter_field.error == ""
     assert iw.flow_sheet is not None
@@ -157,7 +163,7 @@ def test_bad_sample_loop_diameter_only_matters_when_not_auto_derived(bad):
 
 
 def test_bad_sample_loop_volume_is_ignored_while_the_loop_is_unchecked():
-    iw = InstrumentWidget()
+    iw = _instrument_with_loop()
     iw._loop_volume_field.value = 0.0
     assert iw.flow_sheet is None
 
@@ -207,3 +213,38 @@ def test_zero_axial_dispersion_is_accepted():
 
     assert iw._unit_forms["tubing_detectors"].element("axial_dispersion").error == ""
     assert iw.flow_sheet is not None
+
+
+def test_set_required_units_locks_and_unlocks_the_sample_loop_standalone():
+    iw = InstrumentWidget()
+    assert iw._sample_loop_checkbox.value is False
+
+    iw.set_required_units({"sample_loop"}, reason="Pulse Injection")
+
+    assert iw._sample_loop_checkbox.value is True
+    assert iw._sample_loop_checkbox.disabled is True
+    assert "Pulse Injection needs a sample loop" in iw._loop_lock_note.value
+    assert "sample_loop" in [u.name for u in iw.flow_sheet.units]
+
+    iw.set_required_units(set())
+
+    assert iw._sample_loop_checkbox.value is False
+    assert iw._sample_loop_checkbox.disabled is False
+    assert iw._loop_lock_note.layout.display == "none"
+
+
+def test_set_required_units_does_not_rebuild_when_nothing_changes():
+    iw = InstrumentWidget()
+    iw.set_required_units({"sample_loop"})
+    seen = []
+    iw.add_listener(seen.append)
+
+    iw.set_required_units({"sample_loop"})
+    iw.set_required_units({"sample_loop"}, reason="Step Elution")
+
+    assert seen == []
+
+
+def test_set_required_units_rejects_unknown_units():
+    with pytest.raises(ValueError):
+        InstrumentWidget().set_required_units({"mixer"})

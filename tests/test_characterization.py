@@ -6,7 +6,7 @@ import warnings
 import cadetgui.configuration_store as configuration_store
 import numpy as np
 import pytest
-from cadetgui.cadetprocessadapter import COLUMN_MODELS
+from cadetgui.cadetprocessadapter import COLUMN_MODELS, INSTRUMENT_TEMPLATES
 from cadetgui.widgets.composite import (
     CharacterizationWidget,
     ConfigurationWidget,
@@ -34,6 +34,7 @@ def _synchronous_threads(monkeypatch):
 def _built_with_instrument(*, column_key: str = "Lumped Rate Model Without Pores (LRM)"):
     iw = InstrumentWidget()
     cw = ConfigurationWidget(instrument=iw)
+    cw._model_picker.value = INSTRUMENT_TEMPLATES["Pulse Injection"]
     if column_key != "Lumped Rate Model Without Pores (LRM)":
         cw._column_picker.value = COLUMN_MODELS[column_key]
     return iw, cw

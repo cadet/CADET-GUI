@@ -368,12 +368,24 @@ def pulse_feed_spec(unit: Any) -> ModelSpec:
 # PhasedProcess's fully generic phase-list composition is out of scope here --
 # see REQUIREMENTS.md's "generic user-authored event widget" open decision.
 INSTRUMENT_TEMPLATES: dict[str, Callable[[LCFlowSheet], ModelSpec]] = {
-    "Pulse Injection": pulse_injection_spec,
     "Step": step_spec,
+    "Pulse Injection": pulse_injection_spec,
     "Load–Wash–Elute (LWE)": lwe_spec,
     "Step Elution": step_elution_spec,
     "Breakthrough": breakthrough_spec,
 }
+
+_TEMPLATE_REQUIRED_UNITS: dict[Callable[..., ModelSpec], frozenset[str]] = {
+    pulse_injection_spec: frozenset({"sample_loop"}),
+    lwe_spec: frozenset({"sample_loop"}),
+    step_elution_spec: frozenset({"sample_loop"}),
+}
+
+
+def template_required_units(template: Callable[..., ModelSpec] | None) -> frozenset[str]:
+    """Flow-path units a process template can't be built without (`"sample_loop"`)."""
+    return _TEMPLATE_REQUIRED_UNITS.get(template, frozenset())
+
 
 # Used instead of INSTRUMENT_TEMPLATES when ConfigurationWidget has no
 # InstrumentWidget bound -- REQUIREMENTS.md item #32 ("instrument attachment

@@ -8,6 +8,7 @@ import pytest
 matplotlib.use("Agg")  # headless test environment, no display needed
 
 import cadetgui.configuration_store as configuration_store
+from cadetgui.cadetprocessadapter import INSTRUMENT_TEMPLATES
 from cadetgui.simulation import run_process as _default_runner
 from cadetgui.widgets.composite import (
     ConfigurationWidget,
@@ -35,15 +36,10 @@ def built_process():
 
 
 def built_process_with_instrument():
-    """Like `built_process()`, but with an InstrumentWidget bound.
-
-    For tests that specifically need the LCFlowSheet-based process (its
-    buffer/feed/waste units etc.), not just any valid process -- most tests
-    in this module don't care which template built it, so `built_process()`
-    stays on the (now standalone-by-default) plain path.
-    """
+    """Like `built_process()`, but through a Pulse Injection template with its sample loop."""
     iw = InstrumentWidget()
     cw = ConfigurationWidget(instrument=iw)
+    cw._model_picker.value = INSTRUMENT_TEMPLATES["Pulse Injection"]
     return cw.process
 
 

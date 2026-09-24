@@ -4,7 +4,7 @@ from typing import Dict, Optional, Sequence
 
 import ipywidgets as W
 
-from ...cadetprocessadapter import BINDING_MODELS, COLUMN_MODELS
+from ...cadetprocessadapter import BINDING_MODELS, COLUMN_MODELS, INSTRUMENT_TEMPLATES
 from .._chrome import logo_data_uri, style_tag
 from .._sidebar_shell import SidebarShell, collect_panes, validate_steps
 from .characterization import CharacterizationWidget
@@ -51,7 +51,8 @@ class CharacterizationWorkbenchWidget:
     A default-constructed `instrument`/`configuration` (i.e. neither is
     passed in) is seeded so every stage pane works out of the box: the
     periphery-relevant units are included (needed for the two
-    "Periphery: ..." panes to have anything to fit), and a column/
+    "Periphery: ..." panes to have anything to fit), the Pulse Injection
+    template (the tracer pulse the fits compare against), and a column/
     binding pair with pores and a capacity/characteristic-charge (LRMP +
     SMA) rather than `ConfigurationWidget`'s own bare LRM/Linear default,
     which has neither `bed_porosity` nor `capacity`/`characteristic_charge`
@@ -79,6 +80,7 @@ class CharacterizationWorkbenchWidget:
         self.configuration = configuration
         if self.configuration is None:
             self.configuration = ConfigurationWidget(instrument=self.instrument)
+            self.configuration._model_picker.value = INSTRUMENT_TEMPLATES["Pulse Injection"]
             self.configuration._column_picker.value = COLUMN_MODELS[
                 "Lumped Rate Model With Pores (LRMP)"
             ]

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 import ipywidgets as W
 from CADETProcess.instruments import LCFlowSheet
@@ -100,6 +100,10 @@ class InstrumentWidget:
     `ChromatographicColumnBase`, so it can never fill `LCFlowSheet`'s column
     slot) and the 'Pulse Feed (Single Component)' template.
 
+    The sample loop is off by default and optional; a bound
+    `ConfigurationWidget` switches it on and locks it (`set_required_units`)
+    while the selected process template can't be built without one.
+
     Component names and column/binding *type* live on the composing
     `ConfigurationWidget` (its own pickers there "win" -- see
     ARCHITECTURE.md) and are handed in here via `.components` and
@@ -136,8 +140,11 @@ class InstrumentWidget:
         self._unit_forms: Dict[str, FormRenderer] = {}
 
         self._sample_loop_checkbox = W.Checkbox(
-            description="Sample loop", value=True, indent=False
+            description="Sample loop", value=False, indent=False
         )
+        self._loop_locked = False
+        self._loop_user_choice = False
+        self._loop_lock_note = W.HTML("", layout=W.Layout(display="none"))
         self._loop_volume_field = FloatField(
             label="Sample loop volume", value=50e-9, units=r"\mathrm{m}^{3}",
             validate=self._validate_loop_volume,
@@ -175,7 +182,9 @@ class InstrumentWidget:
             [self._loop_volume_field, self._loop_diameter_auto_checkbox, self._loop_diameter_field]
         )
         sample_loop_fields.add_class("cadetgui-subsection")
-        sample_loop_subsection = W.VBox([self._sample_loop_checkbox, sample_loop_fields])
+        sample_loop_subsection = W.VBox(
+            [self._sample_loop_checkbox, self._loop_lock_note, sample_loop_fields]
+        )
         sample_loop_subsection.add_class("cadetgui-subsection")
 
         unit_subsections = []
@@ -268,10 +277,37 @@ class InstrumentWidget:
     def _on_change(self, change: dict) -> None:
         if change.get("name") not in ("value", "selected_index"):
             return
+        if change.get("owner") is self._sample_loop_checkbox and not self._loop_locked:
+            self._loop_user_choice = bool(self._sample_loop_checkbox.value)
         self._apply_loop_field_visibility()
         if self._suspend_rebuild:
             return
         self._rebuild()
+
+    def set_required_units(self, units: Iterable[str], *, reason: str = "") -> None:
+        """Force the units a process template can't be built without into the flow path.
+
+        Only `"sample_loop"` is supported. A required unit is switched on and
+        locked with a note naming `reason`; once no longer required, the
+        checkbox unlocks and returns to the user's own last choice.
+        """
+        required = frozenset(units)
+        unknown = required - {"sample_loop"}
+        if unknown:
+            raise ValueError(f"Unsupported required units: {sorted(unknown)}")
+        if "sample_loop" in required:
+            if not self._loop_locked:
+                self._loop_user_choice = bool(self._sample_loop_checkbox.value)
+                self._loop_locked = True
+            self._sample_loop_checkbox.disabled = True
+            self._loop_lock_note.value = f"<em>{reason or 'This process'} needs a sample loop.</em>"
+            self._loop_lock_note.layout.display = ""
+            self._sample_loop_checkbox.value = True
+        elif self._loop_locked:
+            self._loop_locked = False
+            self._sample_loop_checkbox.disabled = False
+            self._loop_lock_note.layout.display = "none"
+            self._sample_loop_checkbox.value = self._loop_user_choice
 
     def snapshot(self) -> InstrumentState:
         """Capture the current topology selection as the hashed save/import payload."""
@@ -288,7 +324,8 @@ class InstrumentWidget:
         """Reconstruct fields from a saved InstrumentState."""
         self._suspend_rebuild = True
         try:
-            self._sample_loop_checkbox.value = state.include_sample_loop
+            self._loop_user_choice = state.include_sample_loop
+            self._sample_loop_checkbox.value = state.include_sample_loop or self._loop_locked
             self._loop_volume_field.value = state.sample_loop_volume
             self._loop_diameter_auto_checkbox.value = state.sample_loop_diameter_auto
             self._loop_diameter_field.value = state.sample_loop_diameter

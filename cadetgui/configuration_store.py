@@ -37,7 +37,7 @@ class InstrumentState:
     in here.
     """
 
-    include_sample_loop: bool = True
+    include_sample_loop: bool = False
     sample_loop_volume: float = 50e-9
     sample_loop_diameter_auto: bool = True
     sample_loop_diameter: float = 0.75e-3
