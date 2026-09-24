@@ -16,8 +16,8 @@
 
   --cg-brand: #005b82; /* CADET logo navy -- fixed, not theme-swapped */
   --cg-focus: #005b82;
-  --cg-accent: #e8833a; /* call-to-action / "look here"; never a status color */
-  --cg-accent-fg: #1f1300;
+  --cg-primary: #005b82;
+  --cg-primary-fg: #ffffff;
 
   --cg-danger: #c81e1e;
   --cg-success: #047857;
@@ -58,8 +58,8 @@
     --cg-page: #111827;
 
     --cg-focus: #4fa8d1;
-    --cg-accent: #f0a05e;
-    --cg-accent-fg: #1f1300;
+    --cg-primary: #26759b;
+    --cg-primary-fg: #ffffff;
 
     --cg-danger: #f87171;
     --cg-success: #34d399;

@@ -68,6 +68,10 @@
   font: inherit;
 }
 
+.cadetgui-field-input.cadetgui-field-input-text {
+  width: min(340px, 100%);
+}
+
 .cadetgui-field-input:focus {
   outline: none;
   border-color: var(--cg-focus);

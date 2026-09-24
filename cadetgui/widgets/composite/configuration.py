@@ -250,7 +250,7 @@ class ConfigurationWidget:
         )
 
         model_form_column = W.VBox([self._model_form_box])
-        model_form_column.add_class("cadetgui-section-half")
+        model_form_column.add_class("cadetgui-section-wide")
 
         event_chart_column = W.VBox([self._event_plot_label, self._event_chart])
         event_chart_column.add_class("cadetgui-section-half")
@@ -723,7 +723,7 @@ class ConfigurationWidget:
                 max=slider_max,
                 step=step,
                 readout=False,  # the linked field already shows the value
-                layout=W.Layout(width="100%", max_width="200px", min_width="100px"),
+                layout=W.Layout(width="100%", max_width="200px", min_width="90px"),
             )
             # dlink+round, not link: slider drag reports float noise (e.g.
             # 19620.00000000004) that a plain link would pass straight through.

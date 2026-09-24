@@ -113,6 +113,11 @@
   min-width: 0;
 }
 
+.cadetgui-row > .cadetgui-section-wide {
+  flex: 3 1 540px;
+  min-width: 0;
+}
+
 .cadetgui-section.cadetgui-settings-box {
   gap: 4px;
   background: color-mix(in srgb, var(--cg-fg) 8%, var(--cg-surface));
@@ -216,20 +221,19 @@
 }
 
 /* Primary call to action: ipywidgets' "success" style is only ever used for
-   the run buttons, so it is the accent-colored primary rather than green
-   (green stays a status color). */
+   the run buttons, so it is the filled primary rather than green (green
+   stays a status color). */
 .cadetgui-panel .jupyter-button.mod-success {
-  background: var(--cg-accent);
-  border-color: var(--cg-accent);
-  color: var(--cg-accent-fg);
+  background: var(--cg-primary);
+  border-color: var(--cg-primary);
+  color: var(--cg-primary-fg);
   font-weight: 600;
 }
 
 .cadetgui-panel .jupyter-button.mod-success:hover:not(:disabled),
 .cadetgui-panel .jupyter-button.mod-success:active:not(:disabled) {
-  background: var(--cg-accent);
-  border-color: var(--cg-accent);
-  filter: brightness(1.07);
+  background: color-mix(in srgb, var(--cg-primary) 88%, #000000);
+  border-color: color-mix(in srgb, var(--cg-primary) 88%, #000000);
 }
 
 .cadetgui-panel .jupyter-button.mod-success:focus-visible {
@@ -443,12 +447,17 @@
   color: var(--cg-fg);
 }
 
+.cadetgui-sidebar-nav .widget-toggle-button {
+  display: flex;
+  align-items: center;
+}
+
 .cadetgui-sidebar-nav .widget-toggle-button .fa {
-  margin-right: 0;
+  margin-left: auto;
+  padding-left: var(--cg-space-3);
 }
 
 .cadetgui-sidebar-nav .widget-toggle-button .fa-exclamation-triangle {
-  margin-right: var(--cg-space-2);
   color: var(--cg-warn);
 }
 

@@ -175,7 +175,7 @@ function render({ model, el }) {
 
   const input = document.createElement("input");
   input.type = "text";
-  input.className = "cadetgui-field-input";
+  input.className = "cadetgui-field-input cadetgui-field-input-text";
   input.value = model.get("value");
   input.addEventListener("change", () => {
     model.set("value", input.value);
