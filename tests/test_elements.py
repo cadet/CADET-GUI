@@ -181,3 +181,14 @@ def test_componentlistfield_observe_fires_on_value_change():
     f.observe(lambda change: seen.append(change["new"]), names="value")
     f.value = ["A", "B", "C"]
     assert seen == [["A", "B", "C"]]
+
+
+def test_line_chart_subclasses_share_traits_with_their_own_defaults():
+    from cadetgui.widgets.elements import ChromatogramChart, EventTimelineChart, LineChart
+
+    assert LineChart().y_label == ""
+    assert EventTimelineChart().y_label == "state"
+    assert EventTimelineChart().empty_text == "No events yet"
+    chromatogram = ChromatogramChart(series=[{"name": "a", "times": [0.0], "values": [1.0]}])
+    assert chromatogram.view_width > LineChart().view_width
+    assert chromatogram.series[0]["name"] == "a"

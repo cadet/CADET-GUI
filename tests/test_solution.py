@@ -639,3 +639,23 @@ def test_solutionwidget_reloads_a_persisted_run_in_a_fresh_instance(tmp_path):
     assert reloaded_run.result is not None
     assert set(reloaded_run.result.solution.keys()) == set(original_run.result.solution.keys())
     assert sw2.result is not None
+
+
+def test_solutionwidget_plots_a_run_in_the_interactive_chart():
+    sw = SolutionWidget(process=built_process())
+    sw._on_run(None)
+
+    assert sw._chart.layout.display == ""
+    assert sw._plot_out.layout.display == "none"
+    assert len(sw._chart.series) == len(sw.result.process.component_system.names)
+    assert sw._chart.series[0]["times"][-1] == sw.result.solution["outlet"]["inlet"].time[-1] / 60
+
+
+def test_solutionwidget_clear_empties_and_hides_the_chart():
+    sw = SolutionWidget(process=built_process())
+    sw._on_run(None)
+
+    sw._on_clear(None)
+
+    assert sw._chart.series == []
+    assert sw._chart.layout.display == "none"

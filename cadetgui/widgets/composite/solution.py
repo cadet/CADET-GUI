@@ -8,9 +8,10 @@ from ... import configuration_store, run_store
 from ...cadetprocessadapter import classify_signal_ports
 from ...simulation import run_process as _default_runner
 from .._chrome import style_tag
+from .._series import solution_series
 from .._settings_popover import toggle_box
 from .._status import status_html
-from ..elements import ChoiceField
+from ..elements import ChoiceField, ChromatogramChart
 from .run_history import RunHistoryWidget, RunRecord
 
 __all__ = ["SolutionWidget"]
@@ -49,6 +50,8 @@ class SolutionWidget:
             layout=W.Layout(display="none"),
         )
         self._signal_picker = ChoiceField(label="Signal:", options=[])
+        self._chart = ChromatogramChart(y_label="Concentration / mol/m^3")
+        self._chart.layout.display = "none"
         self._plot_out = W.Output()
         self.status = W.HTML("<em>Ready.</em>")
         self.history = RunHistoryWidget(
@@ -112,6 +115,7 @@ class SolutionWidget:
                 toolbar,
                 history_row,
                 self._signal_picker,
+                self._chart,
                 self._plot_out,
                 self._btn_save_options,
                 self._save_options_box,
@@ -226,8 +230,13 @@ class SolutionWidget:
         except Exception:  # noqa: BLE001
             return None, None
 
-    def _on_run(self, _btn: Any) -> None:
+    def _clear_plot(self) -> None:
         self._plot_out.clear_output()
+        self._chart.series = []
+        self._chart.layout.display = "none"
+
+    def _on_run(self, _btn: Any) -> None:
+        self._clear_plot()
         if self.process is None:
             self.status.value = status_html("error", "No process to run.")
             return
@@ -279,7 +288,7 @@ class SolutionWidget:
 
     def _on_history_pick(self, run: RunRecord) -> None:
         self._btn_load_config.layout.display = "" if run.config_hash else "none"
-        self._plot_out.clear_output()
+        self._clear_plot()
         if not run.ok:
             self.result = None
             self._signal_picker.set_options([])
@@ -351,7 +360,7 @@ class SolutionWidget:
         self._notify()
 
     def _on_clear(self, _btn: Any) -> None:
-        self._plot_out.clear_output()
+        self._clear_plot()
         self.result = None
         self._signal_picker.set_options([])
         self._rebuild_save_outputs_scope_options()
@@ -369,6 +378,17 @@ class SolutionWidget:
         unit, port = self._signal_picker.value
         solution = self.result.solution[unit][port]
 
+        series = solution_series(solution)
+        if series is not None:
+            self._plot_out.clear_output()
+            self._plot_out.layout.display = "none"
+            self._chart.layout.display = ""
+            self._chart.series = series
+            return
+
+        self._chart.series = []
+        self._chart.layout.display = "none"
+        self._plot_out.layout.display = ""
         self._plot_out.clear_output(wait=True)
         with self._plot_out:
             import matplotlib.pyplot as plt

@@ -3,9 +3,9 @@ from .base import Element
 from .bool_field import BoolField
 from .choice_field import ChoiceField
 from .component_list_field import ComponentListField
-from .event_timeline_chart import EventTimelineChart
 from .float_field import FloatField
 from .float_list_field import FloatListField
+from .line_chart import ChromatogramChart, EventTimelineChart, LineChart
 from .text_field import TextField
 
 __all__ = [
@@ -16,5 +16,7 @@ __all__ = [
     "FloatListField",
     "ChoiceField",
     "ComponentListField",
+    "LineChart",
     "EventTimelineChart",
+    "ChromatogramChart",
 ]
