@@ -2,7 +2,7 @@
 
 .cadetgui-chart {
   position: relative;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--cg-font);
   color: var(--cg-fg);
 }
 
@@ -21,7 +21,7 @@
 .cadetgui-chart-axislabel {
   fill: var(--cg-muted);
   font-size: 9px;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--cg-font);
 }
 
 .cadetgui-chart-axistitle {

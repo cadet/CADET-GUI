@@ -3,8 +3,8 @@
 .cadetgui-table {
   min-width: 320px;
   flex: 1 1 320px;
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 13px;
+  font-family: var(--cg-font);
+  font-size: var(--cg-text);
   color: var(--cg-fg);
 }
 

@@ -23,8 +23,11 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--cg-font);
+  font-size: var(--cg-text);
+  line-height: 1.45;
   color: var(--cg-fg);
+  -webkit-font-smoothing: antialiased;
 }
 
 .cadetgui-panel-title {
@@ -280,6 +283,7 @@
   background: var(--cg-bg);
   color: var(--cg-fg);
   font: inherit;
+  font-variant-numeric: tabular-nums;
   padding: 4px 8px;
 }
 
@@ -288,7 +292,7 @@
   border-radius: var(--cg-radius);
   background: var(--cg-bg);
   color: var(--cg-fg);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--cg-font-mono);
   font-size: 12.5px;
   padding: 10px;
 }

@@ -15,8 +15,8 @@
   align-items: center;
   gap: 0.6rem;
   padding: 2px 0;
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 13px;
+  font-family: var(--cg-font);
+  font-size: var(--cg-text);
   color: var(--cg-fg);
 }
 
@@ -61,6 +61,7 @@
 }
 
 .cadetgui-field-input {
+  font-variant-numeric: tabular-nums;
   width: 100px;
   padding: 4px 8px;
   border: 1px solid var(--cg-border);
@@ -274,7 +275,7 @@
   min-width: 90px;
   flex: 0 0 auto;
   color: var(--cg-muted);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--cg-font);
   font-size: 12px;
 }
 
