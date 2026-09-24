@@ -6,7 +6,11 @@ import warnings
 
 import numpy as np
 import pytest
-from cadetgui.cadetprocessadapter import FieldSpec
+from cadetgui.cadetprocessadapter import (
+    FieldSpec,
+    classify_signal_ports,
+    list_signal_ports,
+)
 from cadetgui.parameter_estimation import (
     build_reference,
     calibrate_reference,
@@ -393,3 +397,10 @@ def test_run_estimation_stops_early_when_cancelled(optimizer_name, optimizer_kwa
     assert "cancelled" in result.message.lower()
     assert elapsed < max_elapsed  # stopped promptly, not after the full run
     assert column.total_porosity == 0.72  # the live object is still untouched
+
+
+def test_list_signal_ports_matches_the_simulated_classification_without_simulating():
+    process = built_widget().process
+
+    assert list_signal_ports(process) == classify_signal_ports(run_process(process))
+    assert list_signal_ports(process)[0] == ("outlet: Sink", ("outlet", "inlet"))

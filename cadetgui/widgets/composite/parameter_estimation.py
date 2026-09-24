@@ -10,7 +10,7 @@ import numpy as np
 from CADETProcess.plotting import get_fig_size
 
 from ... import configuration_store
-from ...cadetprocessadapter import classify_signal_ports
+from ...cadetprocessadapter import classify_signal_ports, list_signal_ports
 from ...parameter_estimation import (
     OPTIMIZERS,
     CalibrationMethod,
@@ -357,14 +357,15 @@ class ParameterEstimationWidget:
         return {}
 
     def _on_preview(self, _btn: Any) -> None:
-        """Simulate the current base process once: discover signal ports and overlay it."""
+        """Simulate the current base process once and overlay its signal."""
         if self._config_widget is None or self._config_widget.process is None:
             self.status.value = status_html("error", "No configuration to preview.")
             return
         self.status.value = status_html("running", "Simulating preview…")
         self._display_result = run_process(self._config_widget.process)
-        options = classify_signal_ports(self._display_result)
-        self._signal_picker.set_options(options, keep_value=True)
+        self._signal_picker.set_options(
+            classify_signal_ports(self._display_result), keep_value=True
+        )
         self._redraw_overlay()
         self.status.value = "<em>Preview ready.</em>"
 
@@ -399,7 +400,10 @@ class ParameterEstimationWidget:
         if self._display_result is None or self._signal_picker.value is None:
             return
         unit, port = self._signal_picker.value
-        solution = self._display_result.solution[unit][port]
+        result_solution = self._display_result.solution
+        if unit not in result_solution or port not in result_solution[unit]:
+            return
+        solution = result_solution[unit][port]
         try:
             reference, dataset_label = self._current_reference()
         except Exception:  # noqa: BLE001
@@ -447,6 +451,15 @@ class ParameterEstimationWidget:
             )
         self.param_space.set_params(new_params)
         self._refresh_component_options()
+        self._refresh_signal_options()
+
+    def _refresh_signal_options(self) -> None:
+        cw = self._config_widget
+        process = cw.process if cw is not None else None
+        options = list_signal_ports(process) if process is not None else []
+        if [label for label, _ in options] == self._signal_picker.option_labels:
+            return
+        self._signal_picker.set_options(options, keep_value=True)
 
     def _refresh_component_options(self) -> None:
         cw = self._config_widget
@@ -467,7 +480,7 @@ class ParameterEstimationWidget:
         if self._dataset_picker.value is None:
             return "Import or select an experimental dataset first."
         if self._signal_picker.value is None:
-            return "Preview the process to see available signals first."
+            return "No signal available for the current configuration."
         if not self.param_space:
             return "Add at least one parameter to fit."
         for idx, start, lb, ub in self.param_space.rows():

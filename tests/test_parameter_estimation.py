@@ -8,6 +8,7 @@ import warnings
 import cadetgui.configuration_store as configuration_store
 import pytest
 from cadetgui.parameter_estimation import EstimationResult
+from cadetgui.simulation import run_process
 from cadetgui.widgets.composite import (
     ConfigurationWidget,
     DataImportWidget,
@@ -197,12 +198,12 @@ def test_preview_populates_the_signal_picker_and_does_not_touch_the_configuratio
     cw = built_configuration()
     pw.bind_to_config(cw)
 
-    assert pw._signal_picker.option_labels == []  # nothing previewed yet
+    assert pw._display_result is None
+    assert pw._signal_picker.option_labels  # available without simulating
 
     before = cw._column_form.collect_values()
     pw._on_preview(None)
 
-    assert pw._signal_picker.option_labels  # non-empty now
     assert pw._display_result is not None
     assert cw._column_form.collect_values() == before
 
@@ -261,16 +262,39 @@ def test_starting_a_run_clears_and_hides_every_chart():
     assert pw._history_chart.series == []
 
 
-def test_preview_defaults_the_signal_picker_to_the_sink():
-    # Fitting against the process outlet is the common case -- it should be
-    # selected by default after Preview, not whichever unit happens first.
+def test_signal_picker_is_populated_on_bind_without_a_preview_and_defaults_to_the_sink():
     pw = ParameterEstimationWidget()
     cw = built_configuration()
     pw.bind_to_config(cw)
 
+    assert pw._display_result is None
+    assert pw._signal_picker.option_labels[0] == "outlet: Sink"
+    assert pw._signal_picker.value == ("outlet", "inlet")
+
+
+def test_signal_options_match_the_ones_a_preview_would_offer():
+    pw = ParameterEstimationWidget()
+    pw.bind_to_config(built_configuration())
+    before = list(pw._signal_picker.option_labels)
+
     pw._on_preview(None)
 
-    assert pw._signal_picker.value == ("outlet", "inlet")
+    assert pw._signal_picker.option_labels == before
+
+
+def test_signal_options_refresh_when_the_configuration_changes():
+    pw = ParameterEstimationWidget()
+    cw = built_configuration()
+    pw.bind_to_config(cw)
+    pw._signal_picker.selected_index = 1
+    picked = pw._signal_picker.value
+
+    cw._model_form.element("flow_rate").value = 9.9e-6
+    assert pw._signal_picker.value == picked  # kept across unrelated edits
+
+    pw._signal_picker.set_options([("stale", ("nope", "inlet"))])
+    cw._model_form.element("flow_rate").value = 8.8e-6
+    assert pw._signal_picker.option_labels[0] == "outlet: Sink"
 
 
 def test_preview_without_a_configuration_shows_a_guard_error():
@@ -359,13 +383,28 @@ def test_run_estimation_without_a_dataset_shows_a_guard_error():
     assert "dataset" in pw.status.value.lower()
 
 
-def test_run_estimation_without_a_preview_shows_a_guard_error():
+def test_run_estimation_without_a_preview_works():
+    cw, pw = _bound_widgets()
+    unit, port = pw._signal_picker.value
+    measured = _uploaded_measurement_from(run_process(cw.process), unit, port)
+    upload_csv(pw.data, "measured.csv", measured)
+    pw._dataset_picker.selected_index = 0
+    _add_param(pw, 0)
+    _set_maxiter(pw, 20)
+    assert pw._display_result is None
+
+    pw._on_run(None)
+
+    assert pw._last_result is not None
+    assert pw._last_result.success
+
+
+def test_redraw_overlay_without_a_preview_does_not_crash():
     _, pw = _bound_widgets()
-    upload_csv(pw.data, "run1.csv", "time,signal\n0,0.0\n1,0.5\n2,1.0\n")
 
-    pw._on_run(None)  # never previewed -> no signal options
+    pw._redraw_overlay()
 
-    assert "preview" in pw.status.value.lower()
+    assert pw._chart.series == []
 
 
 def test_run_estimation_without_an_added_parameter_shows_a_guard_error():

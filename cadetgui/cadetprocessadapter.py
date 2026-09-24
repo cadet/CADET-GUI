@@ -640,10 +640,32 @@ def classify_signal_ports(result: Any) -> list[tuple[str, tuple[str, str]]]:
     sorted first among sinks, not just "any Outlet", so `waste` stays a valid
     but secondary choice rather than competing for the default.
     """
-    units = result.process.flow_sheet.units_dict
-    sinks: list[tuple[str, tuple[str, str]]] = []
+    return _order_signal_ports(
+        result.process.flow_sheet.units_dict,
+        {name: list(ports) for name, ports in result.solution.items()},
+    )
+
+
+def list_signal_ports(process: Any) -> list[tuple[str, tuple[str, str]]]:
+    """Derive the `classify_signal_ports` list from a process without simulating it."""
+    units = process.flow_sheet.units_dict
+    ports_by_unit = {
+        name: [
+            port
+            for port in ("inlet", "outlet")
+            if getattr(unit.solution_recorder, f"write_solution_{port}", True)
+        ]
+        for name, unit in units.items()
+    }
+    return _order_signal_ports(units, ports_by_unit)
+
+
+def _order_signal_ports(
+    units: Mapping[str, Any], ports_by_unit: Mapping[str, Sequence[str]]
+) -> list[tuple[str, tuple[str, str]]]:
+    sinks: list[tuple[str, str, tuple[str, str]]] = []
     others: list[tuple[str, tuple[str, str]]] = []
-    for unit_name, ports in result.solution.items():
+    for unit_name, ports in ports_by_unit.items():
         unit = units.get(unit_name)
         if isinstance(unit, Inlet):
             if "outlet" in ports:
