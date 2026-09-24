@@ -22,11 +22,14 @@ class LineChart(anywidget.AnyWidget):
     "values": [float, ...]}`, plus optional `"dashed": bool`, `"reference":
     bool` (drawn in the neutral measured-data color instead of a palette slot)
     and `"axis": "right"` (plots against the secondary y-axis, titled by
-    `y_label_right`). Series may have different sample times.
+    `y_label_right`). Series may have different sample times. `x_name`/`x_unit`
+    label the x value in the hover tooltip.
     """
 
     series = T.List(T.Dict()).tag(sync=True)
     x_label = T.Unicode("Time / min").tag(sync=True)
+    x_name = T.Unicode("t").tag(sync=True)
+    x_unit = T.Unicode("min").tag(sync=True)
     y_label = T.Unicode("").tag(sync=True)
     y_label_right = T.Unicode("").tag(sync=True)
     empty_text = T.Unicode("No data").tag(sync=True)

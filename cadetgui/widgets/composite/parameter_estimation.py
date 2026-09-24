@@ -25,8 +25,9 @@ from ...parameter_estimation import (
 from ...simulation import run_process
 from .._chrome import style_tag
 from .._mpl_figure import display_figure, new_figure
+from .._series import reference_series, solution_series
 from .._status import status_html
-from ..elements import ChoiceField
+from ..elements import ChoiceField, ChromatogramChart, LineChart
 from .data_import import DataImportWidget
 from .parameter_space import ParameterSpaceEditor
 
@@ -157,12 +158,24 @@ class ParameterEstimationWidget:
             format="png", layout=W.Layout(width="700px", display="none")
         )
         self._live_plot_error = W.HTML(value="")
+        self._live_chart = ChromatogramChart(view_width=560, view_height=260, y_label="Signal")
+        self._live_chart.layout.display = "none"
+        self._live_chart.layout.width = "560px"
+        self._history_chart = LineChart(
+            view_width=420, view_height=260, x_label="Generation", x_name="generation",
+            x_unit="", y_label="Objective (SSE)", empty_text="No generations yet",
+        )
+        self._history_chart.layout.display = "none"
+        self._history_chart.layout.width = "420px"
         # Result table (parameter/before/fitted) + the reference-vs-simulated
         # overlay plot, both shown after a Preview or a finished run.
         self._fit_table = W.HTML()
         self._plot_out = W.Image(
             format="png", layout=W.Layout(width="400px", display="none")
         )
+        self._chart = ChromatogramChart(view_width=560, view_height=260, y_label="Signal")
+        self._chart.layout.display = "none"
+        self._chart.layout.width = "560px"
         # Post-run analytics, from CADET-Process's own OptimizationResults --
         # not something we compute ourselves. `plot_convergence` (best/avg
         # objective vs. evaluations) always makes sense; `plot_pairwise`
@@ -261,8 +274,13 @@ class ParameterEstimationWidget:
                 optimizer_row,
                 W.HBox([self._btn_run, self._btn_cancel, self._btn_accept, self._elapsed_label]),
                 self._live_plot_error,
+                W.HBox(
+                    [self._live_chart, self._history_chart],
+                    layout=W.Layout(flex_flow="row wrap"),
+                ),
                 self._live_plot_out,
                 self._fit_table,
+                self._chart,
                 self._plot_out,
                 W.HTML("<div class='cadetgui-panel-title'>Convergence &amp; correlation</div>"),
                 self._analytics_error,
@@ -387,6 +405,20 @@ class ParameterEstimationWidget:
         except Exception:  # noqa: BLE001
             reference, dataset_label = None, None
 
+        series = solution_series(solution)
+        if series is not None:
+            if reference is not None:
+                series.append(
+                    reference_series(
+                        f"{dataset_label} (measured)", reference.time, reference.solution[:, 0]
+                    )
+                )
+            self._plot_out.layout.display = "none"
+            self._chart.series = series
+            self._chart.layout.display = ""
+            return
+
+        self._chart.layout.display = "none"
         fig = new_figure(figsize=self._FIGSIZE)
         ax = fig.add_subplot(111)
         solution.plot(ax=ax)
@@ -458,6 +490,9 @@ class ParameterEstimationWidget:
         for img in (self._plot_out, self._live_plot_out, self._convergence_out, self._pairwise_out):
             img.value = b""
             img.layout.display = "none"
+        for chart in (self._chart, self._live_chart, self._history_chart):
+            chart.series = []
+            chart.layout.display = "none"
         self._live_plot_error.value = ""
         self._analytics_error.value = ""
         self._btn_accept.layout.display = "none"
@@ -595,6 +630,27 @@ class ParameterEstimationWidget:
             preview = simulate_at(process, column, params, selected, x_best)
 
             solution = preview.solution[unit][port]
+            series = solution_series(solution)
+            if series is not None:
+                if reference is not None:
+                    series.append(
+                        reference_series("measured", reference.time, reference.solution[:, 0])
+                    )
+                generations = list(range(1, len(f_history) + 1))
+                self._history_chart.series = [
+                    {
+                        "name": "Objective (SSE)",
+                        "times": generations,
+                        "values": [float(v) for v in f_history],
+                    }
+                ]
+                self._live_chart.series = series
+                self._live_plot_out.layout.display = "none"
+                self._live_chart.layout.display = ""
+                self._history_chart.layout.display = ""
+                self._live_plot_error.value = ""
+                return
+
             width, height = self._FIGSIZE
             fig = new_figure(figsize=(2 * width, height))  # two "1_col" panels side by side
             ax1 = fig.add_subplot(1, 2, 1)

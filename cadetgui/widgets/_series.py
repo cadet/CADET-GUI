@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 import numpy as np
 
-__all__ = ["decimate_minmax", "solution_series"]
+__all__ = ["decimate_minmax", "solution_series", "reference_series"]
 
 
 def decimate_minmax(
@@ -38,3 +38,13 @@ def solution_series(solution: Any, max_points: int = 2000) -> Optional[list[dict
         t, v = decimate_minmax(times_min, values[:, i], max_points)
         series.append({"name": name, "times": t, "values": v})
     return series
+
+
+def reference_series(
+    name: str, time_s: Any, values: Any, max_points: int = 2000
+) -> dict[str, Any]:
+    """Build a dashed, neutral-colored chart series for measured data (time in seconds)."""
+    times, vals = decimate_minmax(
+        np.asarray(time_s, dtype=float) / 60.0, np.asarray(values, dtype=float), max_points
+    )
+    return {"name": name, "times": times, "values": vals, "dashed": True, "reference": True}

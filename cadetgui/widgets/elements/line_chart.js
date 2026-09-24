@@ -458,7 +458,8 @@ function render({ model, el }) {
       tooltip.replaceChildren();
       const timeRow = document.createElement("div");
       timeRow.className = "cadetgui-chart-tooltip-time";
-      timeRow.textContent = `t = ${formatTick(t)} min`;
+      const unit = model.get("x_unit");
+      timeRow.textContent = `${model.get("x_name")} = ${formatTick(t)}${unit ? " " + unit : ""}`;
       tooltip.appendChild(timeRow);
       all.forEach((s, i) => {
         if (state.hidden.has(s.name)) return;
@@ -536,7 +537,7 @@ function render({ model, el }) {
   }
 
   draw();
-  for (const name of ["series", "x_label", "y_label", "y_label_right", "empty_text", "view_width", "view_height"]) {
+  for (const name of ["series", "x_label", "x_name", "x_unit", "y_label", "y_label_right", "empty_text", "view_width", "view_height"]) {
     model.on(`change:${name}`, draw);
   }
   el.appendChild(wrap);

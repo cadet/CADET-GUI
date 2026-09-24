@@ -208,18 +208,57 @@ def test_preview_populates_the_signal_picker_and_does_not_touch_the_configuratio
 
 
 def test_plot_widget_starts_hidden_and_is_shown_once_a_preview_is_drawn():
-    # `W.Image` renders a broken-image icon when `.value` is unset -- must
-    # stay hidden until there's actually something to show.
     pw = ParameterEstimationWidget()
     cw = built_configuration()
     pw.bind_to_config(cw)
 
-    assert pw._plot_out.layout.display == "none"
+    assert pw._chart.layout.display == "none"
 
     pw._on_preview(None)
 
+    assert pw._chart.layout.display == ""
+    assert pw._chart.series
+    assert pw._plot_out.layout.display == "none"  # matplotlib fallback stays unused
+
+
+def test_overlay_adds_the_measured_dataset_as_a_dashed_reference_series():
+    cw, pw = _bound_widgets()
+    _ready_to_run(cw, pw)
+
+    pw._redraw_overlay()
+
+    measured = [s for s in pw._chart.series if s.get("reference")]
+    assert len(measured) == 1
+    assert measured[0]["dashed"] is True
+    assert measured[0]["name"] == "measured (measured)"
+    assert len(pw._chart.series) == len(measured) + len(cw.process.component_system.names)
+
+
+def test_overlay_falls_back_to_the_matplotlib_plot_for_non_time_series_signals(monkeypatch):
+    import cadetgui.widgets.composite.parameter_estimation as pe_widget
+
+    monkeypatch.setattr(pe_widget, "solution_series", lambda *_a, **_k: None)
+    pw = ParameterEstimationWidget()
+    pw.bind_to_config(built_configuration())
+
+    pw._on_preview(None)
+
+    assert pw._chart.layout.display == "none"
     assert pw._plot_out.layout.display == ""
     assert pw._plot_out.value  # actual PNG bytes
+
+
+def test_starting_a_run_clears_and_hides_every_chart():
+    cw, pw = _bound_widgets()
+    _ready_to_run(cw, pw)
+    pw._live_chart.series = [{"name": "x", "times": [0.0], "values": [1.0]}]
+    pw._history_chart.series = [{"name": "x", "times": [1.0], "values": [1.0]}]
+
+    pw._on_run(None)
+
+    # A finished run redraws the final overlay, but the live-only charts stay cleared.
+    assert pw._live_chart.series == []
+    assert pw._history_chart.series == []
 
 
 def test_preview_defaults_the_signal_picker_to_the_sink():
@@ -366,8 +405,8 @@ def test_run_estimation_end_to_end_populates_results_and_accept_is_hidden_before
     assert pw._last_result.success
     assert pw._btn_accept.layout.display == ""
     assert "Objective" in pw.status.value
-    assert pw._plot_out.layout.display == ""  # final overlay shown
-    assert pw._plot_out.value
+    assert pw._chart.layout.display == ""  # final overlay shown
+    assert pw._chart.series
 
 
 def test_accept_writes_fitted_values_into_the_live_configuration_only_on_click():
@@ -582,6 +621,9 @@ def test_progress_tick_redraws_the_live_plot_when_the_checkbox_is_on_and_a_gener
 
     assert calls == [1]
     assert last_n_gen == 1
+    assert pw._live_chart.layout.display == ""
+    assert pw._live_chart.series
+    assert pw._history_chart.series[0]["values"] == [1.0]
 
 
 def test_progress_tick_does_not_redraw_twice_for_the_same_generation(monkeypatch):
