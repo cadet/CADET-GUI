@@ -9,7 +9,7 @@ import ipywidgets as W
 
 from ... import run_store
 from .._chrome import style_tag
-from ..elements import ChoiceField, TextField
+from ..elements import SelectableTable, TextField
 
 __all__ = ["RunHistoryWidget", "RunRecord"]
 
@@ -73,7 +73,11 @@ class RunHistoryWidget:
         self._store_dir: Optional[Path] = None
         self._on_manual_store_dir_change = on_manual_store_dir_change
 
-        self._picker = ChoiceField(label="Run:", options=[])
+        self._picker = SelectableTable(
+            label="Runs",
+            columns=["#", "Time", "Run", "Status"],
+            empty_text="No runs yet.",
+        )
         self._picker.observe(self._on_pick, names="selected_index")
 
         self._store_dir_field = TextField(label="Storage folder:", value="")
@@ -162,7 +166,16 @@ class RunHistoryWidget:
 
     def _refresh_picker(self, *, select_index: Optional[int]) -> None:
         options = [(self._describe(r), r) for r in self.runs]
-        self._picker.set_options(options, keep_value=False)
+        rows = [
+            [
+                str(i),
+                f"{r.timestamp:%H:%M:%S}",
+                r.label,
+                ("ok", "ok") if r.ok else ("failed", "error"),
+            ]
+            for i, r in enumerate(self.runs, start=1)
+        ]
+        self._picker.set_options(options, rows=rows, keep_value=False)
         if select_index is not None and self.runs:
             self._picker.selected_index = select_index
 

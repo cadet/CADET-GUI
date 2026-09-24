@@ -184,7 +184,11 @@ def test_componentlistfield_observe_fires_on_value_change():
 
 
 def test_line_chart_subclasses_share_traits_with_their_own_defaults():
-    from cadetgui.widgets.elements import ChromatogramChart, EventTimelineChart, LineChart
+    from cadetgui.widgets.elements import (
+        ChromatogramChart,
+        EventTimelineChart,
+        LineChart,
+    )
 
     assert LineChart().y_label == ""
     assert EventTimelineChart().y_label == "state"
@@ -192,3 +196,42 @@ def test_line_chart_subclasses_share_traits_with_their_own_defaults():
     chromatogram = ChromatogramChart(series=[{"name": "a", "times": [0.0], "values": [1.0]}])
     assert chromatogram.view_width > LineChart().view_width
     assert chromatogram.series[0]["name"] == "a"
+
+
+def test_selectable_table_behaves_like_a_choice_field_and_carries_rows():
+    from cadetgui.widgets.elements import ChoiceField, SelectableTable
+
+    table = SelectableTable(
+        columns=["Name", "State"],
+        options=[("a", 1), ("b", 2)],
+        rows=[["a", ("ok", "ok")], ["b", ("failed", "error")]],
+    )
+
+    assert isinstance(table, ChoiceField)
+    assert table.value == 1
+    table.selected_index = 1
+    assert table.value == 2
+    assert table.rows[1][1] == {"text": "failed", "chip": "error"}
+    assert table.rows[0][0] == {"text": "a"}
+
+
+def test_selectable_table_defaults_rows_to_the_option_labels():
+    from cadetgui.widgets.elements import SelectableTable
+
+    table = SelectableTable(options=[("only", 0)])
+
+    assert table.rows == [[{"text": "only"}]]
+
+
+def test_selectable_table_set_options_replaces_rows_and_rejects_a_length_mismatch():
+    import pytest
+    from cadetgui.widgets.elements import SelectableTable
+
+    table = SelectableTable(columns=["x"])
+    table.set_options([("a", 1), ("b", 2)], rows=[["A"], ["B"]])
+
+    assert [r[0]["text"] for r in table.rows] == ["A", "B"]
+    with pytest.raises(ValueError):
+        table.set_options([("a", 1)], rows=[["A"], ["B"]])
+    table.set_options([])
+    assert table.rows == [] and table.value is None

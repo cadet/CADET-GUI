@@ -1,0 +1,128 @@
+/* Own copy of the shared tokens (anywidget gives each element its own CSS
+   instance, no cross-file sharing) -- see _shared.css's header comment. */
+.cadetgui-table {
+  --cg-fg: #1f2937;
+  --cg-muted: #6b7280;
+  --cg-border: #d1d5db;
+  --cg-focus: #005b82;
+  --cg-danger: #dc2626;
+  --cg-success: #059669;
+  --cg-warn: #b45309;
+  --cg-bg: #ffffff;
+  --cg-radius: 8px;
+
+  min-width: 320px;
+  flex: 1 1 320px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  color: var(--cg-fg);
+}
+
+@media (prefers-color-scheme: dark) {
+  .cadetgui-table {
+    --cg-fg: #e5e7eb;
+    --cg-muted: #9ca3af;
+    --cg-border: #4b5563;
+    --cg-focus: #4fa8d1;
+    --cg-danger: #f87171;
+    --cg-success: #34d399;
+    --cg-warn: #fbbf24;
+    --cg-bg: #1f2937;
+  }
+}
+
+.cadetgui-table-caption {
+  margin-bottom: 4px;
+  color: var(--cg-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cadetgui-table-caption[hidden] {
+  display: none;
+}
+
+.cadetgui-table-scroll {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+}
+
+.cadetgui-table-grid {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cadetgui-table-grid th {
+  position: sticky;
+  top: 0;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--cg-border);
+  background: color-mix(in srgb, var(--cg-focus) 8%, var(--cg-bg));
+  color: var(--cg-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.cadetgui-table-grid td {
+  padding: 5px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--cg-border) 55%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.cadetgui-table-grid tbody tr {
+  cursor: pointer;
+}
+
+.cadetgui-table-grid tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.cadetgui-table-grid tbody tr:hover {
+  background: color-mix(in srgb, var(--cg-fg) 5%, transparent);
+}
+
+.cadetgui-table-grid tbody tr.is-selected {
+  background: color-mix(in srgb, var(--cg-focus) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--cg-focus);
+}
+
+.cadetgui-table-grid tbody tr:focus-visible {
+  outline: 2px solid var(--cg-focus);
+  outline-offset: -2px;
+}
+
+.cadetgui-table-empty {
+  padding: 10px;
+  color: var(--cg-muted);
+}
+
+.cadetgui-field-error {
+  color: var(--cg-danger);
+  font-size: 12px;
+}
+
+.cadetgui-field-error[hidden] {
+  display: none;
+}
+
+.cadetgui-chip {
+  --_c: var(--cg-muted);
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--_c) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--_c) 12%, transparent);
+  color: var(--_c);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.cadetgui-chip-error { --_c: var(--cg-danger); }
+.cadetgui-chip-warn { --_c: var(--cg-warn); }
+.cadetgui-chip-ok { --_c: var(--cg-success); }
+.cadetgui-chip-info { --_c: var(--cg-focus); }

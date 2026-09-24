@@ -6,6 +6,7 @@ from .component_list_field import ComponentListField
 from .float_field import FloatField
 from .float_list_field import FloatListField
 from .line_chart import ChromatogramChart, EventTimelineChart, LineChart
+from .selectable_table import SelectableTable
 from .text_field import TextField
 
 __all__ = [
@@ -15,6 +16,7 @@ __all__ = [
     "BoolField",
     "FloatListField",
     "ChoiceField",
+    "SelectableTable",
     "ComponentListField",
     "LineChart",
     "EventTimelineChart",

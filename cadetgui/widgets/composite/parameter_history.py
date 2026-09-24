@@ -8,7 +8,7 @@ import ipywidgets as W
 
 from ... import parameter_history_store
 from .._chrome import style_tag
-from ..elements import ChoiceField, TextField
+from ..elements import SelectableTable, TextField
 
 __all__ = ["ParameterHistoryWidget", "ParameterPushRecord"]
 
@@ -61,7 +61,11 @@ class ParameterHistoryWidget:
         self._store_dir: Optional[Path] = None
         self._on_manual_store_dir_change = on_manual_store_dir_change
 
-        self._picker = ChoiceField(label="Push:", options=[])
+        self._picker = SelectableTable(
+            label="Pushes",
+            columns=["#", "Time", "Stage", "Parameters"],
+            empty_text="No pushes yet.",
+        )
         self._picker.observe(self._on_pick, names="selected_index")
 
         self._store_dir_field = TextField(label="Storage folder:", value="")
@@ -161,7 +165,11 @@ class ParameterHistoryWidget:
 
     def _refresh_picker(self, *, select_index: Optional[int]) -> None:
         options = [(self._describe(p), p) for p in self.pushes]
-        self._picker.set_options(options, keep_value=False)
+        rows = [
+            [str(i), p.timestamp[11:19], p.stage, ", ".join(sorted(p.values))]
+            for i, p in enumerate(self.pushes, start=1)
+        ]
+        self._picker.set_options(options, rows=rows, keep_value=False)
         if select_index is not None and self.pushes:
             self._picker.selected_index = select_index
 

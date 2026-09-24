@@ -154,3 +154,13 @@ def test_setting_store_dir_via_the_ui_field_fires_the_manual_change_callback(tmp
     h._on_set_store_dir(None)
 
     assert seen == [tmp_path.resolve()]
+
+
+def test_table_rows_list_stage_and_parameter_names():
+    h = ParameterHistoryWidget()
+    h.record("bed", {"bed_porosity": 0.4, "axial_dispersion": 1e-7})
+
+    (row,) = h._picker.rows
+    assert row[0]["text"] == "1"
+    assert row[2]["text"] == "bed"
+    assert row[3]["text"] == "axial_dispersion, bed_porosity"

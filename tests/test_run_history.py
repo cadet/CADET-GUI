@@ -186,3 +186,18 @@ def test_clearing_the_store_dir_field_fires_the_manual_change_callback_with_none
     h._on_set_store_dir(None)
 
     assert seen == [None]
+
+
+def test_table_rows_show_time_label_and_a_status_chip_per_run():
+    h = RunHistoryWidget()
+    h.record("good", result=1)
+    h.record("bad", error="boom")
+
+    rows = h._picker.rows
+    assert [row[0]["text"] for row in rows] == ["1", "2"]
+    assert rows[0][2]["text"] == "good"
+    assert rows[0][3] == {"text": "ok", "chip": "ok"}
+    assert rows[1][3] == {"text": "failed", "chip": "error"}
+
+    h.clear()
+    assert h._picker.rows == []
