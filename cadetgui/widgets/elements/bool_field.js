@@ -53,34 +53,114 @@ function hideTooltip() {
   if (tip) tip.style.opacity = "0";
 }
 
+// Parses the LaTeX subset units are written in (^ _ {} \mathrm \cdot \frac)
+// into [{ text } | { sup: nodes } | { sub: nodes }]. \frac is flattened to
+// "a/b", with the denominator parenthesised when compound, so a unit stays
+// on one line.
+function parseUnit(src) {
+  const symbols = { cdot: "·", times: "×", ",": " ", " ": " " };
+  const textCommands = ["mathrm", "text", "textrm"];
+  let i = 0;
+
+  const append = (out, nodes) => {
+    for (const node of nodes) {
+      const last = out[out.length - 1];
+      if (node.text !== undefined && last && last.text !== undefined) last.text += node.text;
+      else out.push(node);
+    }
+  };
+  const hasTopLevel = (nodes, chars) =>
+    nodes.some((n) => n.text !== undefined && [...chars].some((c) => n.text.includes(c)));
+  const paren = (nodes, needed) =>
+    needed ? [{ text: "(" }, ...nodes, { text: ")" }] : nodes;
+
+  function parseArg() {
+    while (src[i] === " ") i++;
+    if (i >= src.length) return [];
+    if (src[i] === "{") {
+      i++;
+      return parseSeq(true);
+    }
+    const out = [];
+    if (src[i] === "\\") {
+      parseCommand(out);
+    } else {
+      append(out, [{ text: src[i] }]);
+      i++;
+    }
+    return out;
+  }
+
+  function parseCommand(out) {
+    i++;
+    const letters = /^[A-Za-z]+/.exec(src.slice(i));
+    const name = letters ? letters[0] : src.charAt(i);
+    i += name.length;
+    if (letters) while (src[i] === " ") i++;
+    if (textCommands.includes(name)) {
+      append(out, parseArg());
+    } else if (name === "frac") {
+      const num = parseArg();
+      const den = parseArg();
+      append(out, paren(num, hasTopLevel(num, "/")));
+      append(out, [{ text: "/" }]);
+      append(out, paren(den, hasTopLevel(den, "·×/")));
+    } else if (name in symbols) {
+      append(out, [{ text: symbols[name] }]);
+    } else {
+      append(out, [{ text: letters ? `\\${name}` : name || "\\" }]);
+    }
+  }
+
+  function parseSeq(untilBrace) {
+    const out = [];
+    while (i < src.length) {
+      const ch = src[i];
+      if (ch === "}" && untilBrace) {
+        i++;
+        return out;
+      }
+      if (ch === "{") {
+        i++;
+        append(out, parseSeq(true));
+      } else if (ch === "\\") {
+        parseCommand(out);
+      } else if (ch === "^" || ch === "_") {
+        i++;
+        out.push(ch === "^" ? { sup: parseArg() } : { sub: parseArg() });
+      } else {
+        append(out, [{ text: ch }]);
+        i++;
+      }
+    }
+    return out;
+  }
+
+  return parseSeq(false);
+}
+
+function appendUnitNodes(container, nodes) {
+  for (const node of nodes) {
+    if (node.text !== undefined) {
+      container.append(node.text);
+      continue;
+    }
+    const el = document.createElement(node.sup ? "sup" : "sub");
+    appendUnitNodes(el, node.sup || node.sub);
+    const gloss = node.sub && UNIT_GLOSSARY[el.textContent];
+    if (gloss) {
+      el.dataset.tooltip = gloss;
+      el.addEventListener("mouseenter", () => showTooltip(el, gloss));
+      el.addEventListener("mouseleave", hideTooltip);
+    }
+    container.appendChild(el);
+  }
+}
+
 function renderUnit(container, raw) {
   container.replaceChildren();
   if (!raw) return;
-  const re = /\^([0-9]+)|_([A-Za-z0-9]+)|\*/g;
-  let last = 0;
-  let m;
-  while ((m = re.exec(raw)) !== null) {
-    if (m.index > last) container.append(raw.slice(last, m.index));
-    if (m[1] !== undefined) {
-      const sup = document.createElement("sup");
-      sup.textContent = m[1];
-      container.appendChild(sup);
-    } else if (m[2] !== undefined) {
-      const sub = document.createElement("sub");
-      sub.textContent = m[2];
-      const gloss = UNIT_GLOSSARY[m[2]];
-      if (gloss) {
-        sub.dataset.tooltip = gloss;
-        sub.addEventListener("mouseenter", () => showTooltip(sub, gloss));
-        sub.addEventListener("mouseleave", hideTooltip);
-      }
-      container.appendChild(sub);
-    } else {
-      container.append("·");
-    }
-    last = re.lastIndex;
-  }
-  if (last < raw.length) container.append(raw.slice(last));
+  appendUnitNodes(container, parseUnit(raw));
 }
 
 function render({ model, el }) {

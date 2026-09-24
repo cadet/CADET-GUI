@@ -773,7 +773,7 @@ class ConfigurationWidget:
         minutes_element = FloatField(
             label=seconds_element.label,
             value=float(seconds_element.value) / 60.0,
-            units="min",
+            units=r"\mathrm{min}",
             validate=require_positive,
         )
         W.dlink(

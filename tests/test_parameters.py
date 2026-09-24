@@ -188,8 +188,10 @@ def test_unit_and_description_are_live_off_the_cadetprocess_descriptor():
     # (fau-advanced-separations/CADET-Process PR #435), not hand-copied into a
     # cadetgui-side JSON file -- get_parameter() just reads them straight off.
     length = get_parameter("column", "GeneralRateModel", "length")
-    assert length["unit"] == "m"
+    assert length["unit"] == r"\mathrm{m}"
     assert length["description"] == "Column length."
+    dispersion = get_parameter("column", "GeneralRateModel", "axial_dispersion")
+    assert dispersion["unit"] == r"\frac{\mathrm{m}^{2}_{\mathrm{IV}}}{\mathrm{s}}"
 
 
 def test_get_co_group_is_the_one_thing_left_that_cant_come_from_live_introspection():
