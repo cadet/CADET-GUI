@@ -10,7 +10,7 @@ import numpy as np
 from CADETProcess.plotting import get_fig_size
 
 from ... import configuration_store
-from ...cadetprocessadapter import classify_signal_ports, list_signal_ports
+from ...cadetprocessadapter import list_signal_ports
 from ...parameter_estimation import (
     OPTIMIZERS,
     CalibrationMethod,
@@ -26,6 +26,7 @@ from ...simulation import run_process
 from .._chrome import style_tag
 from .._mpl_figure import display_figure, new_figure
 from .._series import reference_series, solution_series
+from .._settings_popover import SettingsPopover
 from .._status import status_html
 from ..elements import ChoiceField, ChromatogramChart, LineChart
 from .data_import import DataImportWidget
@@ -43,10 +44,11 @@ class ParameterEstimationWidget:
     this widget only collects inputs and renders results. Nests `DataImportWidget`
     (`.data`) as its experimental-data source.
 
-    Deliberately self-contained: it runs its own preview simulation (via
-    "Preview") to discover signal options and show the reference-vs-simulated
-    overlay, rather than reusing `SolutionWidget`'s last run -- the Simulation
-    tab shows only the raw simulation, this tab owns the comparison view.
+    Deliberately self-contained: its "Preview" section simulates the base
+    process itself (lazily, only when the bound process changes) to show the
+    reference-vs-simulated overlay, rather than reusing `SolutionWidget`'s last
+    run -- the Simulation tab shows only the raw simulation, this tab owns the
+    comparison view.
     """
 
     def __init__(self, *, data: Optional[DataImportWidget] = None) -> None:
@@ -59,8 +61,9 @@ class ParameterEstimationWidget:
         self._last_result: Optional[EstimationResult] = None
         # The SimulationResults currently shown in the overlay -- the raw
         # preview until a fit succeeds, then the fitted run, until the next
-        # "Preview" resets it.
+        # base process changes.
         self._display_result: Optional[Any] = None
+        self._preview_process: Optional[Any] = None
         # Live-progress state for a running fit -- see `_on_run`/`_tick_progress`.
         self._run_done = threading.Event()
         self._progress: dict[str, Any] = {"optimizer": None}
@@ -71,12 +74,14 @@ class ParameterEstimationWidget:
         # from an evaluator or an `add_callback` doesn't work.
         self._cancel_event = threading.Event()
 
-        # "Run estimation" section: base-process picker + Preview button.
+        # "Run estimation" section: base-process picker.
+        self._saved_options: list[tuple[str, Any]] = []
         self._base_process_picker = ChoiceField(
-            label="Base process:", options=[("Current configuration", None)]
+            label="Base process:", options=[(self._active_label(), None)]
         )
         self._btn_refresh_store = W.Button(description="Refresh", icon="refresh")
-        self._btn_preview = W.Button(description="Preview", icon="eye")
+        self._preview_status = W.HTML("")
+        self._preview_status.add_class("cadetgui-status")
         # "Experimental data" section: dataset picker + "Signal represents" row.
         self._dataset_picker = ChoiceField(label="Experimental dataset:", options=[])
         self._component_picker = ChoiceField(label="Signal represents:", options=[])
@@ -189,6 +194,12 @@ class ParameterEstimationWidget:
         self._pairwise_out = W.Image(
             format="png", layout=W.Layout(width="500px", display="none")
         )
+        self._show_analytics_checkbox = W.Checkbox(
+            description="Show convergence & correlation", value=False, indent=False
+        )
+        self._analytics_settings = SettingsPopover(
+            tooltip="Run settings", children=[self._show_analytics_checkbox]
+        )
         # Status line at the bottom of the "Run estimation" section.
         self.status = W.HTML("<em>Ready.</em>")
         self.status.add_class("cadetgui-status")
@@ -197,7 +208,7 @@ class ParameterEstimationWidget:
         self._btn_cancel.on_click(self._on_cancel)
         self._btn_accept.on_click(self._on_accept)
         self._btn_refresh_store.on_click(lambda _btn: self._refresh_store_options())
-        self._btn_preview.on_click(self._on_preview)
+        self._show_analytics_checkbox.observe(self._on_show_analytics_change, names="value")
         self._base_process_picker.observe(self._on_base_process_change, names="selected_index")
         self._signal_picker.observe(self._on_signal_change, names="selected_index")
         self._optimizer_picker.observe(self._on_optimizer_change, names="selected_index")
@@ -210,7 +221,7 @@ class ParameterEstimationWidget:
         self._refresh_dataset_options()
 
         base_process_row = W.HBox(
-            [self._base_process_picker, self._btn_refresh_store, self._btn_preview],
+            [self._base_process_picker, self._btn_refresh_store],
             layout=W.Layout(flex_flow="row wrap"),
         )
         base_process_row.add_class("cadetgui-toolbar")
@@ -255,10 +266,43 @@ class ParameterEstimationWidget:
         self._knob_boxes[self._optimizer_picker.value].layout.display = ""
 
         run_toolbar = W.HBox(
-            [self._signal_picker, self._live_plot_checkbox],
+            [self._live_plot_checkbox],
             layout=W.Layout(flex_flow="row wrap"),
         )
         run_toolbar.add_class("cadetgui-toolbar")
+
+        preview_toolbar = W.HBox(
+            [self._signal_picker], layout=W.Layout(flex_flow="row wrap")
+        )
+        preview_toolbar.add_class("cadetgui-toolbar")
+        preview_section = W.VBox(
+            [
+                W.HTML("<div class='cadetgui-section-title'>Preview</div>"),
+                preview_toolbar,
+                self._preview_status,
+                self._chart,
+                self._plot_out,
+            ]
+        )
+        preview_section.add_class("cadetgui-section")
+
+        self._analytics_box = W.VBox(
+            [
+                W.HTML("<div class='cadetgui-panel-title'>Convergence &amp; correlation</div>"),
+                self._analytics_error,
+                self._convergence_out,
+                self._pairwise_out,
+            ],
+            layout=W.Layout(display="none"),
+        )
+
+        run_header = W.HBox(
+            [
+                W.HTML("<div class='cadetgui-panel-title'>Run estimation</div>"),
+                self._analytics_settings.button,
+            ],
+            layout=W.Layout(justify_content="space-between", align_items="center"),
+        )
 
         optimizer_row = W.HBox(
             [self._optimizer_picker, *self._knob_boxes.values()],
@@ -268,7 +312,8 @@ class ParameterEstimationWidget:
 
         run_section = W.VBox(
             [
-                W.HTML("<div class='cadetgui-panel-title'>Run estimation</div>"),
+                run_header,
+                self._analytics_settings.box,
                 base_process_row,
                 run_toolbar,
                 optimizer_row,
@@ -280,12 +325,7 @@ class ParameterEstimationWidget:
                 ),
                 self._live_plot_out,
                 self._fit_table,
-                self._chart,
-                self._plot_out,
-                W.HTML("<div class='cadetgui-panel-title'>Convergence &amp; correlation</div>"),
-                self._analytics_error,
-                self._convergence_out,
-                self._pairwise_out,
+                self._analytics_box,
                 self.status,
             ]
         )
@@ -298,6 +338,7 @@ class ParameterEstimationWidget:
                 W.HTML("<div class='cadetgui-panel-title'>Parameter estimation</div>"),
                 data_section,
                 param_space_section,
+                preview_section,
                 run_section,
             ]
         )
@@ -316,8 +357,23 @@ class ParameterEstimationWidget:
     def _refresh_store_options(self) -> None:
         store_dir = self._config_widget.persistence.store_dir if self._config_widget else None
         saved = configuration_store.list_store(store_dir=store_dir)
-        options = [("Current configuration", None)] + [(name, hash_) for name, hash_ in saved]
-        self._base_process_picker.set_options(options, keep_value=True)
+        self._saved_options = [(name, hash_) for name, hash_ in saved]
+        self._base_process_picker.set_options(
+            [(self._active_label(), None), *self._saved_options], keep_value=True
+        )
+
+    def _active_label(self) -> str:
+        cw = self._config_widget
+        name = (cw.config_name or "").strip() if cw is not None else ""
+        return f"{name or 'Current configuration'} (Active)"
+
+    def _refresh_active_label(self) -> None:
+        label = self._active_label()
+        if self._base_process_picker.option_labels[:1] == [label]:
+            return
+        self._base_process_picker.set_options(
+            [(label, None), *self._saved_options], keep_value=True
+        )
 
     def _on_base_process_change(self, change: dict) -> None:
         if change.get("name") != "selected_index":
@@ -325,7 +381,7 @@ class ParameterEstimationWidget:
         hash_ = self._base_process_picker.value
         if hash_ is not None and self._config_widget is not None:
             self._config_widget.import_from_store(hash_)
-        self._on_preview(None)
+        self._refresh_preview()
 
     def _on_optimizer_change(self, change: dict) -> None:
         if change.get("name") != "selected_index":
@@ -356,18 +412,38 @@ class ParameterEstimationWidget:
             return {"target_area": self._target_area_field.value}
         return {}
 
-    def _on_preview(self, _btn: Any) -> None:
-        """Simulate the current base process once and overlay its signal."""
-        if self._config_widget is None or self._config_widget.process is None:
-            self.status.value = status_html("error", "No configuration to preview.")
+    def _refresh_preview(self, *, force: bool = False) -> None:
+        """Simulate the bound process for the overlay, only if it changed since last time."""
+        if self._btn_run.disabled:
             return
-        self.status.value = status_html("running", "Simulating preview…")
-        self._display_result = run_process(self._config_widget.process)
-        self._signal_picker.set_options(
-            classify_signal_ports(self._display_result), keep_value=True
-        )
-        self._redraw_overlay()
-        self.status.value = "<em>Preview ready.</em>"
+        cw = self._config_widget
+        process = cw.process if cw is not None else None
+        if process is None:
+            self._preview_process = None
+            self._display_result = None
+            self._clear_overlay()
+            if cw is not None:
+                self._preview_status.value = status_html("error", "No configuration to preview.")
+            return
+        if process is self._preview_process and not force:
+            return
+        self._preview_process = process
+        self._preview_status.value = status_html("running", "Simulating preview…")
+        try:
+            self._display_result = run_process(process)
+            self._redraw_overlay()
+        except Exception as exc:  # noqa: BLE001
+            self._display_result = None
+            self._clear_overlay()
+            self._preview_status.value = status_html("error", f"Preview failed: {exc}")
+            return
+        self._preview_status.value = ""
+
+    def _clear_overlay(self) -> None:
+        self._chart.series = []
+        self._chart.layout.display = "none"
+        self._plot_out.value = b""
+        self._plot_out.layout.display = "none"
 
     def _on_signal_change(self, change: dict) -> None:
         if change.get("name") != "selected_index":
@@ -452,6 +528,8 @@ class ParameterEstimationWidget:
         self.param_space.set_params(new_params)
         self._refresh_component_options()
         self._refresh_signal_options()
+        self._refresh_active_label()
+        self._refresh_preview()
 
     def _refresh_signal_options(self) -> None:
         cw = self._config_widget
@@ -500,21 +578,26 @@ class ParameterEstimationWidget:
         return None
 
     def _on_run(self, _btn: Any) -> None:
-        for img in (self._plot_out, self._live_plot_out, self._convergence_out, self._pairwise_out):
+        for img in (self._live_plot_out, self._convergence_out, self._pairwise_out):
             img.value = b""
             img.layout.display = "none"
-        for chart in (self._chart, self._live_chart, self._history_chart):
+        for chart in (self._live_chart, self._history_chart):
             chart.series = []
             chart.layout.display = "none"
         self._live_plot_error.value = ""
         self._analytics_error.value = ""
         self._btn_accept.layout.display = "none"
+        showing_fit = self._last_result is not None
         self._last_result = None
         self._elapsed_label.value = ""
         error = self._validation_error()
         if error:
             self.status.value = status_html("error", str(error))
             return
+
+        if showing_fit:
+            self._preview_process = None
+            self._refresh_preview()
 
         unit, port = self._signal_picker.value
         reference, _ = self._current_reference()
@@ -729,11 +812,17 @@ class ParameterEstimationWidget:
             f"({elapsed:.0f}s)</em>"
         )
         self._render_fit_table(result)
-        # Show the fitted (still detached) process's own curve from here on, until
-        # the next "Preview" resets the overlay back to the unfitted baseline.
+        # Show the fitted (still detached) process's own curve until the base process changes.
         self._display_result = run_process(result.fitted_process)
         self._redraw_overlay()
         self._btn_accept.layout.display = ""
+
+    def _on_show_analytics_change(self, change: dict) -> None:
+        shown = bool(change["new"])
+        self._analytics_box.layout.display = "" if shown else "none"
+        optimizer = self._progress.get("optimizer")
+        if shown and optimizer is not None and not self._btn_run.disabled:
+            self._render_analytics(optimizer)
 
     def _render_analytics(self, optimizer: Any) -> None:
         """Show CADET-Process's own post-run analytics from `optimizer.results`.
@@ -745,6 +834,8 @@ class ParameterEstimationWidget:
         there is to surface). Best-effort: a failure here must be visible,
         not swallowed -- same rule as `_redraw_live_plot`'s fix earlier.
         """
+        if not self._show_analytics_checkbox.value:
+            return
         try:
             results = optimizer.results
             if len(results.populations) == 0:

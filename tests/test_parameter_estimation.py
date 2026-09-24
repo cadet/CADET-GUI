@@ -6,6 +6,7 @@ import time
 import warnings
 
 import cadetgui.configuration_store as configuration_store
+import ipywidgets as W
 import pytest
 from cadetgui.parameter_estimation import EstimationResult
 from cadetgui.simulation import run_process
@@ -184,42 +185,169 @@ def test_unrelated_config_edits_do_not_reset_an_explicit_total_pick():
     assert pw._component_picker.value is None  # still "Total", not bounced to index 0
 
 
-def test_bind_to_config_populates_the_base_process_picker_with_current_configuration_only():
+def test_bind_to_config_populates_the_base_process_picker_with_the_active_configuration_only():
     pw = ParameterEstimationWidget()
     cw = built_configuration()
+    cw.config_name = "My Config"
 
     pw.bind_to_config(cw)
 
-    assert pw._base_process_picker.option_labels == ["Current configuration"]
+    assert pw._base_process_picker.option_labels == ["My Config (Active)"]
+    assert pw._base_process_picker.value is None
 
 
-def test_preview_populates_the_signal_picker_and_does_not_touch_the_configuration():
+def test_base_process_label_falls_back_when_no_configuration_is_bound_or_unnamed():
+    pw = ParameterEstimationWidget()
+    assert pw._base_process_picker.option_labels == ["Current configuration (Active)"]
+
+    cw = built_configuration()
+    cw.persistence._name_field.value = ""
+    pw.bind_to_config(cw)
+
+    assert pw._base_process_picker.option_labels == ["Current configuration (Active)"]
+
+
+def test_base_process_label_follows_a_configuration_rename():
     pw = ParameterEstimationWidget()
     cw = built_configuration()
     pw.bind_to_config(cw)
 
-    assert pw._display_result is None
-    assert pw._signal_picker.option_labels  # available without simulating
+    cw.persistence._name_field.value = "Renamed"
 
+    assert pw._base_process_picker.option_labels == ["Renamed (Active)"]
+    assert pw._base_process_picker.value is None
+
+
+def test_binding_previews_automatically_without_touching_the_configuration():
+    cw = built_configuration()
     before = cw._column_form.collect_values()
-    pw._on_preview(None)
+    pw = ParameterEstimationWidget()
+
+    pw.bind_to_config(cw)
 
     assert pw._display_result is not None
+    assert pw._signal_picker.option_labels
     assert cw._column_form.collect_values() == before
 
 
-def test_plot_widget_starts_hidden_and_is_shown_once_a_preview_is_drawn():
+def test_preview_section_chart_is_shown_once_the_overlay_is_drawn():
     pw = ParameterEstimationWidget()
-    cw = built_configuration()
-    pw.bind_to_config(cw)
-
     assert pw._chart.layout.display == "none"
 
-    pw._on_preview(None)
+    pw.bind_to_config(built_configuration())
 
     assert pw._chart.layout.display == ""
     assert pw._chart.series
     assert pw._plot_out.layout.display == "none"  # matplotlib fallback stays unused
+    assert pw._preview_status.value == ""
+
+
+def _small_measurement() -> str:
+    return "time,signal\n" + "\n".join(f"{t},{t * 0.1}" for t in range(10))
+
+
+def _count_simulations(monkeypatch) -> list[int]:
+    import cadetgui.widgets.composite.parameter_estimation as pe_widget
+
+    calls: list[int] = []
+
+    def counting(process, **kwargs):
+        calls.append(1)
+        return run_process(process, **kwargs)
+
+    monkeypatch.setattr(pe_widget, "run_process", counting)
+    return calls
+
+
+def test_changing_the_configuration_refreshes_the_preview(monkeypatch):
+    calls = _count_simulations(monkeypatch)
+    cw, pw = _bound_widgets()
+    before = pw._chart.series
+    n = len(calls)
+
+    cw._model_form.element("flow_rate").value = 9.9e-6
+
+    assert len(calls) > n
+    assert pw._chart.series != before
+
+
+def test_nothing_relevant_changed_means_no_new_simulation(monkeypatch):
+    calls = _count_simulations(monkeypatch)
+    cw, pw = _bound_widgets()
+    upload_csv(pw.data, "m.csv", _small_measurement())
+    n = len(calls)
+
+    pw._refresh_preview()
+    cw.persistence._name_field.value = "Renamed"
+    pw._signal_picker.selected_index = 1
+    pw._calibration_picker.value = "beer_lambert"
+    pw._extinction_field.value = 2.0
+    pw._dataset_picker.selected_index = 0
+
+    assert len(calls) == n
+
+
+def test_dataset_change_updates_the_overlay_without_simulating(monkeypatch):
+    calls = _count_simulations(monkeypatch)
+    _, pw = _bound_widgets()
+    n = len(calls)
+    assert not [s for s in pw._chart.series if s.get("reference")]
+
+    upload_csv(pw.data, "m.csv", _small_measurement())
+    pw._dataset_picker.selected_index = 0
+
+    assert [s for s in pw._chart.series if s.get("reference")]
+    assert len(calls) == n
+
+
+def test_a_failing_preview_simulation_shows_an_error_instead_of_crashing(monkeypatch):
+    import cadetgui.widgets.composite.parameter_estimation as pe_widget
+
+    cw, pw = _bound_widgets()
+
+    def boom(process, **kwargs):
+        raise RuntimeError("synthetic sim failure")
+
+    monkeypatch.setattr(pe_widget, "run_process", boom)
+    cw._model_form.element("flow_rate").value = 9.9e-6
+
+    assert "synthetic sim failure" in pw._preview_status.value
+    assert "cadetgui-msg-error" in pw._preview_status.value
+    assert pw._display_result is None
+    assert pw._chart.layout.display == "none"
+
+
+def test_the_preview_shows_a_running_status_while_simulating(monkeypatch):
+    import cadetgui.widgets.composite.parameter_estimation as pe_widget
+
+    cw, pw = _bound_widgets()
+    seen: list[str] = []
+
+    def spying(process, **kwargs):
+        seen.append(pw._preview_status.value)
+        return run_process(process, **kwargs)
+
+    monkeypatch.setattr(pe_widget, "run_process", spying)
+    cw._model_form.element("flow_rate").value = 9.9e-6
+
+    assert "cadetgui-spinner" in seen[0]
+
+
+def test_preview_is_a_titled_section_without_a_preview_button():
+    pw = ParameterEstimationWidget()
+
+    assert not hasattr(pw, "_btn_preview")
+    titles = [
+        w.value for w in _descendants(pw.root)
+        if isinstance(w, W.HTML) and "cadetgui-section-title'>Preview<" in w.value
+    ]
+    assert len(titles) == 1
+
+
+def _descendants(widget):
+    yield widget
+    for child in getattr(widget, "children", ()):
+        yield from _descendants(child)
 
 
 def test_overlay_adds_the_measured_dataset_as_a_dashed_reference_series():
@@ -242,8 +370,6 @@ def test_overlay_falls_back_to_the_matplotlib_plot_for_non_time_series_signals(m
     pw = ParameterEstimationWidget()
     pw.bind_to_config(built_configuration())
 
-    pw._on_preview(None)
-
     assert pw._chart.layout.display == "none"
     assert pw._plot_out.layout.display == ""
     assert pw._plot_out.value  # actual PNG bytes
@@ -262,24 +388,23 @@ def test_starting_a_run_clears_and_hides_every_chart():
     assert pw._history_chart.series == []
 
 
-def test_signal_picker_is_populated_on_bind_without_a_preview_and_defaults_to_the_sink():
+def test_signal_picker_is_populated_on_bind_and_defaults_to_the_sink():
     pw = ParameterEstimationWidget()
     cw = built_configuration()
     pw.bind_to_config(cw)
 
-    assert pw._display_result is None
     assert pw._signal_picker.option_labels[0] == "outlet: Sink"
     assert pw._signal_picker.value == ("outlet", "inlet")
 
 
-def test_signal_options_match_the_ones_a_preview_would_offer():
+def test_signal_options_match_the_ones_the_simulated_preview_offers():
+    from cadetgui.cadetprocessadapter import classify_signal_ports
+
     pw = ParameterEstimationWidget()
     pw.bind_to_config(built_configuration())
-    before = list(pw._signal_picker.option_labels)
 
-    pw._on_preview(None)
-
-    assert pw._signal_picker.option_labels == before
+    offered = [label for label, _ in classify_signal_ports(pw._display_result)]
+    assert pw._signal_picker.option_labels == offered
 
 
 def test_signal_options_refresh_when_the_configuration_changes():
@@ -297,12 +422,14 @@ def test_signal_options_refresh_when_the_configuration_changes():
     assert pw._signal_picker.option_labels[0] == "outlet: Sink"
 
 
-def test_preview_without_a_configuration_shows_a_guard_error():
-    pw = ParameterEstimationWidget()
+def test_preview_without_a_process_shows_a_guard_error():
+    cw, pw = _bound_widgets()
+    cw.process = None
 
-    pw._on_preview(None)
+    pw._refresh_preview()
 
-    assert "configuration" in pw.status.value.lower()
+    assert "configuration" in pw._preview_status.value.lower()
+    assert pw._chart.layout.display == "none"
 
 
 def test_uploading_a_dataset_populates_the_dataset_picker():
@@ -322,7 +449,7 @@ def test_saving_a_configuration_and_refreshing_lists_it_as_a_base_process():
 
     pw._refresh_store_options()
 
-    assert pw._base_process_picker.option_labels == ["Current configuration", "Saved Base"]
+    assert pw._base_process_picker.option_labels == ["Saved Base (Active)", "Saved Base"]
 
 
 def test_picking_a_saved_base_process_loads_it_into_the_configuration_and_previews():
@@ -365,7 +492,6 @@ def _set_maxiter(pw: ParameterEstimationWidget, value: int) -> None:
 
 
 def _ready_to_run(cw, pw):
-    pw._on_preview(None)
     unit, port = pw._signal_picker.value
     upload_csv(pw.data, "measured.csv", _uploaded_measurement_from(pw._display_result, unit, port))
     pw._dataset_picker.selected_index = 0
@@ -375,15 +501,14 @@ def _ready_to_run(cw, pw):
 
 
 def test_run_estimation_without_a_dataset_shows_a_guard_error():
-    _, pw = _bound_widgets()
-    pw._on_preview(None)  # signal available, but no dataset imported
+    _, pw = _bound_widgets()  # signal available, but no dataset imported
 
     pw._on_run(None)
 
     assert "dataset" in pw.status.value.lower()
 
 
-def test_run_estimation_without_a_preview_works():
+def test_run_estimation_without_a_drawn_preview_works():
     cw, pw = _bound_widgets()
     unit, port = pw._signal_picker.value
     measured = _uploaded_measurement_from(run_process(cw.process), unit, port)
@@ -391,7 +516,7 @@ def test_run_estimation_without_a_preview_works():
     pw._dataset_picker.selected_index = 0
     _add_param(pw, 0)
     _set_maxiter(pw, 20)
-    assert pw._display_result is None
+    pw._display_result = None
 
     pw._on_run(None)
 
@@ -400,7 +525,7 @@ def test_run_estimation_without_a_preview_works():
 
 
 def test_redraw_overlay_without_a_preview_does_not_crash():
-    _, pw = _bound_widgets()
+    pw = ParameterEstimationWidget()
 
     pw._redraw_overlay()
 
@@ -409,7 +534,6 @@ def test_redraw_overlay_without_a_preview_does_not_crash():
 
 def test_run_estimation_without_an_added_parameter_shows_a_guard_error():
     cw, pw = _bound_widgets()
-    pw._on_preview(None)
     upload_csv(pw.data, "run1.csv", "time,signal\n0,0.0\n1,0.5\n2,1.0\n")
     pw._dataset_picker.selected_index = 0
     pw._signal_picker.selected_index = 0
@@ -575,7 +699,6 @@ def test_run_estimation_with_total_selected_still_succeeds():
 def test_run_estimation_with_a_specific_component_selected_succeeds():
     cw, pw = _bound_widgets()
     cw.components = ["Component 1", "Component 2"]  # needs a real 2nd component
-    pw._on_preview(None)
     unit, port = pw._signal_picker.value
     sol = pw._display_result.solution[unit][port]
     comp2 = sol.solution[:, 1]
@@ -644,7 +767,6 @@ def test_progress_tick_redraws_the_live_plot_when_the_checkbox_is_on_and_a_gener
 
     cw, pw = _bound_widgets()
     _add_param(pw, 0)
-    pw._on_preview(None)
     unit, port = pw._signal_picker.value
     calls = []
     monkeypatch.setattr(
@@ -821,8 +943,53 @@ class _FakeAnalyticsResults:
         return [[0.0] * self._n_var]
 
 
-def test_render_analytics_shows_convergence_and_hides_pairwise_for_one_parameter():
+def _analytics_widgets():
+    cw, pw = _bound_widgets()
+    pw._show_analytics_checkbox.value = True
+    return cw, pw
+
+
+def test_convergence_section_and_setting_are_hidden_by_default():
     _, pw = _bound_widgets()
+
+    assert pw._show_analytics_checkbox.value is False
+    assert pw._analytics_box.layout.display == "none"
+    assert pw._analytics_settings.box.layout.display == "none"
+    assert pw._show_analytics_checkbox.description == "Show convergence & correlation"
+
+
+def test_the_settings_checkbox_shows_and_hides_the_convergence_section():
+    _, pw = _bound_widgets()
+
+    pw._show_analytics_checkbox.value = True
+    assert pw._analytics_box.layout.display == ""
+
+    pw._show_analytics_checkbox.value = False
+    assert pw._analytics_box.layout.display == "none"
+
+
+def test_render_analytics_does_no_work_while_the_section_is_off():
+    _, pw = _bound_widgets()
+    optimizer = type("Opt", (), {"results": _FakeAnalyticsResults(3, 1)})()
+
+    pw._render_analytics(optimizer)
+
+    assert pw._convergence_out.value == b""
+    assert pw._convergence_out.layout.display == "none"
+
+
+def test_enabling_the_section_after_a_run_renders_the_last_run():
+    _, pw = _bound_widgets()
+    pw._progress["optimizer"] = type("Opt", (), {"results": _FakeAnalyticsResults(3, 1)})()
+
+    pw._show_analytics_checkbox.value = True
+
+    assert pw._convergence_out.layout.display == ""
+    assert pw._convergence_out.value
+
+
+def test_render_analytics_shows_convergence_and_hides_pairwise_for_one_parameter():
+    _, pw = _analytics_widgets()
     optimizer = type("Opt", (), {"results": _FakeAnalyticsResults(3, 1)})()
 
     pw._render_analytics(optimizer)
@@ -834,7 +1001,7 @@ def test_render_analytics_shows_convergence_and_hides_pairwise_for_one_parameter
 
 
 def test_render_analytics_shows_pairwise_for_two_parameters():
-    _, pw = _bound_widgets()
+    _, pw = _analytics_widgets()
     optimizer = type("Opt", (), {"results": _FakeAnalyticsResults(3, 2)})()
 
     pw._render_analytics(optimizer)
@@ -844,7 +1011,7 @@ def test_render_analytics_shows_pairwise_for_two_parameters():
 
 
 def test_render_analytics_skips_silently_before_the_first_generation():
-    _, pw = _bound_widgets()
+    _, pw = _analytics_widgets()
     optimizer = type("Opt", (), {"results": _FakeAnalyticsResults(0, 1)})()
 
     pw._render_analytics(optimizer)
@@ -854,7 +1021,7 @@ def test_render_analytics_skips_silently_before_the_first_generation():
 
 
 def test_render_analytics_surfaces_errors_instead_of_staying_silent():
-    _, pw = _bound_widgets()
+    _, pw = _analytics_widgets()
 
     class _BoomResults(_FakeAnalyticsResults):
         def plot_convergence(self, ax):
@@ -869,7 +1036,7 @@ def test_render_analytics_surfaces_errors_instead_of_staying_silent():
 
 @pytest.mark.slow
 def test_finish_run_renders_analytics_after_a_real_run():
-    cw, pw = _bound_widgets()
+    cw, pw = _analytics_widgets()
     _ready_to_run(cw, pw)
 
     pw._on_run(None)
