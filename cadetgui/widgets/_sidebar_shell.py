@@ -32,6 +32,7 @@ class SidebarShell:
         for widget in self.panes.values():
             widget.layout.display = "none"
 
+        self._warnings: Dict[str, str] = {}
         self.nav = W.ToggleButtons(options=self._order)
         self.nav.add_class("cadetgui-sidebar-nav")
         self.nav.observe(self._on_nav_change, names="index")
@@ -50,6 +51,22 @@ class SidebarShell:
             widget.layout.display = "" if name == label else "none"
         if self.nav.value != label:
             self.nav.value = label
+
+    def set_warning(self, label: str, message: Optional[str]) -> None:
+        """Mark a step with a warning icon and hover text, or clear it with `None`.
+
+        Purely informational -- the step stays selectable.
+        """
+        if label not in self.panes:
+            raise KeyError(label)
+        if message:
+            self._warnings[label] = message
+        else:
+            self._warnings.pop(label, None)
+        self.nav.icons = tuple(
+            "exclamation-triangle" if name in self._warnings else "" for name in self._order
+        )
+        self.nav.tooltips = tuple(self._warnings.get(name, "") for name in self._order)
 
     def _on_nav_change(self, change: dict) -> None:
         if change.get("name") != "index":

@@ -133,6 +133,7 @@ class CharacterizationWorkbenchWidget:
         )
         self._shell = SidebarShell(panes)
         self._nav = self._shell.nav
+        self._wire_status()
 
         top_bar = W.HTML(
             "<div class='cadetgui-topbar'>"
@@ -144,6 +145,26 @@ class CharacterizationWorkbenchWidget:
         self.root = W.VBox([W.HTML(style_tag()), top_bar, self._shell.body])
         self.root.add_class("cadetgui-panel")
         self.root.add_class("cadetgui-workbench")
+
+    def _wire_status(self) -> None:
+        self.configuration.add_listener(self._refresh_status)
+        for widget in self._stages.values():
+            widget.data.add_listener(self._refresh_status)
+        self._refresh_status()
+
+    def _refresh_status(self, *_args: object) -> None:
+        """Flag steps that can't do anything useful yet, without blocking navigation."""
+        config_problem = self.configuration.name_error("running a simulation")
+        if config_problem is None and self.configuration.process is None:
+            config_problem = "No valid process is built yet."
+
+        if "Configuration" in self._shell.panes:
+            self._shell.set_warning("Configuration", config_problem)
+        for name, widget in self._stages.items():
+            message = config_problem or (
+                None if widget.data.datasets else "Load an experimental dataset first."
+            )
+            self._shell.set_warning(name, message)
 
     def _on_reapply(self, push: ParameterPushRecord) -> None:
         """Route a "Re-apply" click to whichever stage's own write_targets match.

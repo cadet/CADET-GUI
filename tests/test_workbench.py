@@ -134,3 +134,37 @@ def test_workbench_include_rejects_widget_for_excluded_step():
         WorkbenchWidget(
             include=("Configuration",), parameter_estimation=ParameterEstimationWidget()
         )
+
+
+def _warned(wb):
+    return {
+        label: tooltip
+        for label, tooltip in zip(wb._nav.options, wb._nav.tooltips)
+        if tooltip
+    }
+
+
+def test_workbench_flags_parameter_estimation_until_a_dataset_is_loaded():
+    import numpy as np
+    from cadetgui.widgets.composite.data_import import ExperimentalDataset
+
+    wb = WorkbenchWidget()
+
+    assert list(_warned(wb)) == ["Parameter Estimation"]
+
+    wb.parameter_estimation.data.datasets.append(
+        ExperimentalDataset("d", np.array([0.0, 1.0]), np.array([0.0, 1.0]))
+    )
+    wb.parameter_estimation.data._notify()
+
+    assert _warned(wb) == {}
+
+
+def test_workbench_flags_configuration_steps_when_the_name_is_cleared():
+    wb = WorkbenchWidget()
+
+    wb.configuration.persistence._name_field.value = ""
+
+    warned = _warned(wb)
+    assert {"Configuration", "Simulation", "Parameter Estimation"} <= set(warned)
+    assert "name" in warned["Simulation"].lower()

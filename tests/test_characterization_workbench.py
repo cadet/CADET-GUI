@@ -139,3 +139,21 @@ def test_accepts_prebuilt_instrument_and_configuration_unmodified():
     assert wb.instrument is iw
     assert wb.configuration is cw
     assert not wb.instrument.enabled  # untouched, unlike the default-constructed case
+
+
+def test_stage_panes_are_flagged_until_they_have_a_dataset():
+    import numpy as np
+    from cadetgui.widgets.composite.data_import import ExperimentalDataset
+
+    wb = CharacterizationWorkbenchWidget(include=("System", "Configuration", "Bed", "Capacity"))
+    warned = {
+        label for label, tip in zip(wb._nav.options, wb._nav.tooltips) if tip
+    }
+    assert warned == {"Bed", "Capacity"}
+
+    bed = wb._stages["Bed"]
+    bed.data.datasets.append(ExperimentalDataset("d", np.array([0.0, 1.0]), np.array([0.0, 1.0])))
+    bed.data._notify()
+
+    warned = {label for label, tip in zip(wb._nav.options, wb._nav.tooltips) if tip}
+    assert warned == {"Capacity"}

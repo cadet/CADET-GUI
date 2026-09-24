@@ -355,6 +355,14 @@
   border-color: transparent;
 }
 
+.cadetgui-sidebar-nav .widget-toggle-button .fa-exclamation-triangle {
+  color: var(--cg-warn);
+}
+
+.cadetgui-sidebar-nav .widget-toggle-button.mod-active .fa-exclamation-triangle {
+  color: #fcd34d;
+}
+
 .cadetgui-sidebar-nav .widget-toggle-button.mod-active {
   background: var(--cg-focus);
   border-color: var(--cg-focus);

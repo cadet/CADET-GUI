@@ -114,3 +114,25 @@ def test_collect_panes_tolerates_a_slot_missing_from_the_map():
     panes = collect_panes(("A", "B"), {"A": "x"})
 
     assert panes == [("A", "x")]
+
+
+def test_set_warning_marks_a_step_with_an_icon_and_tooltip_and_clears_it():
+    shell = SidebarShell([("A", _pane()), ("B", _pane())])
+
+    shell.set_warning("B", "needs data")
+
+    assert shell.nav.icons == ("", "exclamation-triangle")
+    assert shell.nav.tooltips == ("", "needs data")
+    assert list(shell.nav.options) == ["A", "B"]  # navigation itself is untouched
+
+    shell.set_warning("B", None)
+
+    assert shell.nav.icons == ("", "")
+    assert shell.nav.tooltips == ("", "")
+
+
+def test_set_warning_rejects_an_unknown_step():
+    shell = SidebarShell([("A", _pane())])
+
+    with pytest.raises(KeyError):
+        shell.set_warning("Z", "nope")
