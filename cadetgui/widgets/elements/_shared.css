@@ -74,7 +74,7 @@
 .cadetgui-field-input:focus {
   outline: none;
   border-color: var(--cg-focus);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cg-focus) 25%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-focus) 22%, transparent);
 }
 
 .cadetgui-field[aria-invalid="true"] .cadetgui-field-input,
@@ -99,7 +99,7 @@
 .cadetgui-field-select:focus {
   outline: none;
   border-color: var(--cg-focus);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cg-focus) 25%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-focus) 22%, transparent);
 }
 
 .cadetgui-field-error {

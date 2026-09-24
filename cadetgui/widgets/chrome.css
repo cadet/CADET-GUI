@@ -184,30 +184,66 @@
    widget class — target broadly so this covers plain ipywidgets controls used
    for layout/actions (Button, BoundedIntText) inside our panels. */
 .cadetgui-panel .jupyter-widgets.jupyter-button {
-  border-radius: var(--cg-radius);
+  min-height: 30px;
+  border-radius: var(--cg-radius-sm);
   border: 1px solid var(--cg-border);
-  background: var(--cg-bg);
+  background: var(--cg-surface);
   color: var(--cg-fg);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--cg-text);
   box-shadow: none;
-  transition: filter 0.1s ease;
+  transition: background 0.12s ease, border-color 0.12s ease, filter 0.12s ease;
 }
 
 .cadetgui-panel .jupyter-button:hover:not(:disabled) {
-  filter: brightness(0.94);
+  background: color-mix(in srgb, var(--cg-fg) 6%, var(--cg-surface));
+  border-color: color-mix(in srgb, var(--cg-fg) 30%, var(--cg-border));
 }
 
+.cadetgui-panel .jupyter-button:active:not(:disabled) {
+  background: color-mix(in srgb, var(--cg-fg) 11%, var(--cg-surface));
+}
+
+.cadetgui-panel .jupyter-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-focus) 30%, transparent);
+}
+
+.cadetgui-panel .jupyter-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Primary call to action: ipywidgets' "success" style is only ever used for
+   the run buttons, so it is the accent-colored primary rather than green
+   (green stays a status color). */
 .cadetgui-panel .jupyter-button.mod-success {
-  background: var(--cg-success);
-  border-color: var(--cg-success);
-  color: #ffffff;
+  background: var(--cg-accent);
+  border-color: var(--cg-accent);
+  color: var(--cg-accent-fg);
+  font-weight: 600;
+}
+
+.cadetgui-panel .jupyter-button.mod-success:hover:not(:disabled),
+.cadetgui-panel .jupyter-button.mod-success:active:not(:disabled) {
+  background: var(--cg-accent);
+  border-color: var(--cg-accent);
+  filter: brightness(1.07);
+}
+
+.cadetgui-panel .jupyter-button.mod-success:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-accent) 40%, transparent);
 }
 
 .cadetgui-panel .jupyter-button.mod-danger {
-  background: var(--cg-danger);
+  background: transparent;
   border-color: var(--cg-danger);
-  color: #ffffff;
+  color: var(--cg-danger);
+}
+
+.cadetgui-panel .jupyter-button.mod-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cg-danger) 10%, transparent);
+  border-color: var(--cg-danger);
 }
 
 /* Toggle-switch look for every plain ipywidgets.Checkbox in the app, not a
@@ -277,19 +313,34 @@
 }
 
 .cadetgui-panel input[type="number"],
-.cadetgui-panel input[type="text"] {
+.cadetgui-panel input[type="text"],
+.cadetgui-panel select {
+  min-height: 28px;
   border: 1px solid var(--cg-border);
-  border-radius: var(--cg-radius);
+  border-radius: var(--cg-radius-sm);
   background: var(--cg-bg);
   color: var(--cg-fg);
   font: inherit;
   font-variant-numeric: tabular-nums;
   padding: 4px 8px;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.cadetgui-panel input[type="number"]:focus,
+.cadetgui-panel input[type="text"]:focus,
+.cadetgui-panel select:focus {
+  outline: none;
+  border-color: var(--cg-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-focus) 22%, transparent);
+}
+
+.cadetgui-panel input::placeholder {
+  color: color-mix(in srgb, var(--cg-muted) 75%, transparent);
 }
 
 .cadetgui-script textarea {
   border: 1px solid var(--cg-border);
-  border-radius: var(--cg-radius);
+  border-radius: var(--cg-radius-sm);
   background: var(--cg-bg);
   color: var(--cg-fg);
   font-family: var(--cg-font-mono);
