@@ -76,6 +76,24 @@ def test_save_and_load_h5_round_trips_the_full_state(tmp_path):
     assert compute_hash(loaded) == compute_hash(state)
 
 
+def test_load_h5_ignores_a_legacy_use_lc_system_key(tmp_path):
+    state = _sample_state()
+    path = tmp_path / "legacy.h5"
+    save_h5(state, "Legacy", path)
+
+    h5 = H5()
+    h5.filename = str(path)
+    h5.load_from_file()
+    h5.root.cadetgui.state.instrument.use_lc_system = False
+    h5.save()
+
+    name, loaded = load_h5(path)
+
+    assert name == "Legacy"
+    assert loaded == state
+    assert compute_hash(loaded) == compute_hash(state)
+
+
 def test_save_and_load_h5_round_trips_a_standalone_state_with_no_instrument(tmp_path):
     # HDF5 has no NoneType -- instrument=None must round-trip cleanly, not
     # crash on save or come back as some other falsy value on load.

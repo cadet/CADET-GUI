@@ -8,15 +8,8 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 
 def _fully_enabled_instrument() -> InstrumentWidget:
-    """An InstrumentWidget with "Use LC system" on and every unit checked.
-
-    Both default to a leaner starting point now ("Use LC system" off; once
-    on, only "column" is checked) -- most of this module is actually about
-    the per-unit forms/bypass behavior once everything is in the flow path,
-    so this restores that fuller state instead of every test doing so itself.
-    """
+    """An InstrumentWidget with every unit checked (by default only "column" is)."""
     iw = InstrumentWidget()
-    iw._use_lc_system_checkbox.value = True
     for checkbox in iw._unit_checkboxes.values():
         checkbox.value = True
     return iw
@@ -89,14 +82,13 @@ def test_unchecking_mixer_respects_lcflowsheets_own_forced_bypass_value():
     assert iw.flow_sheet.mixer.init_liquid_volume == 5e-5  # the earlier edit, not the seed default
 
 
-def test_disabling_use_lc_system_clears_every_unit_form():
-    iw = _fully_enabled_instrument()
-    assert iw._unit_forms
+def test_default_instrument_builds_a_flow_sheet_with_only_the_column_ticked():
+    iw = InstrumentWidget()
 
-    iw._use_lc_system_checkbox.value = False
-
-    assert iw._unit_forms == {}
-    assert all(box.children == () for box in iw._unit_form_boxes.values())
+    assert iw.flow_sheet is not None
+    assert iw._unit_checkboxes["column"].value is True
+    assert all(cb.value is False for n, cb in iw._unit_checkboxes.items() if n != "column")
+    assert set(iw.bypass_units()) == set(iw._unit_checkboxes) - {"column"}
 
 
 def test_unit_values_round_trip_through_snapshot_and_apply_state():

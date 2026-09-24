@@ -75,13 +75,12 @@ class InstrumentWidget:
     Path" was previously just inclusion toggles with hardcoded seed values,
     see ARCHITECTURE.md).
 
-    The "Use LC system" checkbox is the master switch: when off,
-    `ConfigurationWidget` ignores this widget entirely and builds its own
-    standalone process instead (`.flow_sheet` is `None`) -- the escape hatch
-    for anything the LC topology can't represent at all, e.g. `Cstr` (not a
+    The LC topology is always in effect when this widget is used: a bound
+    `ConfigurationWidget` builds its process around `.flow_sheet`. A
+    `ConfigurationWidget` with no instrument bound still builds the
+    standalone process directly, including `Cstr` (not a
     `ChromatographicColumnBase`, so it can never fill `LCFlowSheet`'s column
-    slot) or just a user who wants the plain single-column simulation they
-    had before binding a System.
+    slot) and the 'Pulse Feed (Single Component)' template.
 
     Component names and column/binding *type* live on the composing
     `ConfigurationWidget` (its own pickers there "win" -- see
@@ -91,7 +90,7 @@ class InstrumentWidget:
     this widget still builds a real flow sheet dropped standalone into a
     notebook cell (EXT-001). Builds and exposes `.flow_sheet`, auto-committing
     on every valid change; `add_listener` fires with it on every successful
-    build (or with `None`, while disabled).
+    build.
     """
 
     def __init__(self) -> None:
@@ -115,11 +114,6 @@ class InstrumentWidget:
         self._unit_values: Dict[str, Dict[str, float]] = {}
         self._unit_forms: Dict[str, FormRenderer] = {}
 
-        self._use_lc_system_checkbox = W.Checkbox(
-            description="Use LC system", value=False, indent=False
-        )
-        self._use_lc_system_checkbox.observe(self._on_use_lc_system_change, names="value")
-
         self._sample_loop_checkbox = W.Checkbox(
             description="Sample loop", value=True, indent=False
         )
@@ -133,9 +127,7 @@ class InstrumentWidget:
             label="Sample loop diameter", value=0.75e-3, units=r"\mathrm{m}",
         )
 
-        # Only "column" starts checked -- the minimal useful flow path once
-        # "Use LC system" is turned on; mixer/tubing segments are opt-in from
-        # there (e.g. to characterize the system before adding periphery).
+        # Only "column" starts checked; mixer/tubing segments are opt-in.
         self._unit_checkboxes: Dict[str, W.Checkbox] = {
             name: W.Checkbox(
                 description=_UNIT_LABELS[name], value=(name == "column"), indent=False
@@ -193,7 +185,6 @@ class InstrumentWidget:
             [
                 W.HTML(style_tag()),
                 W.HTML("<div class='cadetgui-panel-title'>System</div>"),
-                self._use_lc_system_checkbox,
                 self._flow_path_section,
                 self.status,
             ]
@@ -208,17 +199,11 @@ class InstrumentWidget:
             checkbox.observe(self._on_change, names="value")
 
         self._apply_loop_field_visibility()
-        self._apply_use_lc_system_visibility()
         self._rebuild()
 
     def add_listener(self, fn: Callable[[Any], None]) -> None:
         """Register a callback fired with `.flow_sheet` on every successful build."""
         self._listeners.append(fn)
-
-    @property
-    def enabled(self) -> bool:
-        """Whether "Use LC system" is checked -- see class docstring."""
-        return bool(self._use_lc_system_checkbox.value)
 
     @property
     def components(self) -> List[str]:
@@ -252,21 +237,9 @@ class InstrumentWidget:
             return
         self._rebuild()
 
-    def _on_use_lc_system_change(self, change: dict) -> None:
-        if change.get("name") != "value":
-            return
-        self._apply_use_lc_system_visibility()
-        if self._suspend_rebuild:
-            return
-        self._rebuild()
-
-    def _apply_use_lc_system_visibility(self) -> None:
-        self._flow_path_section.layout.display = "" if self.enabled else "none"
-
     def snapshot(self) -> InstrumentState:
         """Capture the current topology selection as the hashed save/import payload."""
         return InstrumentState(
-            use_lc_system=self.enabled,
             include_sample_loop=bool(self._sample_loop_checkbox.value),
             sample_loop_volume=float(self._loop_volume_field.value),
             sample_loop_diameter_auto=bool(self._loop_diameter_auto_checkbox.value),
@@ -279,7 +252,6 @@ class InstrumentWidget:
         """Reconstruct fields from a saved InstrumentState."""
         self._suspend_rebuild = True
         try:
-            self._use_lc_system_checkbox.value = state.use_lc_system
             self._sample_loop_checkbox.value = state.include_sample_loop
             self._loop_volume_field.value = state.sample_loop_volume
             self._loop_diameter_auto_checkbox.value = state.sample_loop_diameter_auto
@@ -291,7 +263,6 @@ class InstrumentWidget:
             self._suspend_rebuild = False
 
         self._apply_loop_field_visibility()
-        self._apply_use_lc_system_visibility()
         self._rebuild()
 
     def _apply_loop_field_visibility(self) -> None:
@@ -351,22 +322,7 @@ class InstrumentWidget:
             self._unit_forms[name] = form
             box.children = (form.root,)
 
-    def _clear_unit_forms(self) -> None:
-        self._unit_forms = {}
-        for box in self._unit_form_boxes.values():
-            box.children = ()
-
     def _rebuild(self) -> None:
-        if not self.enabled:
-            self.flow_sheet = None
-            self._clear_unit_forms()
-            self.status.value = (
-                "<em>LC system disabled -- Configuration builds a standalone"
-                " process directly instead.</em>"
-            )
-            self._notify()
-            return
-
         try:
             cs = ComponentSystem(list(self._component_names))
             bypass = self.bypass_units()

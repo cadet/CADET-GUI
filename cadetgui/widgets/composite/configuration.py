@@ -301,9 +301,7 @@ class ConfigurationWidget:
 
         Feeds this widget's own column/binding/component choices into the
         instrument (never the other way around) and switches to the fuller
-        `INSTRUMENT_TEMPLATES` process registry -- but only while the
-        instrument's own "Use LC system" toggle is on; see
-        `_instrument_active()`.
+        `INSTRUMENT_TEMPLATES` process registry.
         """
         self._instrument = instrument
         instrument.add_listener(self._on_instrument_changed)
@@ -331,17 +329,14 @@ class ConfigurationWidget:
             fn(self.process)
 
     def _instrument_active(self) -> bool:
-        """Whether a bound Instrument's LC topology is actually in effect right now.
+        """Whether an Instrument is bound (its LC topology is then always in effect).
 
-        False both when nothing is bound and when one is bound but its own
-        "Use LC system" toggle is off -- either way, this widget builds its
-        own standalone process instead (e.g. so `Cstr`, which can never fill
-        `LCFlowSheet`'s column slot, is still usable with a System bound).
+        Unbound, this widget builds its own standalone process instead.
         """
-        return self._instrument is not None and self._instrument.enabled
+        return self._instrument is not None
 
     def _column_options(self) -> list[tuple[str, type]]:
-        """Return this widget's column options -- CSTR only while no LC system is active."""
+        """Return this widget's column options -- CSTR only while no instrument is bound."""
         if not self._instrument_active():
             return list(self._columns.items())
         return [(k, v) for k, v in self._columns.items() if k in INSTRUMENT_COMPATIBLE_COLUMNS]
@@ -358,8 +353,8 @@ class ConfigurationWidget:
     def _refresh_picker_options(self) -> None:
         """Re-derive the column and process-template picker options.
 
-        Called on bind and again on every Instrument change (including its
-        "Use LC system" toggle flipping) -- `ChoiceField.set_options` falls
+        Called on bind and again on every Instrument change --
+        `ChoiceField.set_options` falls
         back to the first option when the current value isn't among the new
         ones, so this is safe to call unconditionally.
         """
@@ -414,10 +409,6 @@ class ConfigurationWidget:
     def _on_instrument_changed(self, _flow_sheet: Any) -> None:
         if self._suspend_rebuild:
             return
-        # Covers the "Use LC system" toggle flipping (as well as every other
-        # Instrument change, which is a harmless no-op re-derivation) -- CSTR
-        # appears/disappears from the column picker, and the process-template
-        # registry switches between STANDALONE_TEMPLATES/INSTRUMENT_TEMPLATES.
         self._refresh_picker_options()
         self._sync_component_minimum()
         if self._maybe_autoadd_component():
@@ -581,10 +572,7 @@ class ConfigurationWidget:
             self._show_optional_binding_checkbox.value = state.show_optional_binding
             self._components.value = list(state.components)
 
-            # Restore the Instrument's own state (including its "Use LC
-            # system" toggle) and refresh picker options *before* setting the
-            # column/binding pickers or looking up the template registry --
-            # both depend on whether the LC system ends up active.
+            # Restore the Instrument's state before setting the pickers.
             if self._instrument is not None:
                 if state.instrument is not None:
                     self._instrument.apply_state(state.instrument)

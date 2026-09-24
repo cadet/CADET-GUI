@@ -35,7 +35,6 @@ def base_process() -> object:
     """CharacterizationWorkbenchWidget()'s own default process, built the same way."""
     iw = InstrumentWidget()
     cw = ConfigurationWidget(instrument=iw)
-    iw._use_lc_system_checkbox.value = True
     for unit in ("tubing_pre_injection", "tubing_detectors", "mixer"):
         iw._unit_checkboxes[unit].value = True
     cw._column_picker.value = COLUMN_MODELS["Lumped Rate Model With Pores (LRMP)"]

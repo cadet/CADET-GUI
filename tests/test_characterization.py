@@ -34,7 +34,6 @@ def _synchronous_threads(monkeypatch):
 def _built_with_instrument(*, column_key: str = "Lumped Rate Model Without Pores (LRM)"):
     iw = InstrumentWidget()
     cw = ConfigurationWidget(instrument=iw)
-    iw._use_lc_system_checkbox.value = True
     if column_key != "Lumped Rate Model Without Pores (LRM)":
         cw._column_picker.value = COLUMN_MODELS[column_key]
     return iw, cw

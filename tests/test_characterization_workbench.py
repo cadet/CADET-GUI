@@ -49,9 +49,8 @@ def test_periphery_is_one_collapsible_sidebar_entry():
 def test_default_instrument_and_configuration_are_seeded_for_every_stage_to_work():
     wb = CharacterizationWorkbenchWidget()
 
-    # LC system + the periphery units are needed for the two "Periphery: ..."
-    # panes to have anything to fit against.
-    assert wb.instrument.enabled
+    # The periphery units are needed for the two "Periphery: ..." panes to
+    # have anything to fit against.
     for unit in ("tubing_pre_injection", "tubing_detectors", "mixer"):
         assert unit not in wb.instrument.bypass_units()
 
@@ -148,13 +147,13 @@ def test_reapply_disambiguates_between_the_two_periphery_panes():
 def test_accepts_prebuilt_instrument_and_configuration_unmodified():
     iw = InstrumentWidget()
     cw = ConfigurationWidget(instrument=iw)
-    assert not iw.enabled  # left at its own default -- not seeded like the auto-built case
+    assert "mixer" in iw.bypass_units()  # not seeded like the auto-built case
 
     wb = CharacterizationWorkbenchWidget(instrument=iw, configuration=cw)
 
     assert wb.instrument is iw
     assert wb.configuration is cw
-    assert not wb.instrument.enabled  # untouched, unlike the default-constructed case
+    assert "mixer" in wb.instrument.bypass_units()  # untouched, unlike the default-constructed case
 
 
 def _warned(wb):

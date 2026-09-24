@@ -49,9 +49,9 @@ class CharacterizationWorkbenchWidget:
     `include=` only ever controls which panes actually render.
 
     A default-constructed `instrument`/`configuration` (i.e. neither is
-    passed in) is seeded so every stage pane works out of the box: "Use LC
-    system" on with the periphery-relevant units included (needed for the
-    two "Periphery: ..." panes to have anything to fit), and a column/
+    passed in) is seeded so every stage pane works out of the box: the
+    periphery-relevant units are included (needed for the two
+    "Periphery: ..." panes to have anything to fit), and a column/
     binding pair with pores and a capacity/characteristic-charge (LRMP +
     SMA) rather than `ConfigurationWidget`'s own bare LRM/Linear default,
     which has neither `bed_porosity` nor `capacity`/`characteristic_charge`
@@ -73,7 +73,6 @@ class CharacterizationWorkbenchWidget:
         self.instrument = instrument
         if self.instrument is None:
             self.instrument = InstrumentWidget()
-            self.instrument._use_lc_system_checkbox.value = True
             for unit in ("tubing_pre_injection", "tubing_detectors", "mixer"):
                 self.instrument._unit_checkboxes[unit].value = True
 

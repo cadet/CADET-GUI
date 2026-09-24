@@ -37,7 +37,6 @@ class InstrumentState:
     in here.
     """
 
-    use_lc_system: bool = True
     include_sample_loop: bool = True
     sample_loop_volume: float = 50e-9
     sample_loop_diameter_auto: bool = True
@@ -180,7 +179,6 @@ def load_h5(path: "Path | str") -> Tuple[str, ConfigurationState]:
     instrument_payload = payload.get("instrument") or {}
     instrument = (
         InstrumentState(
-            use_lc_system=instrument_payload.get("use_lc_system", True),
             include_sample_loop=instrument_payload.get("include_sample_loop", True),
             sample_loop_volume=instrument_payload.get("sample_loop_volume", 50e-9),
             sample_loop_diameter_auto=instrument_payload.get("sample_loop_diameter_auto", True),

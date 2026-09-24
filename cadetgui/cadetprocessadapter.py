@@ -652,8 +652,8 @@ def list_signal_ports(process: Any) -> list[tuple[str, tuple[str, str]]]:
     ports_by_unit = {
         name: [
             port
-            for port in ("inlet", "outlet")
-            if getattr(unit.solution_recorder, f"write_solution_{port}", True)
+            for port in ("inlet", "outlet", "volume")
+            if getattr(unit.solution_recorder, f"write_solution_{port}", port != "volume")
         ]
         for name, unit in units.items()
     }

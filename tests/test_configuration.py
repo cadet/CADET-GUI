@@ -17,17 +17,9 @@ def _isolated_store(tmp_path, monkeypatch):
 
 
 def built():
-    """A default InstrumentWidget + bound ConfigurationWidget pair, with the
-    LC system explicitly turned on.
-
-    "Use LC system" itself defaults to off (see
-    `test_use_lc_system_toggle_defaults_to_off`) -- this module is mostly
-    about instrument-based behavior once it's on, so this helper turns it on
-    rather than every test doing so itself.
-    """
+    """A default InstrumentWidget + bound ConfigurationWidget pair."""
     iw = InstrumentWidget()
     cw = ConfigurationWidget(instrument=iw)
-    iw._use_lc_system_checkbox.value = True
     return iw, cw
 
 
@@ -660,9 +652,6 @@ def test_bypassing_column_builds_a_process_with_no_column_at_all():
 
 
 def test_unit_checkboxes_default_to_only_column_checked():
-    # A fresh InstrumentWidget, not `built()` -- that helper explicitly turns
-    # "Use LC system" on for the rest of this module, which would hide the
-    # real default this test is checking.
     iw = InstrumentWidget()
     assert iw._unit_checkboxes["column"].value is True
     assert all(
@@ -671,55 +660,41 @@ def test_unit_checkboxes_default_to_only_column_checked():
     assert set(iw.bypass_units()) == set(iw._unit_checkboxes) - {"column"}
 
 
-def test_use_lc_system_toggle_defaults_to_off():
+def test_bound_configuration_offers_the_five_lc_templates_and_no_cstr_by_default():
     iw = InstrumentWidget()
     cw = ConfigurationWidget(instrument=iw)
-    assert iw.enabled is False
-    assert iw._flow_path_section.layout.display == "none"
-    # Standalone build, same as if no InstrumentWidget were bound at all.
-    assert type(cw.process).__name__ == "Process"
-    assert cw.process.name == "pulse_feed"
 
-
-def test_disabling_use_lc_system_makes_cstr_selectable_and_builds_standalone():
-    iw, cw = built()
+    assert cw._model_picker.option_labels == [
+        "Pulse Injection",
+        "Step",
+        "Load–Wash–Elute (LWE)",
+        "Step Elution",
+        "Breakthrough",
+    ]
     assert "Continuous Stirred Tank Reactor (CSTR)" not in cw._column_picker.option_labels
+    assert type(cw.process).__name__ == "PulseInjection"
 
-    iw._use_lc_system_checkbox.value = False
 
-    assert iw._flow_path_section.layout.display == "none"
+def test_unbound_configuration_still_offers_pulse_feed_and_cstr():
+    cw = ConfigurationWidget()
+
+    assert "Pulse Feed (Single Component)" in cw._model_picker.option_labels
     assert "Continuous Stirred Tank Reactor (CSTR)" in cw._column_picker.option_labels
 
     cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
     assert type(cw._get_column()).__name__ == "Cstr"
-    assert type(cw.process).__name__ == "Process"  # the standalone Pulse Feed template
+    assert type(cw.process).__name__ == "Process"
 
 
-def test_reenabling_use_lc_system_falls_back_off_a_now_invalid_cstr_selection():
+def test_instrument_state_round_trips_through_snapshot_and_apply_state():
     iw, cw = built()
-    iw._use_lc_system_checkbox.value = False
-    cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
-
-    iw._use_lc_system_checkbox.value = True
-
-    assert "Continuous Stirred Tank Reactor (CSTR)" not in cw._column_picker.option_labels
-    assert cw._column_picker.value is cw._columns["General Rate Model (GRM)"]
-    assert type(cw.process).__name__ == "PulseInjection"
-
-
-def test_use_lc_system_state_round_trips_through_snapshot_and_apply_state():
-    iw, cw = built()
-    iw._use_lc_system_checkbox.value = False
-    cw._column_picker.value = cw._columns["Continuous Stirred Tank Reactor (CSTR)"]
+    iw._unit_checkboxes["mixer"].value = True
 
     state = cw._snapshot_state()
-    assert state.instrument.use_lc_system is False
-
-    iw2, cw2 = built()  # a different widget entirely, still LC-system-enabled
+    iw2, cw2 = built()
     cw2._apply_state("Imported", state)
 
-    assert iw2.enabled is False
-    assert type(cw2._get_column()).__name__ == "Cstr"
+    assert "mixer" not in iw2.bypass_units()
 
 
 def test_config_hash_is_set_after_construction_and_changes_with_field_edits():

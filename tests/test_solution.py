@@ -35,7 +35,7 @@ def built_process():
 
 
 def built_process_with_instrument():
-    """Like `built_process()`, but with "Use LC system" explicitly turned on.
+    """Like `built_process()`, but with an InstrumentWidget bound.
 
     For tests that specifically need the LCFlowSheet-based process (its
     buffer/feed/waste units etc.), not just any valid process -- most tests
@@ -44,7 +44,6 @@ def built_process_with_instrument():
     """
     iw = InstrumentWidget()
     cw = ConfigurationWidget(instrument=iw)
-    iw._use_lc_system_checkbox.value = True
     return cw.process
 
 
