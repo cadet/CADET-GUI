@@ -5,13 +5,14 @@
   flex: 1 1 320px;
   font-family: var(--cg-font);
   font-size: var(--cg-text);
+  line-height: var(--cg-leading);
   color: var(--cg-fg);
 }
 
 .cadetgui-table-caption {
   margin-bottom: 4px;
   color: var(--cg-muted);
-  font-size: 12px;
+  font-size: var(--cg-text-sm);
   font-weight: 600;
 }
 
@@ -22,7 +23,7 @@
 .cadetgui-table-scroll {
   max-height: 220px;
   overflow: auto;
-  border: 1px solid var(--cg-border);
+  border: 1px solid var(--cg-border-strong);
   border-radius: var(--cg-radius);
 }
 
@@ -38,7 +39,7 @@
   border-bottom: 1px solid var(--cg-border);
   background: color-mix(in srgb, var(--cg-focus) 8%, var(--cg-bg));
   color: var(--cg-muted);
-  font-size: 12px;
+  font-size: var(--cg-text-sm);
   font-weight: 600;
   text-align: left;
 }
@@ -78,7 +79,7 @@
 
 .cadetgui-field-error {
   color: var(--cg-danger);
-  font-size: 12px;
+  font-size: var(--cg-text-sm);
 }
 
 .cadetgui-field-error[hidden] {
@@ -89,11 +90,11 @@
   --_c: var(--cg-muted);
   display: inline-block;
   padding: 1px 8px;
-  border: 1px solid color-mix(in srgb, var(--_c) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--_c) 55%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--_c) 12%, transparent);
-  color: var(--_c);
-  font-size: 11.5px;
+  color: color-mix(in srgb, var(--_c) 75%, var(--cg-fg));
+  font-size: var(--cg-text-sm);
   font-weight: 600;
   line-height: 1.5;
   white-space: nowrap;

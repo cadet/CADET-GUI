@@ -3,7 +3,7 @@
    Shared tokens come from tokens.css (prepended at load, see _tokens.py). */
 
 .cadetgui-field {
-  --cg-unit: #828d99;
+  --cg-unit: var(--cg-muted);
   /* One step darker than --cg-muted, toward --cg-fg -- distinguishes a
      field's own label from a component-name sub-label, which stays at
      plain --cg-muted. Derived rather than a second hardcoded hex per
@@ -17,21 +17,16 @@
   padding: 2px 0;
   font-family: var(--cg-font);
   font-size: var(--cg-text);
+  line-height: var(--cg-leading);
   color: var(--cg-fg);
-}
-
-@media (prefers-color-scheme: dark) {
-  .cadetgui-field {
-    --cg-unit: #5b6472;
-  }
 }
 
 .cadetgui-field-label {
   /* Fixed column, not just a min-width floor: otherwise a long label
      ("Final wash duration") grows past a short one ("Length"), so
      whatever follows starts at a different x per row. */
-  width: 140px;
-  flex: 0 0 140px;
+  width: 160px;
+  flex: 0 0 160px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -43,10 +38,12 @@
   flex: 0 0 auto;
   min-width: 46px;
   font-family: "STIX Two Math", "Cambria Math", Georgia, "Times New Roman", serif;
+  font-size: 1.07em;
 }
 
 .cadetgui-field-unit sup,
 .cadetgui-field-unit sub {
+  font-size: 0.8em;
   line-height: 0;
 }
 
@@ -64,7 +61,7 @@
   font-variant-numeric: tabular-nums;
   width: 100px;
   padding: 4px 8px;
-  border: 1px solid var(--cg-border);
+  border: 1px solid var(--cg-border-strong);
   border-radius: var(--cg-radius-sm);
   background: var(--cg-bg);
   color: var(--cg-fg);
@@ -74,12 +71,14 @@
 .cadetgui-field-input:focus {
   outline: none;
   border-color: var(--cg-focus);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-focus) 22%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-focus) 30%, transparent);
 }
 
 .cadetgui-field[aria-invalid="true"] .cadetgui-field-input,
 .cadetgui-field-input[aria-invalid="true"] {
   border-color: var(--cg-danger);
+  border-width: 2px;
+  padding: 3px 7px;
 }
 
 /* Own class, not .cadetgui-field-input: a dropdown (Column/Binding Model,
@@ -89,7 +88,7 @@
 .cadetgui-field-select {
   min-width: 260px;
   padding: 4px 8px;
-  border: 1px solid var(--cg-border);
+  border: 1px solid var(--cg-border-strong);
   border-radius: var(--cg-radius-sm);
   background: var(--cg-bg);
   color: var(--cg-fg);
@@ -99,12 +98,12 @@
 .cadetgui-field-select:focus {
   outline: none;
   border-color: var(--cg-focus);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-focus) 22%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-focus) 30%, transparent);
 }
 
 .cadetgui-field-error {
   color: var(--cg-danger);
-  font-size: 12px;
+  font-size: var(--cg-text-sm);
 }
 
 /* Forces the error onto its own line the moment it appears, instead of
@@ -164,7 +163,7 @@
   width: 34px;
   height: 18px;
   border-radius: 999px;
-  background: var(--cg-border);
+  background: var(--cg-border-strong);
   transition: background 0.15s ease;
 }
 
@@ -205,7 +204,7 @@
   /* Matches the label width + gap of every other field's row layout, so
      the input column doesn't jump sideways the moment a second row makes
      this field switch from row to stacked layout. */
-  padding-left: calc(140px + 0.6rem);
+  padding-left: calc(160px + 0.6rem);
 }
 
 .cadetgui-field-list-stacked > .cadetgui-field-label {
@@ -232,7 +231,7 @@
 .cadetgui-field-list-row input {
   width: 100px;
   padding: 4px 8px;
-  border: 1px solid var(--cg-border);
+  border: 1px solid var(--cg-border-strong);
   border-radius: var(--cg-radius-sm);
   background: var(--cg-bg);
   color: var(--cg-fg);
@@ -241,7 +240,7 @@
 
 .cadetgui-field-list-row button,
 .cadetgui-field-list-add {
-  border: 1px solid var(--cg-border);
+  border: 1px solid var(--cg-border-strong);
   border-radius: var(--cg-radius-sm);
   background: var(--cg-bg);
   color: var(--cg-muted);
@@ -258,8 +257,8 @@
 
 .cadetgui-field-list-row button:disabled {
   cursor: not-allowed;
-  opacity: 0.4;
-  border-color: var(--cg-border);
+  opacity: 0.7;
+  border-color: var(--cg-border-strong);
   color: var(--cg-muted);
 }
 
@@ -276,7 +275,7 @@
   flex: 0 0 auto;
   color: var(--cg-muted);
   font-family: var(--cg-font);
-  font-size: 12px;
+  font-size: var(--cg-text-sm);
 }
 
 .cadetgui-field-list-controls {
@@ -287,5 +286,5 @@
 
 .cadetgui-field-count {
   color: var(--cg-muted);
-  font-size: 12px;
+  font-size: var(--cg-text-sm);
 }

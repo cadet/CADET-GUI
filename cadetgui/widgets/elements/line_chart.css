@@ -20,19 +20,19 @@
 
 .cadetgui-chart-axislabel {
   fill: var(--cg-muted);
-  font-size: 9px;
+  font-size: 13px;
   font-family: var(--cg-font);
 }
 
 .cadetgui-chart-axistitle {
   fill: var(--cg-muted);
-  font-size: 10px;
+  font-size: 14px;
   font-family: "STIX Two Math", "Cambria Math", Georgia, "Times New Roman", serif;
 }
 
 .cadetgui-chart-empty {
   fill: var(--cg-muted);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .cadetgui-chart-line {
@@ -58,7 +58,7 @@
   flex-flow: row wrap;
   gap: 4px 6px;
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--cg-text-sm);
 }
 
 .cadetgui-chart-legend-item {
@@ -76,8 +76,12 @@
 
 .cadetgui-chart-legend-item:hover,
 .cadetgui-chart-legend-item:focus-visible {
-  border-color: var(--cg-border);
-  outline: none;
+  border-color: var(--cg-border-strong);
+}
+
+.cadetgui-chart-legend-item:focus-visible {
+  outline: 2px solid var(--cg-focus);
+  outline-offset: 1px;
 }
 
 .cadetgui-chart-legend-item.is-off {
@@ -91,8 +95,8 @@
 
 .cadetgui-chart-legend-swatch {
   display: inline-block;
-  width: 14px;
-  height: 2px;
+  width: 16px;
+  height: 3px;
   border-radius: 1px;
 }
 
@@ -109,12 +113,12 @@
   top: 0;
   right: 0;
   padding: 1px 8px;
-  border: 1px solid var(--cg-border);
+  border: 1px solid var(--cg-border-strong);
   border-radius: var(--cg-radius-sm);
   background: var(--cg-bg);
   color: var(--cg-muted);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--cg-text-sm);
   cursor: pointer;
 }
 
@@ -135,13 +139,14 @@
   border-radius: var(--cg-radius-sm);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   padding: 6px 9px;
-  font-size: 12px;
+  font-size: var(--cg-text-sm);
+  line-height: var(--cg-leading);
   white-space: nowrap;
 }
 
 .cadetgui-chart-tooltip-time {
   color: var(--cg-muted);
-  font-size: 11px;
+  font-size: var(--cg-text-sm);
   margin-bottom: 3px;
 }
 
@@ -153,8 +158,8 @@
 
 .cadetgui-chart-tooltip-key {
   display: inline-block;
-  width: 10px;
-  height: 2px;
+  width: 12px;
+  height: 3px;
   flex: 0 0 auto;
 }
 

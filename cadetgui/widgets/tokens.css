@@ -7,8 +7,9 @@
 .cadetgui-chart,
 .cadetgui-table {
   --cg-fg: #1f2937;
-  --cg-muted: #6b7280;
+  --cg-muted: #5b6370;
   --cg-border: #d1d5db;
+  --cg-border-strong: #7b8390; /* input/control outlines, >=3:1 on surface and page */
   --cg-bg: #ffffff;
   --cg-surface: #ffffff;
   --cg-page: #f5f7fa;
@@ -18,8 +19,8 @@
   --cg-accent: #e8833a; /* call-to-action / "look here"; never a status color */
   --cg-accent-fg: #1f1300;
 
-  --cg-danger: #dc2626;
-  --cg-success: #059669;
+  --cg-danger: #c81e1e;
+  --cg-success: #047857;
   --cg-warn: #a16207;
 
   --cg-radius-sm: 6px;
@@ -36,9 +37,11 @@
 
   --cg-font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --cg-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-  --cg-text: 13px;
-  --cg-text-sm: 12px;
-  --cg-text-lg: 15px;
+  --cg-text: 14px;
+  --cg-text-sm: 12.5px;
+  --cg-text-lg: 16px;
+  --cg-text-xl: 19px;
+  --cg-leading: 1.45;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -49,6 +52,7 @@
     --cg-fg: #e5e7eb;
     --cg-muted: #9ca3af;
     --cg-border: #4b5563;
+    --cg-border-strong: #7a8391;
     --cg-bg: #1f2937;
     --cg-surface: #1f2937;
     --cg-page: #111827;

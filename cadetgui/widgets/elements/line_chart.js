@@ -6,11 +6,11 @@ const REFERENCE_LIGHT = "#111827";
 const REFERENCE_DARK = "#f3f4f6";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-const PAD_L = 44;
+const PAD_L = 54;
 const PAD_R = 10;
-const PAD_R_AXIS = 46;
-const PAD_T = 18;
-const PAD_B = 38;
+const PAD_R_AXIS = 56;
+const PAD_T = 26;
+const PAD_B = 46;
 const MIN_DRAG_PX = 6;
 
 function isDark() {
@@ -141,7 +141,7 @@ function appendUnitNodesSvg(parent, nodes) {
     }
     const span = document.createElementNS(SVG_NS, "tspan");
     span.setAttribute("baseline-shift", node.sup ? "super" : "sub");
-    span.setAttribute("font-size", "70%");
+    span.setAttribute("font-size", "80%");
     appendUnitNodesSvg(span, node.sup || node.sub);
     parent.appendChild(span);
   }
@@ -325,7 +325,7 @@ function render({ model, el }) {
     for (const t of niceMinuteTicks(xLo, xHi, 5)) {
       const label = svgEl("text", {
         x: xScale.px(t),
-        y: H - PAD_B + 13,
+        y: H - PAD_B + 16,
         "text-anchor": "middle",
         class: "cadetgui-chart-axislabel",
       });
@@ -335,7 +335,7 @@ function render({ model, el }) {
 
     const xTitle = svgEl("text", {
       x: PAD_L + plotW / 2,
-      y: H - 4,
+      y: H - 5,
       "text-anchor": "middle",
       class: "cadetgui-chart-axistitle",
     });
