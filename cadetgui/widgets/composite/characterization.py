@@ -26,6 +26,7 @@ from ...parameter_estimation import (
 )
 from ...simulation import run_process
 from .._chrome import style_tag
+from .._status import status_html
 from ..elements import ChoiceField
 from ._optimizer_runner_panel import OptimizerRunnerPanel
 from .configuration import ConfigurationWidget
@@ -387,9 +388,9 @@ class CharacterizationWidget:
     def _on_preview(self, _btn: Any) -> None:
         process = self._config.process
         if process is None:
-            self.status.value = "<span style='color:#b00020'>No configuration to preview.</span>"
+            self.status.value = status_html("error", "No configuration to preview.")
             return
-        self.status.value = "<span class='cadetgui-spinner'></span><em>Simulating preview…</em>"
+        self.status.value = status_html("running", "Simulating preview…")
         result = run_process(copy.deepcopy(process))
         self._signal_picker.set_options(classify_signal_ports(result), keep_value=True)
         self.status.value = "<em>Preview ready.</em>"

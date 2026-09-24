@@ -25,6 +25,7 @@ from ...cadetprocessadapter import (
 from ...configuration_store import ConfigurationState
 from .._chrome import style_tag
 from .._settings_popover import SettingsPopover
+from .._status import status_html
 from ..elements import (
     ChoiceField,
     ComponentListField,
@@ -1004,7 +1005,7 @@ class ConfigurationWidget:
         try:
             script = self.export_script()
         except RuntimeError as exc:
-            self.status.value = f"<span style='color:#b00020'>{exc}</span>"
+            self.status.value = status_html("error", str(exc))
             return
         self._script_out.value = script
         self._script_out.layout.display = ""

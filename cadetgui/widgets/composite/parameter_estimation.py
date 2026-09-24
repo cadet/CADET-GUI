@@ -25,6 +25,7 @@ from ...parameter_estimation import (
 from ...simulation import run_process
 from .._chrome import style_tag
 from .._mpl_figure import display_figure, new_figure
+from .._status import status_html
 from ..elements import ChoiceField
 from .data_import import DataImportWidget
 from .parameter_space import ParameterSpaceEditor
@@ -340,9 +341,9 @@ class ParameterEstimationWidget:
     def _on_preview(self, _btn: Any) -> None:
         """Simulate the current base process once: discover signal ports and overlay it."""
         if self._config_widget is None or self._config_widget.process is None:
-            self.status.value = "<span style='color:#b00020'>No configuration to preview.</span>"
+            self.status.value = status_html("error", "No configuration to preview.")
             return
-        self.status.value = "<span class='cadetgui-spinner'></span><em>Simulating preview…</em>"
+        self.status.value = status_html("running", "Simulating preview…")
         self._display_result = run_process(self._config_widget.process)
         options = classify_signal_ports(self._display_result)
         self._signal_picker.set_options(options, keep_value=True)
@@ -464,7 +465,7 @@ class ParameterEstimationWidget:
         self._elapsed_label.value = ""
         error = self._validation_error()
         if error:
-            self.status.value = f"<span style='color:#b00020'>{error}</span>"
+            self.status.value = status_html("error", str(error))
             return
 
         unit, port = self._signal_picker.value
@@ -490,7 +491,7 @@ class ParameterEstimationWidget:
         self._btn_run.disabled = True
         self._btn_run.description = "Running..."
         self._btn_cancel.layout.display = ""
-        self.status.value = "<span class='cadetgui-spinner'></span><em>Fitting…</em>"
+        self.status.value = status_html("running", "Fitting…")
 
         self._run_done.clear()
         self._cancel_event.clear()
@@ -617,7 +618,7 @@ class ParameterEstimationWidget:
             self._live_plot_error.value = ""
         except Exception as exc:  # noqa: BLE001 -- best-effort per tick, but visibly
             self._live_plot_error.value = (
-                f"<span style='color:#b00020'>Live plot error: {exc}</span>"
+                status_html("error", f"Live plot error: {exc}")
             )
 
     def _on_cancel(self, _btn: Any) -> None:
@@ -650,7 +651,7 @@ class ParameterEstimationWidget:
             self.status.value = f"<em>{result.message} ({elapsed:.0f}s)</em>"
             return
         if not result.success:
-            self.status.value = f"<span style='color:#b00020'>{result.message}</span>"
+            self.status.value = status_html("error", str(result.message))
             return
 
         self._last_result = result
@@ -697,7 +698,7 @@ class ParameterEstimationWidget:
             self._analytics_error.value = ""
         except Exception as exc:  # noqa: BLE001 -- best-effort, but visibly
             self._analytics_error.value = (
-                f"<span style='color:#b00020'>Analytics error: {exc}</span>"
+                status_html("error", f"Analytics error: {exc}")
             )
 
     def _render_fit_table(self, result: EstimationResult) -> None:

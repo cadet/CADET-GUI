@@ -15,6 +15,7 @@ from ...optimizer_runner import (
     run_optimization,
 )
 from .._mpl_figure import display_figure, new_figure
+from .._status import status_html
 from ..elements import ChoiceField
 
 __all__ = ["OptimizerRunnerPanel"]
@@ -146,7 +147,7 @@ class OptimizerRunnerPanel:
 
         run_spec = self._build_run_spec()
         if isinstance(run_spec, str):
-            self.status.value = f"<span style='color:#b00020'>{run_spec}</span>"
+            self.status.value = status_html("error", str(run_spec))
             return
         self._last_run_spec = run_spec
 
@@ -161,7 +162,7 @@ class OptimizerRunnerPanel:
         self._btn_run.disabled = True
         self._btn_run.description = "Running..."
         self._btn_cancel.layout.display = ""
-        self.status.value = "<span class='cadetgui-spinner'></span><em>Running…</em>"
+        self.status.value = status_html("running", "Running…")
 
         self._run_done.clear()
         self._cancel_event.clear()
@@ -249,7 +250,7 @@ class OptimizerRunnerPanel:
             self._live_plot_error.value = ""
         except Exception as exc:  # noqa: BLE001 -- best-effort per tick, but visibly
             self._live_plot_error.value = (
-                f"<span style='color:#b00020'>Live plot error: {exc}</span>"
+                status_html("error", f"Live plot error: {exc}")
             )
 
     def _on_cancel(self, _btn: Any) -> None:
@@ -280,7 +281,7 @@ class OptimizerRunnerPanel:
         if result.cancelled:
             self.status.value = f"<em>{result.message} ({elapsed:.0f}s)</em>"
         elif not result.success:
-            self.status.value = f"<span style='color:#b00020'>{result.message}</span>"
+            self.status.value = status_html("error", str(result.message))
         else:
             self._last_result = result
             self.status.value = (
@@ -322,7 +323,7 @@ class OptimizerRunnerPanel:
             self._analytics_error.value = ""
         except Exception as exc:  # noqa: BLE001 -- best-effort, but visibly
             self._analytics_error.value = (
-                f"<span style='color:#b00020'>Analytics error: {exc}</span>"
+                status_html("error", f"Analytics error: {exc}")
             )
 
     def _on_accept(self, _btn: Any) -> None:

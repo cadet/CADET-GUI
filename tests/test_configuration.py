@@ -901,7 +901,7 @@ def test_invalid_store_dir_shows_an_error_and_does_not_change_store_dir(tmp_path
     cw.persistence._on_set_store_dir(None)
 
     assert cw.persistence.store_dir is None
-    assert "span style" in cw.persistence.save_status.value
+    assert "cadetgui-msg-error" in cw.persistence.save_status.value
 
 
 def test_save_without_a_name_is_refused(tmp_path):

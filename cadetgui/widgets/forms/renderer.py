@@ -6,6 +6,7 @@ import ipywidgets as W
 
 from ...cadetprocessadapter import FieldSpec, ModelSpec
 from .._chrome import style_tag
+from .._status import status_html
 from ..elements import (
     BoolField,
     ChoiceField,
@@ -126,7 +127,7 @@ class FormRenderer:
         if not self.is_valid:
             self.built = None
             self.status.value = (
-                "<span style='color:#b00020'>Fix the highlighted field(s) to continue.</span>"
+                status_html("error", "Fix the highlighted field(s) to continue.")
             )
             return
         try:
@@ -139,7 +140,7 @@ class FormRenderer:
                 self._on_built(self.built)
         except Exception as exc:  # noqa: BLE001
             self.built = None
-            self.status.value = f"<span style='color:#b00020'>{exc}</span>"
+            self.status.value = status_html("error", str(exc))
 
     def _on_reset(self, _btn: Any) -> None:
         self.set_values({})

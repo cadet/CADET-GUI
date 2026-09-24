@@ -13,6 +13,7 @@ from ...configuration_store import (
     save_to_store,
 )
 from .._settings_popover import toggle_box
+from .._status import status_html
 from ..elements import TextField
 
 __all__ = ["ConfigurationPersistence"]
@@ -144,7 +145,7 @@ class ConfigurationPersistence:
             name, state = load_from_store(hash_, store_dir=self.store_dir)
             self._apply_state(name, state)
         except Exception as exc:  # noqa: BLE001
-            self.save_status.value = f"<span style='color:#b00020'>{exc}</span>"
+            self.save_status.value = status_html("error", str(exc))
             return
         self.save_status.value = f"<em>Imported '{name}' ({hash_}).</em>"
 
@@ -164,7 +165,7 @@ class ConfigurationPersistence:
                 path = Path(text).expanduser().resolve()
                 path.mkdir(parents=True, exist_ok=True)
             except Exception as exc:  # noqa: BLE001
-                self.save_status.value = f"<span style='color:#b00020'>{exc}</span>"
+                self.save_status.value = status_html("error", str(exc))
                 return
             self.store_dir = path
             self._store_dir_field.value = str(path)
@@ -176,7 +177,7 @@ class ConfigurationPersistence:
         try:
             path = self.persist_to_store()
         except Exception as exc:  # noqa: BLE001
-            self.save_status.value = f"<span style='color:#b00020'>{exc}</span>"
+            self.save_status.value = status_html("error", str(exc))
             return
         self.refresh_hash_display()
         self.save_status.value = f"<em>Saved to {path}.</em>"
@@ -194,7 +195,7 @@ class ConfigurationPersistence:
                 name, state = load_h5(tmp_path)
             self._apply_state(name, state)
         except Exception as exc:  # noqa: BLE001
-            self.save_status.value = f"<span style='color:#b00020'>{exc}</span>"
+            self.save_status.value = status_html("error", str(exc))
             return
         finally:
             self._file_upload.value = ()

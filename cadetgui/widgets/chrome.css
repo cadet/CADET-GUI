@@ -28,6 +28,7 @@
   --cg-focus: #005b82;
   --cg-danger: #dc2626;
   --cg-success: #059669;
+  --cg-warn: #b45309;
   --cg-bg: #ffffff;
   --cg-radius: 8px;
 
@@ -46,6 +47,7 @@
     --cg-focus: #4fa8d1;
     --cg-danger: #f87171;
     --cg-success: #34d399;
+    --cg-warn: #fbbf24;
     --cg-bg: #1f2937;
   }
 }
@@ -126,6 +128,43 @@
   font-size: 12.5px;
   color: var(--cg-muted);
 }
+
+.cadetgui-msg {
+  --_c: var(--cg-muted);
+  color: var(--_c);
+}
+
+.cadetgui-msg::before {
+  content: "\2022  ";
+  font-weight: 700;
+}
+
+.cadetgui-msg-error { --_c: var(--cg-danger, #dc2626); }
+.cadetgui-msg-error::before { content: "\2715  "; }
+.cadetgui-msg-warn { --_c: var(--cg-warn, #b45309); }
+.cadetgui-msg-warn::before { content: "!  "; }
+.cadetgui-msg-ok { --_c: var(--cg-success, #059669); }
+.cadetgui-msg-ok::before { content: "\2713  "; }
+.cadetgui-msg-info { --_c: var(--cg-focus, #005b82); }
+
+.cadetgui-chip {
+  --_c: var(--cg-muted);
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--_c) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--_c) 12%, transparent);
+  color: var(--_c);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.cadetgui-chip-error { --_c: var(--cg-danger, #dc2626); }
+.cadetgui-chip-warn { --_c: var(--cg-warn, #b45309); }
+.cadetgui-chip-ok { --_c: var(--cg-success, #059669); }
+.cadetgui-chip-info { --_c: var(--cg-focus, #005b82); }
 
 .cadetgui-note {
   font-size: 12.5px;

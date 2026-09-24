@@ -9,6 +9,7 @@ from ...cadetprocessadapter import classify_signal_ports
 from ...simulation import run_process as _default_runner
 from .._chrome import style_tag
 from .._settings_popover import toggle_box
+from .._status import status_html
 from ..elements import ChoiceField
 from .run_history import RunHistoryWidget, RunRecord
 
@@ -228,18 +229,18 @@ class SolutionWidget:
     def _on_run(self, _btn: Any) -> None:
         self._plot_out.clear_output()
         if self.process is None:
-            self.status.value = "<span style='color:#b00020'>No process to run.</span>"
+            self.status.value = status_html("error", "No process to run.")
             return
         if self._config_widget is not None:
             error = self._config_widget.name_error("running a simulation")
             if error:
-                self.status.value = f"<span style='color:#b00020'>{error}</span>"
+                self.status.value = status_html("error", str(error))
                 return
 
         label = self._display_name()
         self._btn_run.disabled = True
         self._btn_run.description = "Running..."
-        self.status.value = "<span class='cadetgui-spinner'></span><em>Running simulation…</em>"
+        self.status.value = status_html("running", "Running simulation…")
         config_name, config_hash = self._tag_current_config()
 
         run_id = None
@@ -258,7 +259,7 @@ class SolutionWidget:
                 label, error=str(exc), config_name=config_name, config_hash=config_hash,
                 run_id=run_id,
             )
-            self.status.value = f"<span style='color:#b00020'>Simulation failed: {exc}</span>"
+            self.status.value = status_html("error", f"Simulation failed: {exc}")
             return
         finally:
             self._btn_run.disabled = False
@@ -283,7 +284,7 @@ class SolutionWidget:
             self.result = None
             self._signal_picker.set_options([])
             self._notify()
-            self.status.value = f"<span style='color:#b00020'>Simulation failed: {run.error}</span>"
+            self.status.value = status_html("error", f"Simulation failed: {run.error}")
             return
         if run.result is None:
             run.result = self._hydrate_suspending_store_dir_sync(run)
@@ -323,17 +324,13 @@ class SolutionWidget:
         not whatever the bound ConfigurationWidget currently happens to hold.
         """
         if run.run_id is None or self.history.store_dir is None:
-            self.status.value = (
-                "<span style='color:#b00020'>"
-                "This run's result isn't available in this session."
-                "</span>"
+            self.status.value = status_html(
+                "error", "This run's result isn't available in this session."
             )
             return None
         if self._config_widget is None or run.config_hash is None:
-            self.status.value = (
-                "<span style='color:#b00020'>"
-                "No configuration bound to reload this run against."
-                "</span>"
+            self.status.value = status_html(
+                "error", "No configuration bound to reload this run against."
             )
             return None
         try:
@@ -343,7 +340,7 @@ class SolutionWidget:
                 state, self.process, store_dir=self.history.store_dir
             )
         except Exception as exc:  # noqa: BLE001
-            self.status.value = f"<span style='color:#b00020'>Could not reload run: {exc}</span>"
+            self.status.value = status_html("error", f"Could not reload run: {exc}")
             return None
 
     def _load_result(self, result: Any) -> None:
@@ -404,11 +401,11 @@ class SolutionWidget:
         directly in it.
         """
         if self.result is None:
-            self._save_outputs_status.value = "<span style='color:#b00020'>No result to save.</span>"
+            self._save_outputs_status.value = status_html("error", "No result to save.")
             return
         if self.history.store_dir is None:
             self._save_outputs_status.value = (
-                "<span style='color:#b00020'>No storage folder set.</span>"
+                status_html("error", "No storage folder set.")
             )
             return
         save_plots = self._save_outputs_plots_checkbox.value
@@ -425,7 +422,7 @@ class SolutionWidget:
         else:
             targets = []
         if not targets:
-            self._save_outputs_status.value = "<span style='color:#b00020'>No signal selected.</span>"
+            self._save_outputs_status.value = status_html("error", "No signal selected.")
             return
 
         run = self.history.selected

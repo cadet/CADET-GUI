@@ -14,6 +14,7 @@ from ...cadetprocessadapter import (
 )
 from ...configuration_store import InstrumentState
 from .._chrome import style_tag
+from .._status import status_html
 from ..elements import FloatField
 from ..forms import FormRenderer
 
@@ -386,7 +387,7 @@ class InstrumentWidget:
                 bypass_units=bypass or None,
             )
         except Exception as exc:  # noqa: BLE001
-            self.status.value = f"<span style='color:#b00020'>{exc}</span>"
+            self.status.value = status_html("error", str(exc))
             return
 
         self.flow_sheet = flow_sheet

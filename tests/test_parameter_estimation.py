@@ -671,7 +671,7 @@ def test_finish_run_shows_a_plain_message_for_a_cancelled_result_not_an_error():
     )
 
     assert "cancelled" in pw.status.value.lower()
-    assert "#b00020" not in pw.status.value  # not styled as an error
+    assert "cadetgui-msg-error" not in pw.status.value
     assert pw._btn_cancel.layout.display == "none"
 
 

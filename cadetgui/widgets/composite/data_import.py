@@ -9,6 +9,7 @@ import ipywidgets as W
 import numpy as np
 
 from .._chrome import style_tag
+from .._status import status_html
 from ..elements import ChoiceField
 
 __all__ = ["DataImportWidget", "ExperimentalDataset"]
@@ -98,7 +99,7 @@ class DataImportWidget:
             name = item["name"]
             time, signal = _parse_csv(bytes(item["content"]))
             if time.size == 0:
-                self.status.value = f"<span style='color:#b00020'>Could not parse {name}.</span>"
+                self.status.value = status_html("error", f"Could not parse {name}.")
                 continue
             if self._time_unit.value == "s":
                 time = time / 60.0
