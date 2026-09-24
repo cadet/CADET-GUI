@@ -49,6 +49,8 @@ class SolutionWidget:
             description="Load configuration", icon="upload",
             layout=W.Layout(display="none"),
         )
+        self._btn_delete_run = W.Button(description="Delete run", icon="trash", disabled=True)
+        self._delete_pending = False
         self._signal_picker = ChoiceField(label="Signal:", options=[])
         self._chart = ChromatogramChart(
             y_label=r"Concentration / \frac{\mathrm{mol}}{\mathrm{m}^{3}}"
@@ -92,10 +94,12 @@ class SolutionWidget:
         self._btn_run.on_click(self._on_run)
         self._btn_clear.on_click(self._on_clear)
         self._btn_load_config.on_click(self._on_load_config)
+        self._btn_delete_run.on_click(self._on_delete_run)
         self._btn_save_options.on_click(self._on_toggle_save_options)
         self._btn_confirm_save_outputs.on_click(self._on_confirm_save_outputs)
         self._signal_picker.observe(self._on_signal_change, names="selected_index")
         self.history.add_listener(self._on_history_pick)
+        self.history._picker.observe(self._on_history_selection_change, names="selected_index")
         self.status.add_class("cadetgui-status")
 
         toolbar = W.HBox(
@@ -107,7 +111,7 @@ class SolutionWidget:
         # `self.history._picker` directly, not `self.history.root` -- the
         # latter wraps it in its own flex-column panel, which was throwing
         # off horizontal alignment with the button sitting next to it.
-        history_row = W.HBox([self.history._picker, self._btn_load_config])
+        history_row = W.HBox([self.history._picker, self._btn_load_config, self._btn_delete_run])
         history_row.add_class("cadetgui-toolbar")
 
         self.root = W.VBox(
@@ -238,6 +242,7 @@ class SolutionWidget:
         self._chart.layout.display = "none"
 
     def _on_run(self, _btn: Any) -> None:
+        self._reset_delete_confirm()
         self._clear_plot()
         if self.process is None:
             self.status.value = status_html("error", "No process to run.")
@@ -283,10 +288,43 @@ class SolutionWidget:
         self.status.value = "<em>Simulation finished.</em>"
 
     def _on_load_config(self, _btn: Any) -> None:
+        self._reset_delete_confirm()
         run = self.history.selected
         if run is None or run.config_hash is None or self._config_widget is None:
             return
         self._config_widget.import_from_store(run.config_hash)
+
+    def _reset_delete_confirm(self) -> None:
+        self._delete_pending = False
+        self._btn_delete_run.description = "Delete run"
+        self._btn_delete_run.button_style = ""
+
+    def _on_history_selection_change(self, _change: dict) -> None:
+        self._reset_delete_confirm()
+        selected = self.history.selected
+        self._btn_delete_run.disabled = selected is None
+        if selected is None:
+            self._btn_load_config.layout.display = "none"
+
+    def _on_delete_run(self, _btn: Any) -> None:
+        run = self.history.selected
+        if run is None:
+            return
+        if not self._delete_pending:
+            self._delete_pending = True
+            self._btn_delete_run.description = "Confirm delete?"
+            self._btn_delete_run.button_style = "danger"
+            return
+        self._reset_delete_confirm()
+        if run.run_id is not None and self.history.store_dir is not None:
+            try:
+                run_store.delete_run(run.run_id, store_dir=self.history.store_dir)
+            except Exception as exc:  # noqa: BLE001
+                self.status.value = status_html("error", f"Could not delete run: {exc}")
+                return
+        self.history.remove(run)
+        self._clear_result()
+        self.status.value = "<em>Ready.</em>"
 
     def _on_history_pick(self, run: RunRecord) -> None:
         self._btn_load_config.layout.display = "" if run.config_hash else "none"
@@ -361,12 +399,16 @@ class SolutionWidget:
         self._plot_selected()
         self._notify()
 
-    def _on_clear(self, _btn: Any) -> None:
+    def _clear_result(self) -> None:
         self._clear_plot()
         self.result = None
         self._signal_picker.set_options([])
         self._rebuild_save_outputs_scope_options()
         self._notify()
+
+    def _on_clear(self, _btn: Any) -> None:
+        self._reset_delete_confirm()
+        self._clear_result()
         self.status.value = "<em>Cleared.</em>"
 
     def _on_signal_change(self, change: dict) -> None:

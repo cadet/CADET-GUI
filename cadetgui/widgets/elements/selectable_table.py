@@ -69,7 +69,8 @@ class SelectableTable(ChoiceField):
         *,
         rows: Optional[Sequence[Sequence[Cell]]] = None,
         keep_value: bool = True,
+        select_none: bool = False,
     ) -> None:
         """Replace the options and their table rows; see `ChoiceField.set_options`."""
         self.rows = self._rows_for(rows, options)
-        super().set_options(options, keep_value=keep_value)
+        super().set_options(options, keep_value=keep_value, select_none=select_none)

@@ -5,7 +5,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import List, Type, TypeVar
 
-__all__ = ["save_record", "load_record", "list_records"]
+__all__ = ["save_record", "load_record", "list_records", "delete_record"]
 
 T = TypeVar("T")
 
@@ -45,3 +45,12 @@ def list_records(prefix: str, cls: Type[T], store_dir: Path) -> List[T]:
         except Exception:  # noqa: BLE001
             continue
     return records
+
+
+def delete_record(prefix: str, id_: str, store_dir: Path) -> bool:
+    """Remove one record's manifest; return whether it existed."""
+    path = _manifest_path(prefix, id_, store_dir)
+    if not path.exists():
+        return False
+    path.unlink()
+    return True

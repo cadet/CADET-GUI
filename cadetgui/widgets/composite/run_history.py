@@ -124,6 +124,16 @@ class RunHistoryWidget:
         self.runs = []
         self._picker.set_options([])
 
+    def remove(self, run: RunRecord) -> None:
+        """Drop one run from the list (in memory only), leaving nothing selected."""
+        for i, r in enumerate(self.runs):
+            if r is run:
+                del self.runs[i]
+                break
+        else:
+            return
+        self._refresh_picker(select_index=None)
+
     @property
     def selected(self) -> Optional[RunRecord]:
         """The currently picked run, if any."""
@@ -175,7 +185,7 @@ class RunHistoryWidget:
             ]
             for i, r in enumerate(self.runs, start=1)
         ]
-        self._picker.set_options(options, rows=rows, keep_value=False)
+        self._picker.set_options(options, rows=rows, keep_value=False, select_none=True)
         if select_index is not None and self.runs:
             self._picker.selected_index = select_index
 
@@ -196,7 +206,7 @@ class RunHistoryWidget:
             pass
 
     def _load_from_store(self) -> None:
-        """Populate from `store_dir`'s existing manifests, oldest first, result unhydrated."""
+        """Populate from `store_dir`'s manifests, oldest first, unhydrated and unselected."""
         for state in reversed(run_store.list_runs(store_dir=self.store_dir)):
             self.runs.append(
                 RunRecord(
@@ -208,7 +218,7 @@ class RunHistoryWidget:
                     run_id=state.run_id,
                 )
             )
-        self._refresh_picker(select_index=len(self.runs) - 1 if self.runs else None)
+        self._refresh_picker(select_index=None)
 
     def _on_set_store_dir(self, _btn: Any) -> None:
         try:

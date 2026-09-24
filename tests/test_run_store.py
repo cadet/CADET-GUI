@@ -125,3 +125,33 @@ def test_load_run_results_reconstructs_a_real_simulation_result(tmp_path):
     reloaded = run_store.load_run_results(run, process, store_dir=tmp_path)
 
     assert reloaded.solution.keys() == live_result.solution.keys()
+
+
+def test_delete_run_removes_manifest_and_output_only_for_that_run(tmp_path):
+    keep, drop = run_store.new_run_id(), run_store.new_run_id()
+    for run_id in (keep, drop):
+        run_store.save_run(run_id, "r", ok=True, store_dir=tmp_path)
+        run_store.run_output_path(run_id, store_dir=tmp_path).write_bytes(b"h5")
+    other = tmp_path / "config_abc.h5"
+    other.write_bytes(b"cfg")
+
+    assert run_store.delete_run(drop, store_dir=tmp_path) is True
+
+    assert [r.run_id for r in run_store.list_runs(store_dir=tmp_path)] == [keep]
+    assert not run_store.run_output_path(drop, store_dir=tmp_path).exists()
+    assert run_store.run_output_path(keep, store_dir=tmp_path).exists()
+    assert other.exists()
+
+
+def test_delete_run_without_an_output_file_or_an_unknown_id_is_fine(tmp_path):
+    run_id = run_store.new_run_id()
+    run_store.save_run(run_id, "failed", ok=False, error="boom", store_dir=tmp_path)
+
+    assert run_store.delete_run(run_id, store_dir=tmp_path) is True
+    assert run_store.delete_run(run_id, store_dir=tmp_path) is False
+    assert run_store.list_runs(store_dir=tmp_path) == []
+
+
+def test_delete_run_rejects_a_path_like_id(tmp_path):
+    with pytest.raises(ValueError):
+        run_store.delete_run("../evil", store_dir=tmp_path)

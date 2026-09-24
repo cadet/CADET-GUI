@@ -243,3 +243,28 @@ def test_selectable_table_set_options_replaces_rows_and_rejects_a_length_mismatc
         table.set_options([("a", 1)], rows=[["A"], ["B"]])
     table.set_options([])
     assert table.rows == [] and table.value is None
+
+
+def test_choicefield_set_options_select_none_leaves_nothing_selected():
+    from cadetgui.widgets.elements import ChoiceField
+
+    c = ChoiceField(options=[("A", 1), ("B", 2)], value=2)
+
+    c.set_options([("A", 1), ("B", 2)], select_none=True)
+
+    assert c.selected_index is None
+    assert c.value is None
+    assert c.option_labels == ["A", "B"]
+
+
+def test_selectable_table_select_none_keeps_rows_and_can_be_selected_afterwards():
+    from cadetgui.widgets.elements import SelectableTable
+
+    table = SelectableTable(options=[("a", 1)])
+
+    table.set_options([("a", 1), ("b", 2)], rows=[["A"], ["B"]], select_none=True)
+
+    assert table.selected_index is None
+    assert len(table.rows) == 2
+    table.selected_index = 1
+    assert table.value == 2

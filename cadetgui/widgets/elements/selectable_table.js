@@ -30,7 +30,7 @@ function render({ model, el }) {
       row.setAttribute("aria-selected", String(on));
       row.tabIndex = on || (idx === null && i === 0) ? 0 : -1;
     });
-    const current = rowEls[idx];
+    const current = idx === null ? null : rowEls[idx];
     if (current) current.scrollIntoView({ block: "nearest" });
   }
 

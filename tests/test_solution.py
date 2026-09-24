@@ -625,14 +625,18 @@ def test_solutionwidget_reloads_a_persisted_run_in_a_fresh_instance(tmp_path):
     original_run = sw.history.selected
     assert original_run.result is not None
 
-    # Fresh instances, same folder -- nothing carried over in memory. Pointing
-    # the history at the folder auto-selects (and so auto-hydrates) the
-    # newest run, the same as picking it by hand would.
+    # Fresh instances, same folder -- nothing carried over in memory. The
+    # history lists the run but opens fresh; picking it hydrates it.
     cw2 = built_configuration()
     cw2.persistence.store_dir = tmp_path
     sw2 = SolutionWidget()
     sw2.bind_to_config(cw2)
     sw2.history.store_dir = tmp_path
+
+    assert sw2.history.selected is None
+    assert sw2.result is None
+    assert len(sw2.history.runs) == 1
+    sw2.history._picker.selected_index = 0
 
     reloaded_run = sw2.history.selected
     assert reloaded_run.label == "Persisted Config"
@@ -659,3 +663,132 @@ def test_solutionwidget_clear_empties_and_hides_the_chart():
 
     assert sw._chart.series == []
     assert sw._chart.layout.display == "none"
+
+
+def _persisted_run_dir(tmp_path, n=2):
+    sw = SolutionWidget(process=built_process())
+    sw.history.store_dir = tmp_path
+    for _ in range(n):
+        sw._on_run(None)
+    return sw
+
+
+def test_solutionwidget_opens_fresh_when_the_folder_has_saved_runs(tmp_path):
+    _persisted_run_dir(tmp_path)
+
+    sw2 = SolutionWidget(process=built_process())
+    sw2.history.store_dir = tmp_path
+
+    assert len(sw2.history.runs) == 2
+    assert sw2.history.selected is None
+    assert sw2.result is None
+    assert sw2._chart.series == []
+    assert sw2._chart.layout.display == "none"
+    assert sw2._btn_delete_run.disabled is True
+
+
+def test_solutionwidget_bound_to_a_config_with_saved_runs_opens_fresh(tmp_path):
+    cw = built_configuration()
+    cw.persistence.store_dir = tmp_path
+    sw = SolutionWidget()
+    sw.bind_to_config(cw)
+    sw._on_run(None)
+
+    cw2 = built_configuration()
+    cw2.persistence.store_dir = tmp_path
+    sw2 = SolutionWidget()
+    sw2.bind_to_config(cw2)
+
+    assert len(sw2.history.runs) == 1
+    assert sw2.history.selected is None
+    assert sw2.result is None
+
+
+def test_solutionwidget_delete_button_follows_the_selection(tmp_path):
+    sw = _persisted_run_dir(tmp_path)
+    assert sw._btn_delete_run.disabled is False
+
+    sw2 = SolutionWidget(process=built_process())
+    sw2.history.store_dir = tmp_path
+    assert sw2._btn_delete_run.disabled is True
+    sw2.history._picker.selected_index = 0
+    assert sw2._btn_delete_run.disabled is False
+
+
+def test_solutionwidget_delete_needs_a_second_click_to_confirm(tmp_path):
+    import cadetgui.run_store as run_store
+
+    sw = _persisted_run_dir(tmp_path, n=1)
+
+    sw._on_delete_run(None)
+
+    assert sw._btn_delete_run.description == "Confirm delete?"
+    assert len(sw.history.runs) == 1
+    assert len(run_store.list_runs(store_dir=tmp_path)) == 1
+
+
+def test_solutionwidget_delete_confirmation_reverts_on_selection_change(tmp_path):
+    sw = _persisted_run_dir(tmp_path)
+    sw._on_delete_run(None)
+
+    sw.history._picker.selected_index = 0
+
+    assert sw._btn_delete_run.description == "Delete run"
+    sw._on_delete_run(None)
+    assert len(sw.history.runs) == 2
+
+
+def test_solutionwidget_delete_confirmation_reverts_when_another_button_is_clicked(tmp_path):
+    sw = _persisted_run_dir(tmp_path, n=1)
+    sw._on_delete_run(None)
+
+    sw._on_clear(None)
+
+    assert sw._btn_delete_run.description == "Delete run"
+    assert len(sw.history.runs) == 1
+
+
+def test_solutionwidget_confirmed_delete_removes_run_files_and_clears_the_view(tmp_path):
+    import cadetgui.run_store as run_store
+
+    sw = _persisted_run_dir(tmp_path)
+    keep, drop = sw.history.runs
+    assert run_store.run_output_path(drop.run_id, store_dir=tmp_path).exists()
+    notified = []
+    sw.add_listener(lambda: notified.append(sw.result))
+
+    sw._on_delete_run(None)
+    sw._on_delete_run(None)
+
+    assert sw.history.runs == [keep]
+    assert sw.history.selected is None
+    assert [r.run_id for r in run_store.list_runs(store_dir=tmp_path)] == [keep.run_id]
+    assert not run_store.run_output_path(drop.run_id, store_dir=tmp_path).exists()
+    assert run_store.run_output_path(keep.run_id, store_dir=tmp_path).exists()
+    assert sw.result is None
+    assert sw._chart.series == []
+    assert sw._chart.layout.display == "none"
+    assert sw.status.value == "<em>Ready.</em>"
+    assert notified[-1] is None
+    assert sw._btn_delete_run.disabled is True
+    assert sw._btn_delete_run.description == "Delete run"
+    assert sw._btn_load_config.layout.display == "none"
+
+
+def test_solutionwidget_delete_a_failed_run_removes_its_manifest(tmp_path):
+    import cadetgui.run_store as run_store
+
+    def boom(process, **_kwargs):
+        raise RuntimeError("nope")
+
+    sw = SolutionWidget(process=built_process(), runner=boom)
+    sw.history.store_dir = tmp_path
+    sw._on_run(None)
+    assert len(run_store.list_runs(store_dir=tmp_path)) == 1
+
+    sw._on_delete_run(None)
+    sw._on_delete_run(None)
+
+    assert run_store.list_runs(store_dir=tmp_path) == []
+    assert sw.history.runs == []
+    assert sw.status.value == "<em>Ready.</em>"

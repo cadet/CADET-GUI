@@ -125,7 +125,7 @@ def test_construction_loads_existing_runs_from_store_dir(tmp_path):
     assert [r.label for r in h.runs] == ["Old Run"]
     assert h.runs[0].run_id == id_a
     assert h.runs[0].result is None  # not hydrated -- only metadata was ever stored
-    assert h.selected.label == "Old Run"
+    assert h.selected is None
 
 
 def test_loaded_run_is_ok_even_though_result_is_still_none(tmp_path):
@@ -201,3 +201,87 @@ def test_table_rows_show_time_label_and_a_status_chip_per_run():
 
     h.clear()
     assert h._picker.rows == []
+
+
+def test_loading_from_store_lists_runs_but_selects_and_notifies_nothing(tmp_path):
+    for label in ("A", "B"):
+        run_store.save_run(run_store.new_run_id(), label, ok=True, store_dir=tmp_path)
+    h = RunHistoryWidget()
+    seen = []
+    h.add_listener(seen.append)
+
+    h.store_dir = tmp_path
+
+    assert len(h.runs) == 2
+    assert len(h._picker.rows) == 2
+    assert h._picker.selected_index is None
+    assert seen == []
+
+
+def test_record_after_loading_from_store_still_selects_the_new_run(tmp_path):
+    run_store.save_run(run_store.new_run_id(), "Old", ok=True, store_dir=tmp_path)
+    h = RunHistoryWidget(store_dir=tmp_path)
+    seen = []
+    h.add_listener(seen.append)
+
+    run = h.record("New", result=object())
+
+    assert h.selected is run
+    assert seen == [run]
+
+
+def test_picking_a_loaded_run_notifies_listeners(tmp_path):
+    run_store.save_run(run_store.new_run_id(), "Old", ok=True, store_dir=tmp_path)
+    h = RunHistoryWidget(store_dir=tmp_path)
+    seen = []
+    h.add_listener(seen.append)
+
+    h._picker.selected_index = 0
+
+    assert seen == [h.runs[0]]
+
+
+def test_remove_drops_the_run_renumbers_and_leaves_nothing_selected():
+    h = RunHistoryWidget()
+    a = h.record("A", result=1)
+    b = h.record("B", result=2)
+    c = h.record("C", result=3)
+    seen = []
+    h.add_listener(seen.append)
+
+    h.remove(b)
+
+    assert h.runs == [a, c]
+    assert h.selected is None
+    assert [r[0]["text"] for r in h._picker.rows] == ["1", "2"]
+    assert [r[2]["text"] for r in h._picker.rows] == ["A", "C"]
+    assert seen == []
+
+
+def test_remove_of_an_unknown_run_is_a_noop():
+    h = RunHistoryWidget()
+    a = h.record("A", result=1)
+    other = RunHistoryWidget().record("X", result=1)
+
+    h.remove(other)
+
+    assert h.runs == [a]
+    assert h.selected is a
+
+
+def test_remove_the_only_run_empties_the_table():
+    h = RunHistoryWidget()
+    h.remove(h.record("A", result=1))
+
+    assert h.runs == []
+    assert h._picker.rows == []
+    assert h.selected is None
+
+
+def test_remove_does_not_touch_the_store(tmp_path):
+    h = RunHistoryWidget(store_dir=tmp_path)
+    run = h.record("A", result=1)
+
+    h.remove(run)
+
+    assert len(run_store.list_runs(store_dir=tmp_path)) == 1

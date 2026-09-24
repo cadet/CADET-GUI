@@ -63,17 +63,24 @@ class ChoiceField(Element):
     def value(self, new_value: Any) -> None:
         self.selected_index = self._index_of(new_value)
 
-    def set_options(self, options: Sequence[Tuple[str, Any]], *, keep_value: bool = True) -> None:
+    def set_options(
+        self,
+        options: Sequence[Tuple[str, Any]],
+        *,
+        keep_value: bool = True,
+        select_none: bool = False,
+    ) -> None:
         """Replace the options, keeping the current value selected if it's still valid.
 
         Falls back to the first option (not `None`) when the current value
         isn't among the new ones -- e.g. switching a registry out from under
         an already-selected value that the new registry doesn't have.
+        `select_none=True` skips that and leaves nothing selected.
         """
-        current = self.value if keep_value else None
+        current = self.value if keep_value and not select_none else None
         self._options = list(options)
         self.option_labels = [opt_label for opt_label, _ in self._options]
         index = self._index_of(current) if current is not None else None
-        if index is None:
+        if index is None and not select_none:
             index = 0 if self._options else None
         self.selected_index = index
