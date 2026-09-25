@@ -204,6 +204,13 @@ def test_header_is_a_single_compact_row_with_the_persistence_widgets():
     assert not contains(header.root, persistence.root)
 
 
+def test_details_toggle_sits_left_of_the_versions():
+    header = ConfigurationWidget(instrument=InstrumentWidget()).workspace_header
+    toggle = header.persistence._btn_toggle_save_load_details
+    right = header.root.children[0].children[-1]
+    assert list(right.children) == [toggle, header.backend_versions.root]
+
+
 def test_status_line_only_takes_space_when_non_empty():
     config = ConfigurationWidget(instrument=InstrumentWidget())
     status = config.persistence.save_status

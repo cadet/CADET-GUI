@@ -33,7 +33,7 @@ class WorkspaceHeader:
         parts.toggle_button.add_class("cadetgui-workspace-toggle")
         parts.save_button.add_class("cadetgui-workspace-save")
         right = W.HBox(
-            [self.backend_versions.root, parts.toggle_button],
+            [parts.toggle_button, self.backend_versions.root],
             layout=W.Layout(margin="0 0 0 auto", align_items="center"),
         )
         row = W.HBox(
