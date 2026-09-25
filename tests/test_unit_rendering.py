@@ -176,7 +176,7 @@ def _live_units():
     return sorted(units)
 
 
-def test_live_cadet_process_units_are_present_and_latex():
+def test_live_cadet_process_units_are_present_and_latex(cadet_process_descriptor_metadata):
     units = _live_units()
     assert units
     assert not any("$" in u for u in units)

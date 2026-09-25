@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from cadetgui.parameters import (
     get_co_group,
     get_parameter,
@@ -64,6 +65,7 @@ def test_langmuir_capacity_is_component_dependent_but_sma_capacity_is_not():
     assert langmuir_capacity["co_name"] != sma_capacity["co_name"]
 
 
+@pytest.mark.usefixtures("cadet_process_descriptor_metadata")
 def test_adsorption_rate_unit_differs_between_langmuir_and_linear():
     assert (
         get_parameter("binding", "Langmuir", "adsorption_rate")["unit"]
@@ -143,6 +145,7 @@ def test_required_parameters_excludes_cstr_flow_rate():
     assert required_parameters("column", "Cstr") == ["init_liquid_volume"]
 
 
+@pytest.mark.usefixtures("cadet_process_descriptor_metadata")
 def test_default_is_live_where_cadetprocess_has_one():
     # abstol etc. are the one place in this schema where CADET-Process itself
     # carries a real default (IDAS's own tolerances) -- introspected off the
@@ -183,6 +186,7 @@ def test_every_registered_parameter_resolves_a_real_live_descriptor():
             assert "description" in meta, f"{category}/{model}/{name} has no live description"
 
 
+@pytest.mark.usefixtures("cadet_process_descriptor_metadata")
 def test_unit_and_description_are_live_off_the_cadetprocess_descriptor():
     # unit=/description= are now set directly on the CADET-Process descriptors
     # (fau-advanced-separations/CADET-Process PR #435), not hand-copied into a
