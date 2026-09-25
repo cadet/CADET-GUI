@@ -8,7 +8,7 @@ import pytest
 matplotlib.use("Agg")  # headless test environment, no display needed
 
 import cadetgui.configuration_store as configuration_store
-from cadetgui.cadetprocessadapter import INSTRUMENT_TEMPLATES
+from cadetgui.cadetprocessadapter import INSTRUMENT_TEMPLATES, classify_signal_ports
 from cadetgui.simulation import run_process as _default_runner
 from cadetgui.widgets.composite import (
     ConfigurationWidget,
@@ -279,7 +279,9 @@ def test_solutionwidget_save_outputs_all_signals_both_types(tmp_path):
     results_dir = tmp_path / "results"
     pngs = list(results_dir.glob("*.png"))
     csvs = list(results_dir.glob("*.csv"))
-    n_signals = len(sw._signal_picker.option_labels)
+    # "All outputs" saves every port, not just the ones the dropdown offers.
+    n_signals = len(classify_signal_ports(sw.result))
+    assert n_signals > len(sw._signal_picker.option_labels)
     assert len(pngs) == n_signals
     assert len(csvs) == n_signals
     assert "Saved" in sw._save_outputs_status.value
@@ -298,7 +300,7 @@ def test_solutionwidget_save_outputs_csv_only(tmp_path):
 
     results_dir = tmp_path / "results"
     assert list(results_dir.glob("*.png")) == []
-    assert len(list(results_dir.glob("*.csv"))) == len(sw._signal_picker.option_labels)
+    assert len(list(results_dir.glob("*.csv"))) == len(classify_signal_ports(sw.result))
 
 
 def test_solutionwidget_save_outputs_specific_signal_only(tmp_path):
@@ -369,7 +371,9 @@ def test_signal_list_collapses_inlet_and_outlet_units_to_one_entry_each():
     sw = SolutionWidget(process=built_process_with_instrument())
     sw._on_run(None)
 
-    labels = sw._signal_picker.option_labels
+    # The classification itself -- the dropdown then narrows it to measurable
+    # positions (see test_signal_dropdown_offers_only_measurable_positions).
+    labels = [label for label, _ in classify_signal_ports(sw.result)]
     assert "outlet: Sink" in labels
     assert "waste: Sink" in labels
     assert "buffer_a: Source" in labels
@@ -383,7 +387,7 @@ def test_signal_list_source_and_sink_options_point_at_the_real_port():
     sw = SolutionWidget(process=built_process_with_instrument())
     sw._on_run(None)
 
-    options = dict(sw._signal_picker._options)
+    options = dict(classify_signal_ports(sw.result))
     assert options["feed_inlet: Source"] == ("feed_inlet", "outlet")
     assert options["outlet: Sink"] == ("outlet", "inlet")
 
@@ -413,7 +417,8 @@ def test_classify_signal_ports_is_usable_standalone_from_the_adapter():
 def test_solutionwidget_selection_persists_across_reruns():
     sw = SolutionWidget(process=built_process())
     sw._on_run(None)
-    sw._signal_picker.selected_index = 3
+    assert len(sw._signal_picker.option_labels) > 1
+    sw._signal_picker.selected_index = 1
     picked = sw._signal_picker.value
 
     sw._on_run(None)
@@ -787,3 +792,16 @@ def test_solutionwidget_delete_a_failed_run_removes_its_manifest(tmp_path):
     assert run_store.list_runs(store_dir=tmp_path) == []
     assert sw.history.runs == []
     assert sw.status.value == "<em>Ready.</em>"
+
+
+def test_signal_dropdown_offers_only_measurable_positions():
+    sw = SolutionWidget(process=built_process())
+    sw._on_run(None)
+
+    labels = sw._signal_picker.option_labels
+
+    assert labels[0] == "outlet: Sink"
+    assert "column: outlet" in labels
+    assert not any(label.endswith("Source") for label in labels)
+    assert not any(label.startswith("mixer") for label in labels)
+    assert not any(label.endswith((": inlet", ": volume")) for label in labels)

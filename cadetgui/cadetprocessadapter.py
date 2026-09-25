@@ -687,6 +687,36 @@ def list_signal_ports(process: Any) -> list[tuple[str, tuple[str, str]]]:
     return _order_signal_ports(units, ports_by_unit)
 
 
+# Hardware that only moves fluid along (the junction `LCFlowSheet` always
+# keeps, the injection loop) -- its ports are never a place anything is
+# measured.
+_INFRASTRUCTURE_UNITS = ("mixer", "sample_loop")
+
+
+def measurable_signal_ports(
+    units: Mapping[str, Any], options: Sequence[tuple[str, tuple[str, str]]]
+) -> list[tuple[str, tuple[str, str]]]:
+    """Keep the signal positions a detector could actually sit at.
+
+    `classify_signal_ports`/`list_signal_ports` list every port of every unit
+    in the flow sheet -- buffer and feed sources, the mixer junction, the
+    sample loop, each unit's inlet and `volume` port -- which is far more
+    than there is anything to compare or look at. Keep the process outlets
+    (sinks) and the outlet port of each remaining unit (column, tubing
+    segments), in the order given (sinks first).
+    """
+    return [
+        (label, (unit, port))
+        for label, (unit, port) in options
+        if isinstance(units[unit], Outlet)
+        or (
+            port == "outlet"
+            and not isinstance(units[unit], Inlet)
+            and unit not in _INFRASTRUCTURE_UNITS
+        )
+    ]
+
+
 def _order_signal_ports(
     units: Mapping[str, Any], ports_by_unit: Mapping[str, Sequence[str]]
 ) -> list[tuple[str, tuple[str, str]]]:

@@ -15,10 +15,9 @@ from CADETProcess.characterization import (
 )
 from CADETProcess.comparison import Comparator
 from CADETProcess.comparison.difference import SSE
-from CADETProcess.processModel import Inlet, Outlet
 from CADETProcess.simulator import Cadet
 
-from ...cadetprocessadapter import FieldSpec, list_signal_ports
+from ...cadetprocessadapter import FieldSpec, list_signal_ports, measurable_signal_ports
 from ...optimizer_runner import OptimizerRunResult, RunSpec
 from ...parameter_estimation import (
     CalibrationMethod,
@@ -175,34 +174,6 @@ _STATIC_STAGE_SPECS: Dict[Stage, _StageSpec] = {
         write_targets={"capacity": _WriteTarget("binding", None, "capacity")},
     ),
 }
-
-# Hardware that only ever moves fluid along (junction, injection loop) -- its
-# ports are never a place anything is measured.
-_INFRASTRUCTURE_UNITS = ("mixer", "sample_loop")
-
-
-def _measurement_signal_options(process: Any) -> list[tuple[str, tuple[str, str]]]:
-    """List the signal positions a detector could actually sit at.
-
-    `list_signal_ports` lists every port of every unit -- buffer/feed
-    sources, the mixer junction `LCFlowSheet` always keeps, the sample loop,
-    each unit's inlet and `volume` port -- which is far more than there is
-    anything to compare a measurement against. Keep the process outlets
-    (sinks) and the outlet port of each remaining unit in the flow path
-    (e.g. the column, tubing segments), sinks first as `list_signal_ports`
-    already orders them.
-    """
-    units = process.flow_sheet.units_dict
-    return [
-        (label, (unit, port))
-        for label, (unit, port) in list_signal_ports(process)
-        if isinstance(units[unit], Outlet)
-        or (
-            port == "outlet"
-            and not isinstance(units[unit], Inlet)
-            and unit not in _INFRASTRUCTURE_UNITS
-        )
-    ]
 
 
 class CharacterizationWidget:
@@ -415,7 +386,11 @@ class CharacterizationWidget:
 
     def _refresh_signal_options(self, process: Any = None) -> None:
         process = process if process is not None else self._config.process
-        options = _measurement_signal_options(process) if process is not None else []
+        options = (
+            measurable_signal_ports(process.flow_sheet.units_dict, list_signal_ports(process))
+            if process is not None
+            else []
+        )
         if [label for label, _ in options] == self._signal_picker.option_labels:
             return
         self._signal_picker.set_options(options, keep_value=True)
