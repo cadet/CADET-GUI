@@ -210,6 +210,25 @@ function paddedExtent(items, xLo, xHi) {
   return [lo - pad, hi + pad];
 }
 
+// Approximate glyph width of the 12px phase label, to skip labels that would
+// overflow their band.
+const PHASE_LABEL_CHAR_PX = 6.5;
+
+function validPhases(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((p) => p && Number.isFinite(p.start) && Number.isFinite(p.end) && p.end > p.start)
+    .map((p) => ({ name: String(p.name ?? ""), start: p.start, end: p.end }))
+    .sort((a, b) => a.start - b.start);
+}
+
+function validMarkers(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((m) => m && Number.isFinite(m.time))
+    .map((m) => ({ name: String(m.name ?? ""), time: m.time }));
+}
+
 let clipCounter = 0;
 
 function render({ model, el }) {
@@ -362,6 +381,27 @@ function render({ model, el }) {
       svg.appendChild(yTitleRight);
     }
 
+    const phases = validPhases(model.get("phases"));
+    const markers = validMarkers(model.get("markers"));
+    const clampPx = (t) => xScale.px(Math.max(xLo, Math.min(xHi, t)));
+    const gBands = svgEl("g", { class: "cadetgui-chart-phases" });
+    phases.forEach((p, i) => {
+      if (p.end <= xLo || p.start >= xHi) return;
+      const x0 = clampPx(p.start);
+      const x1 = clampPx(p.end);
+      if (i % 2 === 1) {
+        gBands.appendChild(
+          svgEl("rect", { class: "cadetgui-chart-phase-band", x: x0, y: PAD_T, width: x1 - x0, height: plotH }),
+        );
+      }
+      if (p.start > xLo) {
+        gBands.appendChild(
+          svgEl("line", { class: "cadetgui-chart-phase-edge", x1: x0, x2: x0, y1: PAD_T, y2: PAD_T + plotH }),
+        );
+      }
+    });
+    svg.appendChild(gBands);
+
     const clip = svgEl("clipPath", { id: clipId });
     clip.appendChild(svgEl("rect", { x: PAD_L, y: PAD_T, width: plotW, height: plotH }));
     svg.appendChild(clip);
@@ -420,6 +460,42 @@ function render({ model, el }) {
       legend.appendChild(item);
     });
 
+    const gLabels = svgEl("g", { class: "cadetgui-chart-phase-labels" });
+    phases.forEach((p) => {
+      if (p.end <= xLo || p.start >= xHi) return;
+      const x0 = clampPx(p.start);
+      const x1 = clampPx(p.end);
+      if (x1 - x0 < PHASE_LABEL_CHAR_PX * p.name.length + 8) return;
+      const text = svgEl("text", {
+        class: "cadetgui-chart-phase-label",
+        x: (x0 + x1) / 2,
+        y: PAD_T + 14,
+        "text-anchor": "middle",
+      });
+      text.textContent = p.name;
+      gLabels.appendChild(text);
+    });
+    markers.forEach((m) => {
+      if (m.time < xLo || m.time > xHi) return;
+      const x = xScale.px(m.time);
+      gLabels.appendChild(
+        svgEl("line", { class: "cadetgui-chart-marker", x1: x, x2: x, y1: PAD_T, y2: PAD_T + plotH }),
+      );
+      gLabels.appendChild(
+        svgEl("path", { class: "cadetgui-chart-marker-head", d: `M ${x - 5} ${PAD_T} L ${x + 5} ${PAD_T} L ${x} ${PAD_T + 8} Z` }),
+      );
+      const flip = x > PAD_L + plotW / 2;
+      const text = svgEl("text", {
+        class: "cadetgui-chart-phase-label cadetgui-chart-marker-label",
+        x: flip ? x - 8 : x + 8,
+        y: PAD_T + 30,
+        "text-anchor": flip ? "end" : "start",
+      });
+      text.textContent = m.name;
+      gLabels.appendChild(text);
+    });
+    svg.appendChild(gLabels);
+
     const crosshair = svgEl("line", { class: "cadetgui-chart-crosshair", y1: PAD_T, y2: H - PAD_B });
     crosshair.style.display = "none";
     svg.appendChild(crosshair);
@@ -456,10 +532,11 @@ function render({ model, el }) {
       crosshair.style.display = "";
 
       tooltip.replaceChildren();
+      const phase = phases.find((p) => t >= p.start && t < p.end) || phases.find((p) => t === p.end);
       const timeRow = document.createElement("div");
       timeRow.className = "cadetgui-chart-tooltip-time";
       const unit = model.get("x_unit");
-      timeRow.textContent = `${model.get("x_name")} = ${formatTick(t)}${unit ? " " + unit : ""}`;
+      timeRow.textContent = `${model.get("x_name")} = ${formatTick(t)}${unit ? " " + unit : ""}${phase ? " · " + phase.name : ""}`;
       tooltip.appendChild(timeRow);
       all.forEach((s, i) => {
         if (state.hidden.has(s.name)) return;
@@ -537,7 +614,7 @@ function render({ model, el }) {
   }
 
   draw();
-  for (const name of ["series", "x_label", "x_name", "x_unit", "y_label", "y_label_right", "empty_text", "view_width", "view_height"]) {
+  for (const name of ["series", "x_label", "x_name", "x_unit", "y_label", "y_label_right", "empty_text", "view_width", "view_height", "phases", "markers"]) {
     model.on(`change:${name}`, draw);
   }
   el.appendChild(wrap);

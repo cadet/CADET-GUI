@@ -47,6 +47,47 @@
   fill-opacity: 0.14;
 }
 
+.cadetgui-chart-phase-band {
+  fill: var(--cg-muted);
+  fill-opacity: 0.12;
+  pointer-events: none;
+}
+
+.cadetgui-chart-phase-edge {
+  stroke: var(--cg-muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+
+.cadetgui-chart-phase-labels {
+  pointer-events: none;
+}
+
+.cadetgui-chart-phase-label {
+  fill: var(--cg-fg);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--cg-font);
+  paint-order: stroke;
+  stroke: var(--cg-bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.cadetgui-chart-marker {
+  stroke: var(--cg-fg);
+  stroke-width: 1.5;
+}
+
+.cadetgui-chart-marker-head {
+  fill: var(--cg-fg);
+}
+
+.cadetgui-chart-marker-label {
+  font-weight: 400;
+}
+
 .cadetgui-chart-crosshair {
   stroke: var(--cg-muted);
   stroke-width: 1;

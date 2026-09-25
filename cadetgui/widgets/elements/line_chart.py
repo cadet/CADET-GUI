@@ -49,8 +49,15 @@ class LineChart(anywidget.AnyWidget):
 
 
 class EventTimelineChart(LineChart):
-    """A process's event-driven parameter timelines, all on one shared axis."""
+    """A process's event-driven parameter timelines, all on one shared axis.
 
+    `phases` (`{"name": str, "start": float, "end": float}`, minutes) are drawn
+    as alternating shaded bands with the name at the top; `markers`
+    (`{"name": str, "time": float}`, minutes) as labelled vertical lines.
+    """
+
+    phases = T.List(T.Dict()).tag(sync=True)
+    markers = T.List(T.Dict()).tag(sync=True)
     y_label = T.Unicode("state").tag(sync=True)
     empty_text = T.Unicode("No events yet").tag(sync=True)
 

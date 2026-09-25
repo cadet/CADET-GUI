@@ -201,6 +201,9 @@ def test_line_chart_subclasses_share_traits_with_their_own_defaults():
     assert LineChart().y_label == ""
     assert EventTimelineChart().y_label == "state"
     assert EventTimelineChart().empty_text == "No events yet"
+    assert EventTimelineChart().phases == []
+    assert EventTimelineChart().markers == []
+    assert not LineChart().has_trait("phases")
     chromatogram = ChromatogramChart(series=[{"name": "a", "times": [0.0], "values": [1.0]}])
     assert chromatogram.view_width > LineChart().view_width
     assert chromatogram.series[0]["name"] == "a"
