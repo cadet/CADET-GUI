@@ -247,7 +247,7 @@ def _label_of(unit: str) -> str:
     return UNIT_LABELS.get(unit, unit.capitalize())
 
 
-def _extent(it: _Item, note: str) -> Tuple[float, float]:
+def _extent(it: _Item, note: str, sub: str = "") -> Tuple[float, float]:
     """Return how far the item, captions included, reaches above and below the flow line."""
     label_lines = len(_lines(_label_of(it.unit)))
     if it.unit == "tubing_detectors":
@@ -259,6 +259,8 @@ def _extent(it: _Item, note: str) -> Tuple[float, float]:
         up += 6 + _CAPTION_FONT
     if _label_of(it.unit) != _load_symbol(it.symbol).text:
         down += 8 + label_lines * _CAPTION_LEAD
+    if sub:
+        down += _CAPTION_LEAD if down > it.down else 8 + _CAPTION_LEAD
     return up, down
 
 
@@ -266,7 +268,7 @@ def _tube(x1: float, x2: float, y: float) -> str:
     return _wire(f"M{_num(x1)} {_num(y)} H{_num(x2)}", arrow=False, width=_TUBE_WIDTH)
 
 
-def _draw_item(it: _Item, my: float, note: str) -> str:
+def _draw_item(it: _Item, my: float, note: str, sub: str = "") -> str:
     label = _label_of(it.unit)
     lines = _lines(label)
     cx = it.x + it.width / 2
@@ -301,8 +303,12 @@ def _draw_item(it: _Item, my: float, note: str) -> str:
         parts = [inner]
     if note:
         parts.append(_caption([note], cx, sy - 6, italic=True))
+    below = sy + sym.height + 16
     if label != sym.text:
-        parts.append(_caption(lines, cx, sy + sym.height + 16))
+        parts.append(_caption(lines, cx, below))
+        below += len(lines) * _CAPTION_LEAD
+    if sub:
+        parts.append(_caption([sub], cx, below))
     return "".join(parts)
 
 
@@ -393,6 +399,7 @@ def render_system_svg(
     inlets: Optional[Sequence[str]] = None,
     carries: Optional[Mapping[str, Sequence[str]]] = None,
     equilibration: Collection[str] = (),
+    column_model: Optional[str] = None,
 ) -> str:
     """Render the LC flow path from the P&ID symbols as an HTML fragment holding one SVG.
 
@@ -402,7 +409,8 @@ def render_system_svg(
     drives; `None` means unknown, drawn as one generic inlet. Every buffer inlet and the feed
     inlet of the flow sheet is drawn, the ones outside `inlets` dimmed and marked unused.
     `carries` maps an inlet (and `"sample_loop"`) to the component names it delivers and adds
-    them to the labels and to a plain-language caption under the drawing.
+    them to the labels and to a plain-language caption under the drawing. `column_model`
+    is captioned under the column symbol.
     """
     units = set(units)
     bypassed = set(bypassed)
@@ -439,7 +447,8 @@ def render_system_svg(
         up_max = max(up_max, _FEED_RISE + 6 + feed_extra + _CAPTION_FONT)
     item_down = 0.0
     for it in items:
-        up, down = _extent(it, "bypassed" if it.state == "bypassed" else "")
+        sub = (column_model or "") if it.unit == "column" else ""
+        up, down = _extent(it, "bypassed" if it.state == "bypassed" else "", sub)
         up_max, item_down = max(up_max, up), max(item_down, down)
     my = _MARGIN + up_max
 
@@ -507,7 +516,8 @@ def render_system_svg(
 
     for it in items:
         note = "bypassed" if it.state == "bypassed" else ""
-        parts.append(_unit_group(it.unit, it.state, _draw_item(it, my, note)))
+        sub = (column_model or "") if it.unit == "column" else ""
+        parts.append(_unit_group(it.unit, it.state, _draw_item(it, my, note, sub)))
 
     if "waste" in units and junction is not None:
         cx = junction.x + junction.width / 2
@@ -599,6 +609,7 @@ class SystemDiagram:
         inlets: Optional[Sequence[str]] = None,
         carries: Optional[Mapping[str, Sequence[str]]] = None,
         equilibration: Collection[str] = (),
+        column_model: Optional[str] = None,
     ) -> None:
         """Redraw for `flow_sheet` (a built LCFlowSheet, or `None` while inputs are invalid)."""
         if flow_sheet is None:
@@ -606,5 +617,5 @@ class SystemDiagram:
             self.root.value = f'<em style="color:{_MUTED}">{note}</em>'
             return
         self.root.value = render_system_svg(
-            flow_sheet.units_dict, bypassed, inlets, carries, equilibration
+            flow_sheet.units_dict, bypassed, inlets, carries, equilibration, column_model
         )

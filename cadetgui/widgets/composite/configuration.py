@@ -316,7 +316,7 @@ class ConfigurationWidget:
         try:
             self._refresh_picker_options()
             instrument.components = list(self._components.value)
-            instrument.set_column_and_binding(self._column_picker.value, self._binding_picker.value)
+            self._push_column_to_instrument()
             self._sync_instrument_requirements()
         finally:
             self._suspend_rebuild = False
@@ -366,6 +366,14 @@ class ConfigurationWidget:
         self._column_picker.set_options(self._column_options())
         self._model_picker.set_options(list(self._active_registry().items()))
         self._sync_template_dropdown()
+
+    def _push_column_to_instrument(self) -> None:
+        """Hand the column/binding choice and the column's name to the instrument."""
+        self._instrument.set_column_and_binding(
+            self._column_picker.value,
+            self._binding_picker.value,
+            _key_for_value(self._columns, self._column_picker.value),
+        )
 
     def _sync_template_dropdown(self) -> None:
         """Mirror the process-template options and selection into a bound instrument."""
@@ -458,9 +466,7 @@ class ConfigurationWidget:
         if change.get("name") != "selected_index":
             return
         if self._instrument is not None:
-            self._instrument.set_column_and_binding(
-                self._column_picker.value, self._binding_picker.value
-            )
+            self._push_column_to_instrument()
         else:
             self._column_cache.clear()
             self._binding_cache.clear()
@@ -637,7 +643,7 @@ class ConfigurationWidget:
             self._binding_picker.value = binding_cls
             if self._instrument is not None:
                 self._instrument.components = list(state.components)
-                self._instrument.set_column_and_binding(column_cls, binding_cls)
+                self._push_column_to_instrument()
 
             template_factory = self._active_registry().get(state.template_key)
             if template_factory is None:

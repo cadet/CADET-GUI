@@ -168,6 +168,7 @@ class InstrumentWidget:
         self._active_inlets: Optional[List[str]] = None
         self._carries: Optional[Mapping[str, Sequence[str]]] = None
         self._equilibration: Sequence[str] = ()
+        self._column_label: Optional[str] = None
         self._diagram = SystemDiagram()
         self._on_template_select: Optional[Callable[[str], None]] = None
         self._syncing_template = False
@@ -269,9 +270,16 @@ class InstrumentWidget:
             self._rebuild()
 
     def set_column_and_binding(
-        self, column_cls: Optional[type], binding_cls: Optional[type]
+        self,
+        column_cls: Optional[type],
+        binding_cls: Optional[type],
+        column_label: Optional[str] = None,
     ) -> None:
-        """Externally driven column/binding *type* choice -- see class docstring."""
+        """Externally driven column/binding *type* choice -- see class docstring.
+
+        `column_label` is the column model's name captioned under the column in the diagram.
+        """
+        self._column_label = column_label
         self._column_cls = column_cls
         self._binding_cls = binding_cls
         if not self._suspend_rebuild:
@@ -331,7 +339,7 @@ class InstrumentWidget:
     def _refresh_diagram(self) -> None:
         self._diagram.update(
             self.flow_sheet, self.bypass_units(), self._active_inlets, self._carries,
-            self._equilibration,
+            self._equilibration, self._column_label,
         )
 
     def _notify(self) -> None:

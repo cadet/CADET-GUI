@@ -451,3 +451,59 @@ def test_characterization_workbench_seeds_pulse_injection_and_mirrors_it():
 
     assert wb.configuration._model_picker.value is INSTRUMENT_TEMPLATES["Pulse Injection"]
     assert wb.instrument._template_picker.value == "Pulse Injection"
+
+
+def _column_caption(html: str) -> list[str]:
+    group = next(
+        g for g in _root(html).iter(_SVG + "g") if g.get("data-unit") == "column"
+    )
+    return [t.text for t in group.iter(_SVG + "tspan") if t.text and "(" in t.text]
+
+
+def test_column_model_is_captioned_under_the_column_and_follows_the_picker():
+    from cadetgui.cadetprocessadapter import COLUMN_MODELS
+
+    iw, cw = _bound("Breakthrough")
+    name = "Lumped Rate Model With Pores (LRMP)"
+    assert _column_caption(iw._diagram.root.value) == ["Lumped Rate Model Without Pores (LRM)"]
+
+    cw._column_picker.value = COLUMN_MODELS[name]
+
+    assert _column_caption(iw._diagram.root.value) == [name]
+    cw._model_picker.value = INSTRUMENT_TEMPLATES["Step"]
+    assert _column_caption(iw._diagram.root.value) == [name]
+
+
+def test_column_caption_is_absent_without_a_configuration_or_a_column():
+    iw = InstrumentWidget()
+    assert "Lumped Rate Model" not in iw._diagram.root.value
+
+    ConfigurationWidget(instrument=iw)
+    assert "Lumped Rate Model" in iw._diagram.root.value
+
+    iw._unit_checkboxes["column"].value = False
+    assert "Lumped Rate Model" not in iw._diagram.root.value
+
+
+def test_column_caption_stays_inside_the_canvas_and_clear_of_other_symbols():
+    for units, inlets in (
+        (_ALL_UNITS, _ALL_INLETS),
+        (_ALL_UNITS - {"sample_loop"}, ["feed_inlet"]),
+    ):
+        root = _root(
+            render_system_svg(units, (), inlets, column_model="Lumped Rate Model With Pores (LRMP)")
+        )
+        _, _, w, h = (float(v) for v in root.get("viewBox").split())
+        boxes = [_box(s) for s in root.iter(_SVG + "svg") if s.get("data-symbol")]
+        column = next(s for s in root.iter(_SVG + "svg") if s.get("data-symbol") == "Column")
+        cx0, _, cx1, cy1 = _box(column)
+        text = next(
+            t for t in root.iter(_SVG + "text") if "LRMP" in "".join(t.itertext())
+        )
+        ty = float(text.find(_SVG + "tspan").get("y"))
+
+        assert ty > cy1 and ty + 4 <= h
+        assert cx0 <= float(text.find(_SVG + "tspan").get("x")) <= cx1
+        for x0, y0, x1, y1 in boxes:
+            if (x0, x1) != (cx0, cx1):
+                assert x1 <= cx0 or x0 >= cx1 or y0 >= ty + 4 or y1 <= ty - 14
