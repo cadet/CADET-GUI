@@ -10,6 +10,7 @@ from .parameter_history import ParameterHistoryWidget, ParameterPushRecord
 from .run_history import RunHistoryWidget, RunRecord
 from .solution import SolutionWidget
 from .workbench import WorkbenchWidget
+from .workspace_header import WorkspaceHeader
 
 __all__ = [
     "BackendVersionsWidget",
@@ -26,4 +27,5 @@ __all__ = [
     "ParameterHistoryWidget",
     "ParameterPushRecord",
     "WorkbenchWidget",
+    "WorkspaceHeader",
 ]

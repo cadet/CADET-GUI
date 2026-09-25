@@ -185,6 +185,11 @@ class SolutionWidget:
     def _on_config_store_dir_change(self, _store_dir: Any) -> None:
         self._sync_history_store_dir()
 
+    def _refresh_workspace_header(self) -> None:
+        header = getattr(self._config_widget, "workspace_header", None)
+        if header is not None:
+            header.refresh()
+
     def _sync_history_store_dir(self) -> None:
         if self._config_widget is None or self._history_store_dir_overridden:
             return
@@ -280,6 +285,7 @@ class SolutionWidget:
                 label, error=str(exc), config_name=config_name, config_hash=config_hash,
                 run_id=run_id,
             )
+            self._refresh_workspace_header()
             self.status.value = status_html("error", f"Simulation failed: {exc}")
             return
         finally:
@@ -289,6 +295,7 @@ class SolutionWidget:
         self.history.record(
             label, result=result, config_name=config_name, config_hash=config_hash, run_id=run_id
         )
+        self._refresh_workspace_header()
         self._load_result(result)
         self.status.value = "<em>Simulation finished.</em>"
 
@@ -328,6 +335,7 @@ class SolutionWidget:
                 self.status.value = status_html("error", f"Could not delete run: {exc}")
                 return
         self.history.remove(run)
+        self._refresh_workspace_header()
         self._clear_result()
         self.status.value = "<em>Ready.</em>"
 

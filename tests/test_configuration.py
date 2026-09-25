@@ -1008,7 +1008,9 @@ def test_save_load_section_is_the_first_section_in_the_panel():
     _, cw = built()
     children = cw.root.children
     # index 0 is the injected style tag, index 1 the panel title
-    save_load_section = children[2]
+    header = children[2]
+    assert header is cw.workspace_header.root
+    save_load_section = header.children[0]
     assert "Save / Load Configuration" in save_load_section.children[0].value
 
 

@@ -39,6 +39,7 @@ from ..elements import (
 from ..forms import FormRenderer
 from .configuration_persistence import ConfigurationPersistence
 from .instrument import InstrumentWidget
+from .workspace_header import WorkspaceHeader
 
 __all__ = ["ConfigurationWidget"]
 
@@ -78,6 +79,10 @@ class ConfigurationWidget:
 
     `.process` holds the latest successfully-built object; `add_listener`
     registers a callback that fires with it on every successful build.
+
+    `.workspace_header` (name, Save, saved-version/run counts, backend versions)
+    is embedded at the top of this panel by default; pass `workspace_header=False`
+    when a shell places `workspace_header.root` elsewhere.
     """
 
     def __init__(
@@ -87,6 +92,7 @@ class ConfigurationWidget:
         registry: Optional[Dict[str, Callable[[Any], Any]]] = None,
         columns: Optional[Dict[str, type]] = None,
         binding_registry: Optional[Dict[str, Optional[type]]] = None,
+        workspace_header: bool = True,
     ) -> None:
         self._registry_override = registry
         self._columns = columns or COLUMN_MODELS
@@ -188,7 +194,8 @@ class ConfigurationWidget:
         self._script_out = W.Textarea(layout=W.Layout(width="100%", height="220px", display="none"))
         self._script_out.add_class("cadetgui-script")
 
-        # Renders as the "Save / Load Configuration" section at the top of the panel.
+        # The "Save / Load Configuration" panel; `workspace_header` wraps it and is
+        # embedded at the top of this panel unless a shell places it elsewhere.
         self.persistence = ConfigurationPersistence(
             default_name=_DEFAULT_CONFIG_NAME,
             snapshot=self._snapshot_state,
@@ -196,6 +203,7 @@ class ConfigurationWidget:
             get_process=lambda: self.process,
             on_name_change=lambda _name: self._notify(),  # e.g. the Simulation tab's process label
         )
+        self.workspace_header = WorkspaceHeader(self.persistence)
 
         components_section = W.VBox(
             [
@@ -276,7 +284,7 @@ class ConfigurationWidget:
             [
                 W.HTML(style_tag()),
                 W.HTML("<div class='cadetgui-panel-title'>Configuration</div>"),
-                self.persistence.root,
+                *([self.workspace_header.root] if workspace_header else []),
                 components_section,
                 column_binding_row,
                 process_section,

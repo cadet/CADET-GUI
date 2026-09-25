@@ -44,6 +44,7 @@ class ConfigurationPersistence:
         self.config_name: str = default_name
         self.store_dir: Optional[Path] = None
         self._store_dir_listeners: list[Callable[[Optional[Path]], None]] = []
+        self._change_listeners: list[Callable[[], None]] = []
 
         # Always-visible row: name field + Save/Show-details buttons.
         self._name_field = TextField(label="Configuration name:", value=default_name)
@@ -114,11 +115,20 @@ class ConfigurationPersistence:
         """Register a callback fired with the new `store_dir` whenever it's set via the UI."""
         self._store_dir_listeners.append(fn)
 
+    def add_change_listener(self, fn: Callable[[], None]) -> None:
+        """Register a callback fired (no args) after a save, import, rename or folder change."""
+        self._change_listeners.append(fn)
+
+    def _changed(self) -> None:
+        for fn in list(self._change_listeners):
+            fn()
+
     def set_name(self, name: str) -> None:
         """Rename after restoring a saved configuration, and refresh the hash display."""
         self.config_name = name
         self._name_field.value = name
         self.refresh_hash_display()
+        self._changed()
 
     def name_error(self, action: str = "saving") -> Optional[str]:
         """Error message if this configuration has no name yet for `action`, else None."""
@@ -135,9 +145,11 @@ class ConfigurationPersistence:
         if error:
             raise RuntimeError(error)
         state = self._snapshot()
-        return save_to_store(
+        path = save_to_store(
             state, self.config_name, process=self._get_process(), store_dir=self.store_dir
         )
+        self._changed()
+        return path
 
     def import_from_store(self, hash_: str) -> None:
         """Load a configuration previously saved to the local store, by its hash."""
@@ -148,12 +160,14 @@ class ConfigurationPersistence:
             self.save_status.value = status_html("error", str(exc))
             return
         self.save_status.value = f"<em>Imported '{name}' ({hash_}).</em>"
+        self._changed()
 
     def _on_name_change(self, change: dict) -> None:
         if change.get("name") != "value":
             return
         self.config_name = change["new"]
         self._on_name_change_cb(self.config_name)
+        self._changed()
 
     def _on_set_store_dir(self, _btn: Any) -> None:
         text = self._store_dir_field.value.strip()
@@ -172,6 +186,7 @@ class ConfigurationPersistence:
             self.save_status.value = f"<em>Configurations will be saved to {path}.</em>"
         for fn in list(self._store_dir_listeners):
             fn(self.store_dir)
+        self._changed()
 
     def _on_save(self, _btn: Any) -> None:
         try:
@@ -200,6 +215,7 @@ class ConfigurationPersistence:
         finally:
             self._file_upload.value = ()
         self.save_status.value = f"<em>Imported '{name}' from {item['name']}.</em>"
+        self._changed()
 
     def _on_import_hash_click(self, _btn: Any) -> None:
         self.import_from_store(self._import_hash_field.value.strip())
