@@ -800,8 +800,8 @@ def test_signal_dropdown_offers_only_measurable_positions():
 
     labels = sw._signal_picker.option_labels
 
-    assert labels[0] == "outlet: Sink"
-    assert "column: outlet" in labels
-    assert not any(label.endswith("Source") for label in labels)
-    assert not any(label.startswith("mixer") for label in labels)
-    assert not any(label.endswith((": inlet", ": volume")) for label in labels)
+    assert labels[0] == "Process outlet"
+    assert "Column outlet" in labels
+    assert not any(label.startswith(("Buffer", "Feed")) for label in labels)
+    assert not any(label.startswith("Mixer") for label in labels)
+    assert not any(label.endswith((" inlet", " volume")) for label in labels)

@@ -228,20 +228,20 @@ def test_signal_picker_offers_only_measurable_positions_without_a_preview():
 
     # Populated straight from the process -- no simulation needed first.
     assert labels
-    assert labels[0] == "outlet: Sink"
-    assert "column: outlet" in labels
+    assert labels[0] == "Process outlet"
+    assert "Column outlet" in labels
     # Inputs and hardware-internal ports are not places a detector sits.
-    assert not any(label.endswith("Source") for label in labels)
-    assert not any(label.endswith(": inlet") for label in labels)
-    assert not any(label.startswith(("mixer", "sample_loop")) for label in labels)
-    assert not any(label.endswith(": volume") for label in labels)
+    assert not any(label.startswith(("Buffer", "Feed")) for label in labels)
+    assert not any(label.endswith(" inlet") for label in labels)
+    assert not any(label.startswith(("Mixer", "Sample loop")) for label in labels)
+    assert not any(label.endswith(" volume") for label in labels)
 
 
 def test_signal_options_follow_the_configuration_flow_path():
     iw, cw = _built_with_instrument(column_key="Lumped Rate Model With Pores (LRMP)")
     w = CharacterizationWidget("bed", config=cw)
-    assert "tubing_detectors: outlet" not in w._signal_picker.option_labels
+    assert "Tubing (detectors) outlet" not in w._signal_picker.option_labels
 
     iw._unit_checkboxes["tubing_detectors"].value = True
 
-    assert "tubing_detectors: outlet" in w._signal_picker.option_labels
+    assert "Tubing (detectors) outlet" in w._signal_picker.option_labels
