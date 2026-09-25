@@ -403,6 +403,54 @@ BYPASSABLE_UNITS: tuple[str, ...] = (
     "column", "tubing_post_column", "tubing_detectors",
 )
 
+# Plain names for every LCFlowSheet unit -- shared by the System diagram, the
+# unit toggles and the signal dropdowns.
+UNIT_LABELS: dict[str, str] = {
+    "buffer_a": "Buffer A",
+    "buffer_b": "Buffer B",
+    "buffer_c": "Buffer C",
+    "buffer_d": "Buffer D",
+    "feed_inlet": "Feed",
+    "mixer": "Mixer",
+    "tubing_pre_injection": "Tubing (pre injection)",
+    "sample_loop": "Sample loop",
+    "tubing_pre_column": "Tubing (pre column)",
+    "column": "Column",
+    "tubing_post_column": "Tubing (post column)",
+    "tubing_detectors": "Tubing (detectors)",
+    "outlet": "Process outlet",
+    "waste": "Waste outlet",
+}
+
+_INLET_UNITS = ("buffer_a", "buffer_b", "buffer_c", "buffer_d", "feed_inlet")
+
+
+def active_inlets(process: Any) -> list[str]:
+    """Names of the LC inlets a process actually drives (a flow-rate event is set on them)."""
+    driven = {
+        event.parameter_path.split(".")[1]
+        for event in process.events
+        if event.parameter_path.startswith("flow_sheet.")
+        and event.parameter_path.endswith(".flow_rate")
+    }
+    return [name for name in _INLET_UNITS if name in driven]
+
+
+def signal_label(unit: str, port: str) -> str:
+    """Plain-language name of a signal position, e.g. "Column outlet" or "Process outlet"."""
+    name = UNIT_LABELS.get(unit, unit.replace("_", " ").capitalize())
+    if unit in ("outlet", "waste") or (port == "outlet" and unit in _INLET_UNITS):
+        return name
+    return f"{name} {port}"
+
+
+def friendly_signal_options(
+    options: Sequence[tuple[str, tuple[str, str]]],
+) -> list[tuple[str, tuple[str, str]]]:
+    """Relabel `(label, (unit, port))` signal options with `signal_label`."""
+    return [(signal_label(unit, port), (unit, port)) for _, (unit, port) in options]
+
+
 # `LCFlowSheet(ColumnModel=...)` takes the class itself -- it instantiates and
 # names the column ("column") internally, so this is a plain class registry,
 # not an instance-factory like the old `DEFAULT_COLUMN_FACTORIES`. CSTR is

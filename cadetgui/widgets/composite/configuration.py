@@ -17,6 +17,7 @@ from ...cadetprocessadapter import (
     MULTIPLEXABLE_COLUMN_PARAMS,
     PARAMS,
     STANDALONE_TEMPLATES,
+    active_inlets,
     build_parameter_config_spec,
     lwe_spec,
     require_positive,
@@ -522,6 +523,8 @@ class ConfigurationWidget:
         if self._instrument is not None and self._instrument.flow_sheet is None:
             return
         self.process = built
+        if self._instrument is not None:
+            self._instrument.set_active_inlets(active_inlets(built))
         self.persistence.refresh_hash_display()
         self._notify()
         self.status.value = "<em>Process built.</em>"

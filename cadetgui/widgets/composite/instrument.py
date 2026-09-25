@@ -15,11 +15,15 @@ from ...cadetprocessadapter import (
     build_parameter_config_spec,
     require_finite_above,
 )
+from ...cadetprocessadapter import (
+    UNIT_LABELS as _UNIT_LABELS,
+)
 from ...configuration_store import InstrumentState
 from .._chrome import style_tag
 from .._status import status_html
 from ..elements import FloatField
 from ..forms import FormRenderer
+from .system_diagram import SystemDiagram
 
 __all__ = ["InstrumentWidget"]
 
@@ -62,15 +66,6 @@ def _with_bounds_validation(spec: ModelSpec) -> ModelSpec:
         fields.append(f)
     return replace(spec, fields=fields)
 
-
-_UNIT_LABELS: Dict[str, str] = {
-    "mixer": "Mixer",
-    "tubing_pre_injection": "Tubing (pre injection)",
-    "tubing_pre_column": "Tubing (pre column)",
-    "column": "Column",
-    "tubing_post_column": "Tubing (post column)",
-    "tubing_detectors": "Tubing (detectors)",
-}
 
 # Physical order of the flow path (ARCHITECTURE.md: "buffer inlets -> mixer
 # -> optional sample loop -> tubing segments -> column -> tubing -> outlet").
@@ -170,6 +165,9 @@ class InstrumentWidget:
             name: W.VBox([]) for name in _CONFIGURABLE_UNITS
         }
 
+        self._active_inlets: Optional[List[str]] = None
+        self._diagram = SystemDiagram()
+
         self.status = W.HTML("<em>Building the system...</em>")
         self.status.add_class("cadetgui-status")
 
@@ -217,6 +215,7 @@ class InstrumentWidget:
             [
                 W.HTML(style_tag()),
                 W.HTML("<div class='cadetgui-panel-title'>System</div>"),
+                self._diagram.root,
                 self._flow_path_section,
                 self.status,
             ]
@@ -270,7 +269,16 @@ class InstrumentWidget:
         if not self._suspend_rebuild:
             self._rebuild()
 
+    def set_active_inlets(self, names: Optional[Iterable[str]]) -> None:
+        """Set which inlets the selected process drives (`None`: unknown) and redraw the diagram."""
+        self._active_inlets = None if names is None else list(names)
+        self._refresh_diagram()
+
+    def _refresh_diagram(self) -> None:
+        self._diagram.update(self.flow_sheet, self.bypass_units(), self._active_inlets)
+
     def _notify(self) -> None:
+        self._refresh_diagram()
         for fn in list(self._listeners):
             fn(self.flow_sheet)
 
