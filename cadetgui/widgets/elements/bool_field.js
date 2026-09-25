@@ -210,6 +210,14 @@ function render({ model, el }) {
   });
   model.on("change:units", syncUnit);
 
+  const syncDisabled = () => {
+    const off = Boolean(model.get("disabled"));
+    wrap.classList.toggle("cadetgui-field-disabled", off);
+    wrap.querySelectorAll("input, select, button").forEach((n) => { n.disabled = off; });
+  };
+  syncDisabled();
+  model.on("change:disabled", syncDisabled);
+
   el.appendChild(wrap);
 }
 

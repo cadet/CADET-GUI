@@ -636,7 +636,7 @@ def test_fixing_an_invalid_value_recommits_automatically():
     assert cw.process is cw._model_form.built
 
 
-def test_bypassing_column_builds_a_process_with_no_column_at_all():
+def test_bypassing_column_builds_a_process_with_no_column_and_keeps_greyed_out_forms():
     # Checked by default (unit is in the flow path); unchecking removes it.
     iw, cw = built()
     iw._unit_checkboxes["column"].value = False
@@ -645,8 +645,8 @@ def test_bypassing_column_builds_a_process_with_no_column_at_all():
     iw._unit_checkboxes["tubing_detectors"].value = False
 
     assert "column" not in [u.name for u in iw.flow_sheet.units]
-    assert cw._column_form is None
-    assert cw._binding_form is None
+    assert cw._column_form.disabled is True
+    assert cw._binding_form.disabled is True
     assert cw.process is not None  # the process template itself needs no column
 
 

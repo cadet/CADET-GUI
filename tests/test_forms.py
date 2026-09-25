@@ -100,3 +100,22 @@ def test_form_reports_build_exception_without_raising():
     form = FormRenderer(spec)
     assert form.built is None
     assert "boom" in form.status.value
+
+
+def test_set_disabled_greys_out_every_field_and_keeps_values():
+    form = FormRenderer(make_spec())
+    form.set_values({"rate": 3.0, "name": "x", "active": False, "levels": [4.0]})
+    before = form.collect_values()
+    built = form.built
+
+    form.set_disabled(True)
+    assert form.disabled is True
+    assert all(form.element(f.name).disabled for f in form.spec.fields)
+    assert form._btn_reset.disabled is True
+    assert form.collect_values() == before
+    assert form.built is built
+
+    form.set_disabled(False)
+    assert form.disabled is False
+    assert not any(form.element(f.name).disabled for f in form.spec.fields)
+    assert form.collect_values() == before

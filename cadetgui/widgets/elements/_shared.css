@@ -21,6 +21,10 @@
   color: var(--cg-fg);
 }
 
+.cadetgui-field.cadetgui-field-disabled {
+  opacity: 0.5;
+}
+
 .cadetgui-field-label {
   /* Fixed column, not just a min-width floor: otherwise a long label
      ("Final wash duration") grows past a short one ("Length"), so

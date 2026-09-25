@@ -271,3 +271,24 @@ def test_selectable_table_select_none_keeps_rows_and_can_be_selected_afterwards(
     assert len(table.rows) == 2
     table.selected_index = 1
     assert table.value == 2
+
+
+def test_elements_are_enabled_by_default_and_take_a_disabled_flag():
+    from cadetgui.widgets.elements import (
+        BoolField,
+        FloatField,
+        FloatListField,
+        TextField,
+    )
+
+    elements = [
+        FloatField(value=1.0),
+        FloatListField(value=[1.0]),
+        BoolField(value=True),
+        TextField(value="a"),
+        ChoiceField(options=[("A", 1)]),
+    ]
+    assert not any(e.disabled for e in elements)
+    for e in elements:
+        e.disabled = True
+    assert all(e.disabled for e in elements)

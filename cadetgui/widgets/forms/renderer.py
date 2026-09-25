@@ -119,6 +119,17 @@ class FormRenderer:
                 return f"{f.label or f.name}: {error}"
         return ""
 
+    def set_disabled(self, disabled: bool) -> None:
+        """Grey out (or re-enable) every field and the reset button; values are untouched."""
+        for element in self._elements.values():
+            element.disabled = disabled
+        self._btn_reset.disabled = disabled
+
+    @property
+    def disabled(self) -> bool:
+        """Whether the form's fields are currently disabled."""
+        return bool(self._btn_reset.disabled)
+
     def element(self, name: str) -> Element:
         """Return the Element rendered for one field, keyed by FieldSpec.name."""
         return self._elements[name]

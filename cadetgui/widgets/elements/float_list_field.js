@@ -290,14 +290,22 @@ function render({ model, el }) {
   syncFromModel();
   syncError();
 
-  model.on("change:value", syncFromModel);
-  model.on("change:component_names", () => { syncPinned(); syncFromModel(); });
+  model.on("change:value", () => { syncFromModel(); syncDisabled(); });
+  model.on("change:component_names", () => { syncPinned(); syncFromModel(); syncDisabled(); });
   model.on("change:error", syncError);
   model.on("change:label", () => {
     labelEl.textContent = model.get("label");
     labelEl.title = model.get("label");
   });
   model.on("change:units", syncUnits);
+
+  const syncDisabled = () => {
+    const off = Boolean(model.get("disabled"));
+    wrap.classList.toggle("cadetgui-field-disabled", off);
+    wrap.querySelectorAll("input, select, button").forEach((n) => { n.disabled = off; });
+  };
+  syncDisabled();
+  model.on("change:disabled", syncDisabled);
 
   el.appendChild(wrap);
 }

@@ -48,6 +48,7 @@ _CYCLE_TIME_SLIDER_MAX_SECONDS = 300.0 * 60.0
 _DEFAULT_CONFIG_NAME = "New Experiment"
 _M3S_TO_ML_MIN = 6.0e7
 _ML_MIN_UNITS = r"\frac{\mathrm{mL}}{\mathrm{min}}"
+_BYPASS_NOTE = "Column is bypassed in the System configuration -- these settings are not used."
 
 # These templates model a buffer/salt gradient against a load/sample, which is
 # meaningless with a single component -- auto-add a second one on selection.
@@ -107,6 +108,7 @@ class ConfigurationWidget:
         self.process: Any = None
         self._column_form: Optional[FormRenderer] = None
         self._binding_form: Optional[FormRenderer] = None
+        self._forms_key: Optional[tuple] = None
         self._model_form: Optional[FormRenderer] = None
         self._event_sliders: Dict[str, W.FloatSlider] = {}
         self._cycle_time_minutes_element: Optional[FloatField] = None
@@ -166,6 +168,11 @@ class ConfigurationWidget:
         self._components = ComponentListField(label="Components:")
         self._component_note = W.HTML(layout=W.Layout(display="none"))
         self._component_note.add_class("cadetgui-note")
+
+        self._column_bypass_note = W.HTML(_BYPASS_NOTE, layout=W.Layout(display="none"))
+        self._column_bypass_note.add_class("cadetgui-note")
+        self._binding_bypass_note = W.HTML(_BYPASS_NOTE, layout=W.Layout(display="none"))
+        self._binding_bypass_note.add_class("cadetgui-note")
 
         self._column_picker = ChoiceField(
             label="Column Model:", options=self._column_options(),
@@ -229,6 +236,7 @@ class ConfigurationWidget:
             [
                 column_header,
                 self._column_settings.box,
+                self._column_bypass_note,
                 self._column_picker,
                 self._column_form_box,
             ]
@@ -247,6 +255,7 @@ class ConfigurationWidget:
             [
                 binding_header,
                 self._binding_settings.box,
+                self._binding_bypass_note,
                 self._binding_picker,
                 self._binding_form_box,
             ]
@@ -420,6 +429,9 @@ class ConfigurationWidget:
         if self._instrument_active():
             flow_sheet = self.flow_sheet
             return getattr(flow_sheet, "column", None) if flow_sheet is not None else None
+        return self._cached_column()
+
+    def _cached_column(self) -> Any:
         column_cls = self._column_picker.value
         if column_cls is None:
             return None
@@ -435,6 +447,9 @@ class ConfigurationWidget:
             return None
         if self._instrument_active():
             return getattr(column, "binding_model", None)
+        return self._cached_binding_model(column)
+
+    def _cached_binding_model(self, column: Any) -> Any:
         binding_cls = self._binding_picker.value
         if binding_cls is None:
             return None
@@ -447,11 +462,44 @@ class ConfigurationWidget:
             )
         return self._binding_cache[cache_key]
 
+    def _column_bypassed(self) -> bool:
+        return self._instrument is not None and "column" in self._instrument.bypass_units()
+
+    def _form_key(self) -> tuple:
+        """Everything that fixes the shape of the column/binding forms."""
+        return (
+            self._column_picker.value,
+            self._binding_picker.value,
+            tuple(self._components.value),
+            tuple(sorted(self._multiplex_state.items())),
+            bool(self._show_optional_column_checkbox.value),
+            bool(self._show_optional_binding_checkbox.value),
+        )
+
+    def _sync_column_bypass(self) -> None:
+        """Grey out the column and binding model controls while the column is bypassed."""
+        off = self._column_bypassed()
+        for control in (
+            self._column_picker,
+            self._binding_picker,
+            self._show_optional_column_checkbox,
+            self._show_optional_binding_checkbox,
+            *self._multiplex_checkboxes.values(),
+        ):
+            control.disabled = off
+        for form in (self._column_form, self._binding_form):
+            if form is not None:
+                form.set_disabled(off)
+        display = "" if off else "none"
+        self._column_bypass_note.layout.display = display
+        self._binding_bypass_note.layout.display = display
+
     def _on_instrument_changed(self, flow_sheet: Any) -> None:
         if self._suspend_rebuild:
             return
         if flow_sheet is None:
             self.process = None
+            self._sync_column_bypass()
             self.persistence.refresh_hash_display()
             self._notify()
             self.status.value = status_html(
@@ -680,8 +728,15 @@ class ConfigurationWidget:
     def _rebuild_forms(self) -> None:
         if self._suspend_rebuild:
             return
-        column = self._get_column()
-        binding_model = self._get_binding_model()
+        # A bypassed column has no instance in the flow sheet, so its forms are
+        # built against a detached one that keeps the values while it is off.
+        bypassed = self._column_bypassed()
+        if bypassed:
+            column = self._cached_column()
+            binding_model = self._cached_binding_model(column) if column is not None else None
+        else:
+            column = self._get_column()
+            binding_model = self._get_binding_model()
         model_fn = self._model_picker.value
         # INSTRUMENT_TEMPLATES build against the bound instrument's flow
         # sheet; STANDALONE_TEMPLATES build directly against the bare column.
@@ -691,8 +746,19 @@ class ConfigurationWidget:
             self._binding_form_box.children = ()
             self._model_form_box.children = ()
             self._clear_event_section()
+            self._sync_column_bypass()
             self.persistence.refresh_hash_display()
             return
+
+        # A bound instrument hands out a fresh column on every rebuild, so
+        # carry the previous forms' values over when their shape is unchanged.
+        form_key = self._form_key()
+        carry = self._instrument_active() and form_key == self._forms_key
+        previous = (
+            self._column_form.collect_values() if carry and self._column_form else None,
+            self._binding_form.collect_values() if carry and self._binding_form else None,
+        )
+        self._forms_key = form_key
 
         if column is not None:
             column_params = set(getattr(column, "required_parameters", None) or [])
@@ -708,6 +774,8 @@ class ConfigurationWidget:
                 )
             )
             self._column_form_box.children = (self._column_form.root,)
+            if previous[0] is not None:
+                self._column_form.set_values(previous[0])
         else:
             self._column_form = None
             self._column_form_box.children = ()
@@ -724,9 +792,12 @@ class ConfigurationWidget:
                 on_built=_attach_binding,
             )
             self._binding_form_box.children = (self._binding_form.root,)
+            if previous[1] is not None:
+                self._binding_form.set_values(previous[1])
         else:
             self._binding_form = None
             self._binding_form_box.children = ()
+        self._sync_column_bypass()
 
         self._model_form = FormRenderer(model_fn(model_arg), on_built=self._on_process_built)
         self._model_form_box.children = (self._model_form.root,)
