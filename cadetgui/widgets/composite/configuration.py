@@ -365,6 +365,22 @@ class ConfigurationWidget:
         """
         self._column_picker.set_options(self._column_options())
         self._model_picker.set_options(list(self._active_registry().items()))
+        self._sync_template_dropdown()
+
+    def _sync_template_dropdown(self) -> None:
+        """Mirror the process-template options and selection into a bound instrument."""
+        if self._instrument is None:
+            return
+        registry = self._active_registry()
+        self._instrument.set_template_options(
+            list(registry), _key_for_value(registry, self._model_picker.value),
+            self._select_template,
+        )
+
+    def _select_template(self, label: str) -> None:
+        template = self._active_registry().get(label)
+        if template is not None:
+            self._model_picker.value = template
 
     @property
     def flow_sheet(self) -> Optional[LCFlowSheet]:
@@ -468,6 +484,10 @@ class ConfigurationWidget:
     def _on_model_selection_change(self, change: dict) -> None:
         if change.get("name") != "selected_index":
             return
+        if self._instrument is not None:
+            self._instrument.select_template(
+                _key_for_value(self._active_registry(), self._model_picker.value)
+            )
         self._sync_instrument_requirements()
         self._sync_component_minimum()
         if self._maybe_autoadd_component():

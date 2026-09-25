@@ -21,7 +21,7 @@ from ...cadetprocessadapter import (
 from ...configuration_store import InstrumentState
 from .._chrome import style_tag
 from .._status import status_html
-from ..elements import FloatField
+from ..elements import ChoiceField, FloatField
 from ..forms import FormRenderer
 from .system_diagram import SystemDiagram
 
@@ -169,6 +169,11 @@ class InstrumentWidget:
         self._carries: Optional[Mapping[str, Sequence[str]]] = None
         self._equilibration: Sequence[str] = ()
         self._diagram = SystemDiagram()
+        self._on_template_select: Optional[Callable[[str], None]] = None
+        self._syncing_template = False
+        self._template_picker = ChoiceField(label="Process template:")
+        self._template_picker.layout.display = "none"
+        self._template_picker.observe(self._on_template_change, names="selected_index")
 
         self.status = W.HTML("<em>Building the system...</em>")
         self.status.add_class("cadetgui-status")
@@ -217,6 +222,7 @@ class InstrumentWidget:
             [
                 W.HTML(style_tag()),
                 W.HTML("<div class='cadetgui-panel-title'>System</div>"),
+                self._template_picker,
                 self._diagram.root,
                 self._flow_path_section,
                 self.status,
@@ -286,6 +292,41 @@ class InstrumentWidget:
         self._carries = carries
         self._equilibration = tuple(equilibration)
         self._refresh_diagram()
+
+    def set_template_options(
+        self,
+        labels: Sequence[str],
+        selected: Optional[str],
+        on_select: Callable[[str], None],
+    ) -> None:
+        """Offer process templates next to the diagram; picking one calls `on_select(label)`.
+
+        Only the label list and the selection are mirrored here -- the owner of the template
+        choice stays the single source of truth (see `select_template`).
+        """
+        self._on_template_select = on_select
+        self._syncing_template = True
+        try:
+            self._template_picker.set_options([(label, label) for label in labels])
+            self._template_picker.value = selected
+        finally:
+            self._syncing_template = False
+        self._template_picker.layout.display = "" if labels else "none"
+
+    def select_template(self, label: Optional[str]) -> None:
+        """Show `label` as the selected template without firing the selection callback."""
+        self._syncing_template = True
+        try:
+            self._template_picker.value = label
+        finally:
+            self._syncing_template = False
+
+    def _on_template_change(self, change: dict) -> None:
+        if self._syncing_template or self._on_template_select is None:
+            return
+        label = self._template_picker.value
+        if label is not None:
+            self._on_template_select(label)
 
     def _refresh_diagram(self) -> None:
         self._diagram.update(

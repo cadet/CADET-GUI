@@ -368,3 +368,86 @@ def test_symbol_files_reduce_to_plain_theme_aware_svg():
         assert "light-dark" not in sym.body and "base64" not in sym.body
         assert "data-cell-id" not in sym.body
         assert _load_symbol(name) is sym
+
+
+def _dropdown_labels(iw):
+    return [label for label, _ in iw._template_picker._options]
+
+
+def test_template_dropdown_lists_the_registry_and_shows_the_current_template():
+    iw = InstrumentWidget()
+    assert iw._template_picker.layout.display == "none"
+
+    cw = ConfigurationWidget(instrument=iw)
+
+    assert iw._template_picker.layout.display == ""
+    assert _dropdown_labels(iw) == list(INSTRUMENT_TEMPLATES)
+    assert iw._template_picker.value == "Breakthrough"
+    assert cw._model_picker.value is INSTRUMENT_TEMPLATES["Breakthrough"]
+
+
+def test_picking_a_template_in_the_system_pane_drives_the_configuration_and_diagram():
+    iw = InstrumentWidget()
+    cw = ConfigurationWidget(instrument=iw)
+
+    iw._template_picker.value = "Pulse Injection"
+
+    assert cw._model_picker.value is INSTRUMENT_TEMPLATES["Pulse Injection"]
+    assert type(cw.process).__name__ == "PulseInjection"
+    states = _states(iw._diagram.root.value)
+    assert states["buffer_a"] == "active"
+    assert {states[u] for u in ("buffer_b", "buffer_c", "buffer_d", "feed_inlet")} == {"unused"}
+    assert "sample_loop" in states
+
+
+def test_picking_a_loop_template_in_the_system_pane_locks_the_loop_on():
+    iw = InstrumentWidget()
+    cw = ConfigurationWidget(instrument=iw)
+    assert not iw._sample_loop_checkbox.value
+
+    iw._template_picker.value = "Pulse Injection"
+    assert iw._sample_loop_checkbox.value
+    assert iw._sample_loop_checkbox.disabled
+
+    iw._template_picker.value = "Breakthrough"
+    assert not iw._sample_loop_checkbox.value
+    assert not iw._sample_loop_checkbox.disabled
+    assert cw._model_picker.value is INSTRUMENT_TEMPLATES["Breakthrough"]
+
+
+def test_configuration_picker_updates_the_system_dropdown_without_a_loop():
+    iw = InstrumentWidget()
+    cw = ConfigurationWidget(instrument=iw)
+    built = []
+    original = cw._on_process_built
+    cw._on_process_built = lambda process: (built.append(process), original(process))[1]
+    calls = []
+    iw._on_template_select = calls.append
+
+    cw._model_picker.value = INSTRUMENT_TEMPLATES["Step"]
+
+    assert iw._template_picker.value == "Step"
+    assert calls == []
+    assert len(built) == 1
+
+
+def test_system_dropdown_pick_builds_the_process_once():
+    iw = InstrumentWidget()
+    cw = ConfigurationWidget(instrument=iw)
+    built = []
+    original = cw._on_process_built
+    cw._on_process_built = lambda process: (built.append(process), original(process))[1]
+
+    iw._template_picker.value = "Step"
+
+    assert len(built) == 1
+    assert iw._template_picker.value == "Step"
+
+
+def test_characterization_workbench_seeds_pulse_injection_and_mirrors_it():
+    from cadetgui.widgets.composite import CharacterizationWorkbenchWidget
+
+    wb = CharacterizationWorkbenchWidget()
+
+    assert wb.configuration._model_picker.value is INSTRUMENT_TEMPLATES["Pulse Injection"]
+    assert wb.instrument._template_picker.value == "Pulse Injection"
