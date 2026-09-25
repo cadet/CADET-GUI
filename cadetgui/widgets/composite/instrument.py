@@ -127,17 +127,9 @@ class InstrumentWidget:
     hides the controls: every toggle keeps applying and a one-line summary of
     the enabled hardware stays next to the header. `apply_state` expands the
     section when the loaded state has non-default hardware (never collapses it).
-
-    The column toggle is only offered with `allow_column_bypass=True`
-    (characterizing the periphery without a column). Otherwise it is hidden --
-    unless the column is already bypassed, e.g. by a loaded configuration, so
-    the state can always be undone.
     """
 
-    def __init__(
-        self, *, hardware_expanded: bool = False, allow_column_bypass: bool = False
-    ) -> None:
-        self._allow_column_bypass = allow_column_bypass
+    def __init__(self, *, hardware_expanded: bool = False) -> None:
         self._listeners: List[Callable[[Any], None]] = []
         self._built_sheet: Optional[LCFlowSheet] = None
         self._problems: Dict[str, str] = {}
@@ -233,7 +225,6 @@ class InstrumentWidget:
                 # Physical order: mixer, then the optional sample loop.
                 unit_subsections.append(sample_loop_subsection)
 
-        self._column_box = self._unit_boxes["column"]
         self._flow_path_note = W.HTML("", layout=W.Layout(margin="0 0 4px 0"))
         self._hardware_body = W.VBox([self._flow_path_note, *unit_subsections])
         self._hardware_toggle = W.Button(
@@ -291,20 +282,11 @@ class InstrumentWidget:
     def _on_hardware_toggle(self, _btn: Any) -> None:
         self.set_hardware_expanded(toggle_box(self._hardware_body))
 
-    @property
-    def column_toggle_visible(self) -> bool:
-        """Whether the column on/off checkbox is currently offered."""
-        return self._column_box.layout.display != "none"
-
     def _refresh_hardware_summary(self) -> None:
         column_on = self._unit_checkboxes["column"].value
-        show_column_toggle = self._allow_column_bypass or not column_on
-        self._column_box.layout.display = "" if show_column_toggle else "none"
         self._flow_path_note.value = (
             "<em>Uncheck a unit to remove it from the flow path -- e.g. to characterize "
             "the system before adding a column.</em>"
-            if self._allow_column_bypass
-            else "<em>Check the hardware that should be part of the simulated flow path.</em>"
         )
 
         extras = []

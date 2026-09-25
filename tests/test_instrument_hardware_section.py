@@ -89,25 +89,36 @@ def test_user_chosen_sample_loop_is_in_summary():
     assert iw._hardware_summary.value == "Column + sample loop"
 
 
-def test_column_toggle_hidden_by_default_and_offered_when_allowed():
-    assert InstrumentWidget().column_toggle_visible is False
-    assert InstrumentWidget(allow_column_bypass=True).column_toggle_visible is True
+def _column_toggle_shown(iw):
+    """Whether the column checkbox is reachable and not hidden inside the section."""
+    checkbox = iw._unit_checkboxes["column"]
+
+    def contains(box):
+        return any(c is checkbox or contains(c) for c in getattr(box, "children", ()))
+
+    return (
+        contains(iw._hardware_body)
+        and checkbox.layout.display != "none"
+        and iw._unit_boxes["column"].layout.display != "none"
+    )
 
 
-def test_bypassed_column_round_trips_with_hidden_toggle():
-    source = InstrumentWidget(allow_column_bypass=True)
+def test_column_toggle_is_offered_in_a_standalone_instrument():
+    assert _column_toggle_shown(InstrumentWidget()) is True
+
+
+def test_bypassed_column_round_trips():
+    source = InstrumentWidget()
     source._unit_checkboxes["column"].value = False
     state = source.snapshot()
     assert "column" in state.bypass_units
 
     target = InstrumentWidget()
-    assert target.column_toggle_visible is False
     target.apply_state(state)
     assert "column" in target.bypass_units()
     assert target.snapshot() == state
     assert target._hardware_summary.value == "No column"
-    # A bypassed column is never trapped behind a hidden toggle.
-    assert target.column_toggle_visible is True
+    assert _column_toggle_shown(target) is True
     assert target.hardware_expanded is True
 
 
@@ -124,16 +135,16 @@ def test_apply_state_expands_only_for_non_default_hardware():
     assert iw._hardware_summary.value == "Column + mixer"
 
 
-def test_workbench_builds_its_instrument_collapsed():
+def test_workbench_builds_its_instrument_collapsed_with_column_toggle():
     wb = WorkbenchWidget()
     assert wb.instrument.hardware_expanded is False
-    assert wb.instrument.column_toggle_visible is False
+    assert _column_toggle_shown(wb.instrument) is True
 
 
 def test_characterization_workbench_builds_its_instrument_expanded_with_column_toggle():
     wb = CharacterizationWorkbenchWidget()
     assert wb.instrument.hardware_expanded is True
-    assert wb.instrument.column_toggle_visible is True
+    assert _column_toggle_shown(wb.instrument) is True
 
 
 def test_passed_in_instrument_is_left_alone():
@@ -141,9 +152,7 @@ def test_passed_in_instrument_is_left_alone():
     wb = WorkbenchWidget(instrument=iw)
     assert wb.instrument is iw
     assert iw.hardware_expanded is False
-    assert iw.column_toggle_visible is False
 
     iw2 = InstrumentWidget(hardware_expanded=True)
     cw = CharacterizationWorkbenchWidget(instrument=iw2)
     assert cw.instrument is iw2
-    assert iw2.column_toggle_visible is False

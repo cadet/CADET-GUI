@@ -76,7 +76,7 @@ class CharacterizationWorkbenchWidget:
 
         self.instrument = instrument
         if self.instrument is None:
-            self.instrument = InstrumentWidget(hardware_expanded=True, allow_column_bypass=True)
+            self.instrument = InstrumentWidget(hardware_expanded=True)
             for unit in ("tubing_pre_injection", "tubing_detectors", "mixer"):
                 self.instrument._unit_checkboxes[unit].value = True
 
