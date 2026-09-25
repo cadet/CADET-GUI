@@ -797,6 +797,23 @@ def measurable_signal_ports(
     ]
 
 
+def measurable_signal_options(
+    process: Any, options: Optional[Sequence[tuple[str, tuple[str, str]]]] = None
+) -> list[tuple[str, tuple[str, str]]]:
+    """Plainly-labelled, measurable `(label, (unit, port))` signal options of `process`.
+
+    `options` defaults to `list_signal_ports(process)`; pass a simulated result's
+    `classify_signal_ports` list to restrict to the ports it actually recorded.
+    """
+    return friendly_signal_options(
+        measurable_signal_ports(
+            process.flow_sheet.units_dict,
+            list_signal_ports(process) if options is None else options,
+            active_inlets(process),
+        )
+    )
+
+
 def _order_signal_ports(
     units: Mapping[str, Any], ports_by_unit: Mapping[str, Sequence[str]]
 ) -> list[tuple[str, tuple[str, str]]]:

@@ -10,6 +10,7 @@ from cadetgui.cadetprocessadapter import (
     FieldSpec,
     classify_signal_ports,
     list_signal_ports,
+    measurable_signal_options,
 )
 from cadetgui.parameter_estimation import (
     build_reference,
@@ -404,3 +405,14 @@ def test_list_signal_ports_matches_the_simulated_classification_without_simulati
 
     assert list_signal_ports(process) == classify_signal_ports(run_process(process))
     assert list_signal_ports(process)[0] == ("outlet: Sink", ("outlet", "inlet"))
+
+
+def test_measurable_signal_options_are_plainly_labelled_and_a_subset_of_all_ports():
+    process = built_widget().process
+
+    options = measurable_signal_options(process)
+
+    assert options[0] == ("Outlet", ("outlet", "inlet"))
+    assert {value for _, value in options} < {value for _, value in list_signal_ports(process)}
+    simulated = classify_signal_ports(run_process(process))
+    assert measurable_signal_options(process, simulated) == options

@@ -10,7 +10,7 @@ import numpy as np
 from CADETProcess.plotting import get_fig_size
 
 from ... import configuration_store
-from ...cadetprocessadapter import list_signal_ports
+from ...cadetprocessadapter import measurable_signal_options
 from ...parameter_estimation import (
     OPTIMIZERS,
     CalibrationMethod,
@@ -534,7 +534,7 @@ class ParameterEstimationWidget:
     def _refresh_signal_options(self) -> None:
         cw = self._config_widget
         process = cw.process if cw is not None else None
-        options = list_signal_ports(process) if process is not None else []
+        options = measurable_signal_options(process) if process is not None else []
         if [label for label, _ in options] == self._signal_picker.option_labels:
             return
         self._signal_picker.set_options(options, keep_value=True)

@@ -393,18 +393,39 @@ def test_signal_picker_is_populated_on_bind_and_defaults_to_the_sink():
     cw = built_configuration()
     pw.bind_to_config(cw)
 
-    assert pw._signal_picker.option_labels[0] == "outlet: Sink"
+    assert pw._signal_picker.option_labels[0] == "Outlet"
     assert pw._signal_picker.value == ("outlet", "inlet")
 
 
+def test_signal_picker_offers_only_measurable_positions_with_plain_names():
+    pw = ParameterEstimationWidget()
+    pw.bind_to_config(built_configuration())
+
+    labels = pw._signal_picker.option_labels
+
+    assert "Column outlet" in labels
+    assert "Column inlet" in labels
+    assert "Feed inlet" in labels  # the inlet this process drives
+    idle = ("Buffer A", "Buffer B", "Buffer C", "Buffer D")
+    assert not any(label.startswith(idle) for label in labels)
+    assert not any(label.startswith(("Mixer", "Sample loop")) for label in labels)
+    assert not any(label.endswith(" volume") for label in labels)
+    assert not any(": " in label for label in labels)
+
+
 def test_signal_options_match_the_ones_the_simulated_preview_offers():
-    from cadetgui.cadetprocessadapter import classify_signal_ports
+    from cadetgui.cadetprocessadapter import (
+        classify_signal_ports,
+        measurable_signal_options,
+    )
 
     pw = ParameterEstimationWidget()
     pw.bind_to_config(built_configuration())
 
-    offered = [label for label, _ in classify_signal_ports(pw._display_result)]
-    assert pw._signal_picker.option_labels == offered
+    offered = measurable_signal_options(
+        pw._display_result.process, classify_signal_ports(pw._display_result)
+    )
+    assert pw._signal_picker.option_labels == [label for label, _ in offered]
 
 
 def test_signal_options_refresh_when_the_configuration_changes():
@@ -419,7 +440,7 @@ def test_signal_options_refresh_when_the_configuration_changes():
 
     pw._signal_picker.set_options([("stale", ("nope", "inlet"))])
     cw._model_form.element("flow_rate").value = 8.8e-6
-    assert pw._signal_picker.option_labels[0] == "outlet: Sink"
+    assert pw._signal_picker.option_labels[0] == "Outlet"
 
 
 def test_preview_without_a_process_shows_a_guard_error():

@@ -5,12 +5,7 @@ from typing import Any, Callable, Optional
 import ipywidgets as W
 
 from ... import configuration_store, run_store
-from ...cadetprocessadapter import (
-    active_inlets,
-    classify_signal_ports,
-    friendly_signal_options,
-    measurable_signal_ports,
-)
+from ...cadetprocessadapter import classify_signal_ports, measurable_signal_options
 from ...simulation import run_process as _default_runner
 from .._chrome import style_tag
 from .._series import solution_series
@@ -409,13 +404,7 @@ class SolutionWidget:
         self.result = result
         # Only where something is measured -- "Save Options" below still
         # offers every port, so saved data stays complete.
-        options = friendly_signal_options(
-            measurable_signal_ports(
-                result.process.flow_sheet.units_dict,
-                classify_signal_ports(result),
-                active_inlets(result.process),
-            )
-        )
+        options = measurable_signal_options(result.process, classify_signal_ports(result))
         self._signal_picker.set_options(options, keep_value=True)
         self._rebuild_save_outputs_scope_options()
         self._plot_selected()

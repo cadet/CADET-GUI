@@ -17,13 +17,7 @@ from CADETProcess.comparison import Comparator
 from CADETProcess.comparison.difference import SSE
 from CADETProcess.simulator import Cadet
 
-from ...cadetprocessadapter import (
-    FieldSpec,
-    active_inlets,
-    friendly_signal_options,
-    list_signal_ports,
-    measurable_signal_ports,
-)
+from ...cadetprocessadapter import FieldSpec, measurable_signal_options
 from ...optimizer_runner import OptimizerRunResult, RunSpec
 from ...parameter_estimation import (
     CalibrationMethod,
@@ -392,17 +386,7 @@ class CharacterizationWidget:
 
     def _refresh_signal_options(self, process: Any = None) -> None:
         process = process if process is not None else self._config.process
-        options = (
-            friendly_signal_options(
-                measurable_signal_ports(
-                    process.flow_sheet.units_dict,
-                    list_signal_ports(process),
-                    active_inlets(process),
-                )
-            )
-            if process is not None
-            else []
-        )
+        options = measurable_signal_options(process) if process is not None else []
         if [label for label, _ in options] == self._signal_picker.option_labels:
             return
         self._signal_picker.set_options(options, keep_value=True)
