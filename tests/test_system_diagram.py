@@ -190,10 +190,25 @@ def test_inlet_contents_lists_only_driven_inlets_and_a_filled_loop():
 
 
 def test_long_component_lists_are_summarised_in_the_label():
-    names = [f"Component number {i}" for i in range(3)]
+    names = [f"Component number {i}" for i in range(5)]
     html = render_system_svg(_ALL_UNITS, (), ["feed_inlet"], {"feed_inlet": names})
 
-    assert "3 components" in html
+    assert "(5 components)" in html
+
+
+def test_component_names_wrap_onto_short_lines_and_stay_on_the_canvas():
+    names = ["Component 1", "Component 2"]
+    carries = {"buffer_a": names, "buffer_b": names}
+    html = render_system_svg(_ALL_UNITS, (), ["buffer_a", "buffer_b"], carries)
+    root = _root(html)
+
+    text = [t for t in root.iter(_SVG + "text") if "Component" in "".join(t.itertext())]
+    assert text
+    for t in text:
+        assert all(len(span.text or "") <= 20 for span in t.iter(_SVG + "tspan"))
+        xs = [float(span.get("x")) for span in t.iter(_SVG + "tspan")]
+        half = max(len(span.text or "") for span in t.iter(_SVG + "tspan")) * 7.4 / 2
+        assert min(xs) - half >= 0
 
 
 def test_unknown_inlets_add_no_usage_caption():

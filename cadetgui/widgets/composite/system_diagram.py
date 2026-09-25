@@ -320,9 +320,28 @@ def _dim(content: str, on: bool) -> str:
     return content if on else f'<g opacity="0.4">{content}</g>'
 
 
-def _names(names: Sequence[str]) -> str:
-    text = ", ".join(names)
-    return text if len(text) <= 24 else f"{len(names)} components"
+_WRAP = 18
+_CHAR_W = 7.4
+
+
+def _names(names: Sequence[str]) -> List[str]:
+    """Wrap component names onto short lines, in parentheses."""
+    lines: List[str] = []
+    for name in names:
+        if lines and len(lines[-1]) + len(name) + 2 <= _WRAP:
+            lines[-1] += f", {name}"
+        else:
+            lines.append(name)
+    if len(lines) > 3:
+        return [f"({len(names)} components)"]
+    lines = [f"{line}," for line in lines[:-1]] + lines[-1:]
+    lines[0] = f"({lines[0]}"
+    lines[-1] = f"{lines[-1]})"
+    return lines
+
+
+def _text_width(lines: Sequence[str]) -> float:
+    return max((len(line) for line in lines), default=0) * _CHAR_W
 
 
 def _inlet_lines(unit: str, on: bool, carries: Optional[Mapping[str, Sequence[str]]]) -> List[str]:
@@ -331,13 +350,13 @@ def _inlet_lines(unit: str, on: bool, carries: Optional[Mapping[str, Sequence[st
         names = (carries or {}).get(unit)
         if not on:
             return [*head, "unused"]
-        return [*head, _names(names)] if names else head
+        return [*head, *_names(names)] if names else head
     label = _label_of(unit)
     if not on:
         return [label, "(unused)"]
     if carries is None or unit not in carries:
         return [label]
-    return [label, f"({_names(carries[unit])})" if carries[unit] else "(buffer only)"]
+    return [label, *(_names(carries[unit]) if carries[unit] else ["(buffer only)"])]
 
 
 def _letters(units: Sequence[str]) -> str:
@@ -428,11 +447,23 @@ def render_system_svg(
     inlet_sym = _load_symbol("Inlet")
     feed_lines = _inlet_lines("feed_inlet", feed_on, carries if known else None)
     feed_extra = (len(feed_lines) - 1) * _CAPTION_LEAD
+    feed_width = _text_width(feed_lines)
 
-    pitch = inlet_sym.height + _INLET_GAP
-    stack_h = max(len(buffers) * pitch - _INLET_GAP, 0)
+    buffer_lines = {
+        b: (_inlet_lines(b, b in active_buffers, carries) if known else _lines(_label_of(b)))
+        for b in buffers
+    }
+    pitches = [
+        inlet_sym.height + max(_INLET_GAP, 8 + len(buffer_lines[b]) * _CAPTION_LEAD)
+        for b in buffers
+    ]
+    stack_h = max(sum(pitches) - _INLET_GAP, 0)
     heading = 24 if known and buffers else 0
-    x0 = _MARGIN + (inlet_sym.width + _BUS + 25 if buffers else 0)
+    column_w = max(
+        [inlet_sym.width, *(_text_width(lines) for lines in buffer_lines.values())]
+    )
+    symbol_x = _MARGIN + (column_w - inlet_sym.width) / 2
+    x0 = _MARGIN + (column_w + _BUS + 25 if buffers else 0)
 
     items: List[_Item] = []
     x = x0
@@ -459,7 +490,7 @@ def render_system_svg(
     right = x - _GAP
 
     first = items[0] if items else None
-    bus_x = _MARGIN + inlet_sym.width + _BUS
+    bus_x = _MARGIN + column_w + _BUS
     if buffers and first is not None:
         top = my - stack_h / 2
         if known:
@@ -469,19 +500,19 @@ def render_system_svg(
             parts.append(head)
         ys = {}
         for i, buf in enumerate(buffers):
-            y = top + i * pitch
+            y = top + sum(pitches[:i])
             on = buf in active_buffers
-            content = _dim(_symbol(_SYMBOL_OF[buf], _MARGIN, y), on)
-            lines = _inlet_lines(buf, on, carries) if known else _lines(_label_of(buf))
+            content = _dim(_symbol(_SYMBOL_OF[buf], symbol_x, y), on)
+            lines = buffer_lines[buf]
             if known or _label_of(buf) != _load_symbol(_SYMBOL_OF[buf]).text:
                 content += _caption(
-                    lines, _MARGIN + inlet_sym.width / 2, y + inlet_sym.height + 16
+                    lines, symbol_x + inlet_sym.width / 2, y + inlet_sym.height + 16
                 )
             parts.append(_unit_group(buf, "active" if on else "unused", content))
             ys[buf] = y + _PORTS["Inlet"][2]
             parts.append(
                 _wire(
-                    f"M{_num(_MARGIN + inlet_sym.width - 0.5)} {_num(ys[buf])} H{_num(bus_x)}",
+                    f"M{_num(symbol_x + inlet_sym.width - 0.5)} {_num(ys[buf])} H{_num(bus_x)}",
                     arrow=False,
                     muted=not on,
                 )
@@ -546,7 +577,7 @@ def render_system_svg(
             )
         )
         parts.append(_unit_group("feed_inlet", feed_state, content))
-        right = max(right, fx + inlet_sym.width)
+        right = max(right, fx + inlet_sym.width, fx + (inlet_sym.width + feed_width) / 2)
     elif feed_shown and target is not None:
         column_in = target.x + target.in_x
         cx = target.x + target.width / 2
@@ -563,7 +594,7 @@ def render_system_svg(
             )
         )
         parts.append(_unit_group("feed_inlet", feed_state, content))
-        right = max(right, fx + inlet_sym.width)
+        right = max(right, fx + inlet_sym.width, cx + feed_width / 2)
 
     width = right + _MARGIN
     bottom = max(my + item_down, my + stack_h / 2 + 24 + (_CAPTION_LEAD if known else 0))
