@@ -228,7 +228,7 @@ def test_signal_picker_offers_only_measurable_positions_without_a_preview():
 
     # Populated straight from the process -- no simulation needed first.
     assert labels
-    assert labels[0] == "Process outlet"
+    assert labels[0] == "Outlet"
     assert "Column outlet" in labels
     # Inputs and hardware-internal ports are not places a detector sits.
     assert not any(label.startswith(("Buffer", "Feed")) for label in labels)

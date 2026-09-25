@@ -418,7 +418,7 @@ UNIT_LABELS: dict[str, str] = {
     "column": "Column",
     "tubing_post_column": "Tubing (post column)",
     "tubing_detectors": "Tubing (detectors)",
-    "outlet": "Process outlet",
+    "outlet": "Outlet",
     "waste": "Waste outlet",
 }
 
@@ -456,7 +456,7 @@ def _as_list(value: Any) -> list[Any]:
 
 
 def signal_label(unit: str, port: str) -> str:
-    """Plain-language name of a signal position, e.g. "Column outlet" or "Process outlet"."""
+    """Plain-language name of a signal position, e.g. "Column outlet" or "Outlet"."""
     name = UNIT_LABELS.get(unit, unit.replace("_", " ").capitalize())
     if unit in ("outlet", "waste") or (port == "outlet" and unit in _INLET_UNITS):
         return name

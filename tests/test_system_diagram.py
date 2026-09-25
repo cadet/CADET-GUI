@@ -236,7 +236,7 @@ def test_diagram_is_one_self_contained_svg():
 @pytest.mark.parametrize(
     ("unit", "port", "label"),
     [
-        ("outlet", "inlet", "Process outlet"),
+        ("outlet", "inlet", "Outlet"),
         ("waste", "inlet", "Waste outlet"),
         ("column", "outlet", "Column outlet"),
         ("tubing_detectors", "outlet", "Tubing (detectors) outlet"),

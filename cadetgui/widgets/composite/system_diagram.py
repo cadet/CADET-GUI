@@ -530,12 +530,20 @@ def render_system_svg(
         parts.append(_unit_group("feed_inlet", feed_state, content))
         right = max(right, fx + inlet_sym.width)
     elif feed_shown and target is not None:
+        column_in = target.x + target.in_x
         cx = target.x + target.width / 2
         fx = cx - inlet_sym.width / 2
-        end = my + (target.down if target.symbol else 1)
+        merge_x = column_in - _GAP / 2
+        jog_y = row2_y - _ROW_DROP / 2
         content = _dim(_symbol("Inlet", fx, row2_y), feed_on)
         content += _caption(feed_lines, cx, row2_y + inlet_sym.height + 16)
-        parts.append(_wire(f"M{_num(cx)} {_num(row2_y)} V{_num(end)}", muted=not feed_on))
+        parts.append(
+            _wire(
+                f"M{_num(cx)} {_num(row2_y)} V{_num(jog_y)} H{_num(merge_x)} "
+                f"V{_num(my)} H{_num(column_in)}",
+                muted=not feed_on,
+            )
+        )
         parts.append(_unit_group("feed_inlet", feed_state, content))
         right = max(right, fx + inlet_sym.width)
 
