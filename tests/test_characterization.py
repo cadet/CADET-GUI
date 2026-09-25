@@ -81,7 +81,9 @@ def test_validation_error_reports_missing_dataset_and_signal():
     w.data.datasets.append(_dataset("d1"))
     w._refresh_dataset_options()
     w._dataset_select.value = tuple(w.data.datasets)
-    assert "preview" in w._validation_error().lower()
+    # The signal picker is populated from the process itself, so with a
+    # dataset picked nothing is left missing.
+    assert w._validation_error() is None
 
 
 def test_bound_fields_default_from_field_spec_min_max():
@@ -104,7 +106,6 @@ def test_bounds_must_be_ordered():
     w.data.datasets.append(_dataset("d1"))
     w._refresh_dataset_options()
     w._dataset_select.value = tuple(w.data.datasets)
-    w._on_preview(None)
     w._signal_picker.selected_index = 0
 
     lb, ub = w._bound_fields["tubing_pre_injection_length"]
@@ -125,7 +126,6 @@ def test_periphery_stage_fits_and_accept_writes_into_the_instrument_unit_form(
     w.data.datasets.append(_dataset("pulse"))
     w._refresh_dataset_options()
     w._dataset_select.value = tuple(w.data.datasets)
-    w._on_preview(None)
     w._signal_picker.selected_index = 0
     w._runner._knob_fields["Nelder-Mead"][0].value = 15
 
@@ -163,7 +163,6 @@ def test_accept_records_a_history_entry_with_provenance_and_confirmed_values(
     w.data.datasets.append(_dataset("pulse"))
     w._refresh_dataset_options()
     w._dataset_select.value = tuple(w.data.datasets)
-    w._on_preview(None)
     w._signal_picker.selected_index = 0
     w._runner._knob_fields["Nelder-Mead"][0].value = 15
     w._runner._on_run(None)
@@ -195,7 +194,6 @@ def test_bed_stage_joint_fits_two_datasets_with_a_multi_objective_optimizer_and_
     w.data.datasets.append(_dataset("d1", center=9.0))
     w._refresh_dataset_options()
     w._dataset_select.value = tuple(w.data.datasets)
-    w._on_preview(None)
     w._signal_picker.selected_index = 0
 
     # Nelder-Mead can't solve a genuinely multi-objective problem (one
@@ -220,3 +218,30 @@ def test_bed_stage_joint_fits_two_datasets_with_a_multi_objective_optimizer_and_
     assert after["axial_dispersion"] == pytest.approx(result.x_best["axial_dispersion"])
     # Unrelated column fields are left untouched by the merge.
     assert after["particle_porosity"] == before
+
+
+def test_signal_picker_offers_only_measurable_positions_without_a_preview():
+    iw, cw = _built_with_instrument(column_key="Lumped Rate Model With Pores (LRMP)")
+    w = CharacterizationWidget("bed", config=cw)
+
+    labels = w._signal_picker.option_labels
+
+    # Populated straight from the process -- no simulation needed first.
+    assert labels
+    assert labels[0] == "outlet: Sink"
+    assert "column: outlet" in labels
+    # Inputs and hardware-internal ports are not places a detector sits.
+    assert not any(label.endswith("Source") for label in labels)
+    assert not any(label.endswith(": inlet") for label in labels)
+    assert not any(label.startswith(("mixer", "sample_loop")) for label in labels)
+    assert not any(label.endswith(": volume") for label in labels)
+
+
+def test_signal_options_follow_the_configuration_flow_path():
+    iw, cw = _built_with_instrument(column_key="Lumped Rate Model With Pores (LRMP)")
+    w = CharacterizationWidget("bed", config=cw)
+    assert "tubing_detectors: outlet" not in w._signal_picker.option_labels
+
+    iw._unit_checkboxes["tubing_detectors"].value = True
+
+    assert "tubing_detectors: outlet" in w._signal_picker.option_labels

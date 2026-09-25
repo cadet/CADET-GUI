@@ -9,7 +9,7 @@ repository. Each file exists to exercise one `CharacterizationWidget` stage in
 checked against it, not just run without error.
 
 All eight files share one base: `CharacterizationWorkbenchWidget()`'s own
-default process (`InstrumentWidget` with "Use LC system" on and the periphery
+default process (`InstrumentWidget` with the periphery
 units — `tubing_pre_injection`, `tubing_detectors`, `mixer` — included,
 `Lumped Rate Model With Pores (LRMP)` column, `Steric Mass Action (SMA)`
 binding). Each row below lists only what was changed from that, and which
@@ -28,8 +28,8 @@ binding). Each row below lists only what was changed from that, and which
 | `capacity.csv` | `stage="capacity"` | Same binding setup as `adsorption.csv`, except `capacity = 900.0` | Gaussian (scale 0.015), seed `20260924_08` |
 
 All noise is clipped at `0` afterward (no negative signal values). Signal is
-sampled at the same location `CharacterizationWidget`'s own Preview defaults
-to (`outlet`'s `inlet` port — the process outlet).
+sampled at the same location `CharacterizationWidget` defaults to
+(`outlet`'s `inlet` port — the process outlet).
 
 ## Verified end-to-end
 
@@ -56,7 +56,7 @@ reliable one to check quickly.
 
 Re-run the check yourself: build the widget as in
 `examples/characterization.ipynb`, select both `bed_replicate_*` datasets,
-Preview, pick U-NSGA-III, Run, then compare `_runner._last_result.x_best`
+pick U-NSGA-III, Run, then compare `_runner._last_result.x_best`
 against the true values above.
 
 ## Regenerating

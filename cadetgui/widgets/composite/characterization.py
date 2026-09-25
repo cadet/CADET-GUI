@@ -15,9 +15,10 @@ from CADETProcess.characterization import (
 )
 from CADETProcess.comparison import Comparator
 from CADETProcess.comparison.difference import SSE
+from CADETProcess.processModel import Inlet, Outlet
 from CADETProcess.simulator import Cadet
 
-from ...cadetprocessadapter import FieldSpec, classify_signal_ports
+from ...cadetprocessadapter import FieldSpec, list_signal_ports
 from ...optimizer_runner import OptimizerRunResult, RunSpec
 from ...parameter_estimation import (
     CalibrationMethod,
@@ -26,7 +27,6 @@ from ...parameter_estimation import (
 )
 from ...simulation import run_process
 from .._chrome import style_tag
-from .._status import status_html
 from ..elements import ChoiceField
 from ._optimizer_runner_panel import OptimizerRunnerPanel
 from .configuration import ConfigurationWidget
@@ -176,6 +176,34 @@ _STATIC_STAGE_SPECS: Dict[Stage, _StageSpec] = {
     ),
 }
 
+# Hardware that only ever moves fluid along (junction, injection loop) -- its
+# ports are never a place anything is measured.
+_INFRASTRUCTURE_UNITS = ("mixer", "sample_loop")
+
+
+def _measurement_signal_options(process: Any) -> list[tuple[str, tuple[str, str]]]:
+    """List the signal positions a detector could actually sit at.
+
+    `list_signal_ports` lists every port of every unit -- buffer/feed
+    sources, the mixer junction `LCFlowSheet` always keeps, the sample loop,
+    each unit's inlet and `volume` port -- which is far more than there is
+    anything to compare a measurement against. Keep the process outlets
+    (sinks) and the outlet port of each remaining unit in the flow path
+    (e.g. the column, tubing segments), sinks first as `list_signal_ports`
+    already orders them.
+    """
+    units = process.flow_sheet.units_dict
+    return [
+        (label, (unit, port))
+        for label, (unit, port) in list_signal_ports(process)
+        if isinstance(units[unit], Outlet)
+        or (
+            port == "outlet"
+            and not isinstance(units[unit], Inlet)
+            and unit not in _INFRASTRUCTURE_UNITS
+        )
+    ]
+
 
 class CharacterizationWidget:
     """Fit one CADETProcess.characterization stage jointly across several experiments.
@@ -300,8 +328,6 @@ class CharacterizationWidget:
 
         self._component_picker = ChoiceField(label="Signal represents:", options=[])
         self._signal_picker = ChoiceField(label="Signal:", options=[])
-        self._btn_preview = W.Button(description="Preview", icon="eye")
-        self._btn_preview.on_click(self._on_preview)
 
         self._calibration_picker = ChoiceField(
             label="Calibration:",
@@ -355,7 +381,7 @@ class CharacterizationWidget:
                 data_section,
                 bounds_section,
                 W.HBox(
-                    [self._signal_picker, self._btn_preview], layout=W.Layout(flex_flow="row wrap")
+                    [self._signal_picker], layout=W.Layout(flex_flow="row wrap")
                 ),
                 self._runner.root,
             ]
@@ -363,6 +389,8 @@ class CharacterizationWidget:
         self.root.add_class("cadetgui-panel")
 
         self._refresh_dataset_options()
+        self._config.add_listener(self._refresh_signal_options)
+        self._refresh_signal_options()
 
     def _refresh_dataset_options(self) -> None:
         self._dataset_select.options = [(d.label, d) for d in self.data.datasets]
@@ -385,15 +413,12 @@ class CharacterizationWidget:
             return {"target_area": self._target_area_field.value}
         return {}
 
-    def _on_preview(self, _btn: Any) -> None:
-        process = self._config.process
-        if process is None:
-            self.status.value = status_html("error", "No configuration to preview.")
+    def _refresh_signal_options(self, process: Any = None) -> None:
+        process = process if process is not None else self._config.process
+        options = _measurement_signal_options(process) if process is not None else []
+        if [label for label, _ in options] == self._signal_picker.option_labels:
             return
-        self.status.value = status_html("running", "Simulating preview…")
-        result = run_process(copy.deepcopy(process))
-        self._signal_picker.set_options(classify_signal_ports(result), keep_value=True)
-        self.status.value = "<em>Preview ready.</em>"
+        self._signal_picker.set_options(options, keep_value=True)
 
     def _apply_values_to_process(self, process: Any, values: Mapping[str, float]) -> None:
         """Write `{variable_name: value}` onto `process`'s real attributes.
@@ -502,7 +527,7 @@ class CharacterizationWidget:
         if not self._dataset_select.value:
             return "Select at least one dataset."
         if self._signal_picker.value is None:
-            return "Preview the process to see available signals first."
+            return "No signal position available to compare against."
         method: CalibrationMethod = self._calibration_picker.value
         if method == "beer_lambert" and (
             self._extinction_field.value <= 0 or self._path_length_field.value <= 0
