@@ -25,7 +25,9 @@ _STAGE_STEPS = _PERIPHERY_STEPS + (
     "Adsorption",
     "Capacity",
 )
-_STEPS = ("System", "Configuration") + _STAGE_STEPS + ("History",)
+_SYSTEM = "System Configuration"
+_PROCESS = "Process Configuration"
+_STEPS = (_SYSTEM, _PROCESS) + _STAGE_STEPS + ("History",)
 
 
 class CharacterizationWorkbenchWidget:
@@ -128,8 +130,8 @@ class CharacterizationWorkbenchWidget:
         panes = collect_panes(
             _STEPS,
             {
-                "System": self.instrument.root if "System" in steps else None,
-                "Configuration": self.configuration.root if "Configuration" in steps else None,
+                _SYSTEM: self.instrument.root if _SYSTEM in steps else None,
+                _PROCESS: self.configuration.root if _PROCESS in steps else None,
                 **{name: widget.root for name, widget in self._stages.items()},
                 "History": self.history.root if "History" in steps else None,
             },
@@ -161,8 +163,8 @@ class CharacterizationWorkbenchWidget:
         if config_problem is None and self.configuration.process is None:
             config_problem = "No valid process is built yet."
 
-        if "Configuration" in self._shell.panes:
-            self._shell.set_warning("Configuration", config_problem)
+        if "Process Configuration" in self._shell.panes:
+            self._shell.set_warning("Process Configuration", config_problem)
         for name, widget in self._stages.items():
             message = config_problem or (
                 None if widget.data.datasets else "Load an experimental dataset first."

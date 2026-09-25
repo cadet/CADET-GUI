@@ -13,11 +13,11 @@ from .solution import SolutionWidget
 
 __all__ = ["WorkbenchWidget"]
 
-_STEPS = ("System", "Configuration", "Simulation", "Parameter Estimation")
+_STEPS = ("System Configuration", "Process Configuration", "Simulation", "Parameter Estimation")
 
 
 class WorkbenchWidget:
-    """Top-level shell: a sidebar-navigated System/Configuration/Simulation/Estimation page.
+    """Top-level shell: a sidebar page for system and process configuration, simulation, estimation.
 
     Builds and wires an `InstrumentWidget`, `ConfigurationWidget`,
     `SolutionWidget`, and `ParameterEstimationWidget` together (same bindings
@@ -27,15 +27,15 @@ class WorkbenchWidget:
     (`.instrument`/`.configuration`/`.solution`/`.parameter_estimation`) for
     scripting — this class is purely "the known widgets, pre-wired, in a
     sidebar," not a black box; a different combination of widgets is a
-    different `SidebarShell` call, not a change to this class. The "System"
+    different `SidebarShell` call, not a change to this class. The "System Configuration"
     step (an `InstrumentWidget`, still `.instrument` on this class -- see
     REQUIREMENTS.md item #32 for why only the user-facing label changed) is
     optional layered-on-top topology, not a precondition: `ConfigurationWidget`
     already builds a standalone simulation on its own without one bound.
 
     `include` narrows which steps are built and shown at all (default: all
-    four) — e.g. `WorkbenchWidget(include=("Configuration", "Simulation"))`
-    for a notebook that has no use for the System step or parameter
+    four) — e.g. `WorkbenchWidget(include=("Process Configuration", "Simulation"))`
+    for a notebook that has no use for the System Configuration step or parameter
     estimation. Skipping a step also skips its own construction and its
     `bind_to_*` wiring, so it costs nothing (no widgets built, no listeners
     attached) rather than just being hidden. Passing an explicit widget for a
@@ -56,10 +56,10 @@ class WorkbenchWidget:
         validate_steps(steps, _STEPS)
 
         self.instrument = resolve_step(
-            "System", instrument, steps=steps, factory=InstrumentWidget
+            "System Configuration", instrument, steps=steps, factory=InstrumentWidget
         )
         self.configuration = resolve_step(
-            "Configuration", configuration, steps=steps, factory=ConfigurationWidget
+            "Process Configuration", configuration, steps=steps, factory=ConfigurationWidget
         )
         self.solution = resolve_step(
             "Simulation", solution, steps=steps, factory=SolutionWidget
@@ -82,8 +82,8 @@ class WorkbenchWidget:
         panes = collect_panes(
             _STEPS,
             {
-                "System": self.instrument.root if self.instrument else None,
-                "Configuration": self.configuration.root if self.configuration else None,
+                "System Configuration": self.instrument.root if self.instrument else None,
+                "Process Configuration": self.configuration.root if self.configuration else None,
                 "Simulation": self.solution.root if self.solution else None,
                 "Parameter Estimation": (
                     self.parameter_estimation.root if self.parameter_estimation else None

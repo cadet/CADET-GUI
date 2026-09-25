@@ -23,7 +23,7 @@ def test_builds_all_ten_panes_by_default():
     wb = CharacterizationWorkbenchWidget()
 
     assert list(wb._shell.panes) == [
-        "System", "Configuration",
+        "System Configuration", "Process Configuration",
         "Periphery: pre-injection", "Periphery: detectors", "Periphery: pre-injection + mixer",
         "Bed", "Particles", "Adsorption", "Capacity", "History",
     ]
@@ -34,7 +34,7 @@ def test_periphery_is_one_collapsible_sidebar_entry():
     wb = CharacterizationWorkbenchWidget()
 
     assert [key for _, key in wb._nav.options] == [
-        "System", "Configuration", "Periphery",
+        "System Configuration", "Process Configuration", "Periphery",
         "Bed", "Particles", "Adsorption", "Capacity", "History",
     ]
 
@@ -43,7 +43,7 @@ def test_periphery_is_one_collapsible_sidebar_entry():
     assert [label for label, _ in wb._nav.options][2:6] == [
         "\u25be Periphery", "pre-injection", "detectors", "pre-injection + mixer",
     ]
-    assert wb._nav.value == "System"
+    assert wb._nav.value == "System Configuration"
 
 
 def test_default_instrument_and_configuration_are_seeded_for_every_stage_to_work():
@@ -89,13 +89,14 @@ def test_nav_switches_the_visible_pane():
     wb._shell.show("Bed")
 
     assert wb._shell.panes["Bed"].layout.display == ""
-    assert wb._shell.panes["System"].layout.display == "none"
+    assert wb._shell.panes["System Configuration"].layout.display == "none"
 
 
 def test_include_narrows_which_panes_are_built_and_shown():
-    wb = CharacterizationWorkbenchWidget(include=("System", "Configuration", "Bed"))
+    steps = ("System Configuration", "Process Configuration", "Bed")
+    wb = CharacterizationWorkbenchWidget(include=steps)
 
-    assert list(wb._nav.options) == ["System", "Configuration", "Bed"]
+    assert list(wb._nav.options) == ["System Configuration", "Process Configuration", "Bed"]
     assert set(wb._stages) == {"Bed"}
     # System/Configuration objects always exist -- every stage needs them,
     # even one whose own pane isn't shown.
@@ -105,7 +106,7 @@ def test_include_narrows_which_panes_are_built_and_shown():
 
 def test_include_rejects_unknown_step():
     with pytest.raises(ValueError):
-        CharacterizationWorkbenchWidget(include=("System", "Not A Step"))
+        CharacterizationWorkbenchWidget(include=("System Configuration", "Not A Step"))
 
 
 def test_every_stage_shares_the_same_history():
@@ -162,7 +163,7 @@ def _warned(wb):
 
 
 def test_collapsed_periphery_group_shows_its_childrens_warning():
-    wb = CharacterizationWorkbenchWidget(include=("System", "Periphery: detectors"))
+    wb = CharacterizationWorkbenchWidget(include=("System Configuration", "Periphery: detectors"))
 
     assert _warned(wb) == {"Periphery"}
 
@@ -175,7 +176,8 @@ def test_stage_panes_are_flagged_until_they_have_a_dataset():
     import numpy as np
     from cadetgui.widgets.composite.data_import import ExperimentalDataset
 
-    wb = CharacterizationWorkbenchWidget(include=("System", "Configuration", "Bed", "Capacity"))
+    steps = ("System Configuration", "Process Configuration", "Bed", "Capacity")
+    wb = CharacterizationWorkbenchWidget(include=steps)
     warned = _warned(wb)
     assert warned == {"Bed", "Capacity"}
 

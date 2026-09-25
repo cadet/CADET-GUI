@@ -246,7 +246,7 @@ def resolve_step(
     A shell with three optional steps calls this once per step:
 
         self.configuration = resolve_step(
-            "Configuration", configuration, steps=steps, factory=ConfigurationWidget
+            "Process Configuration", configuration, steps=steps, factory=ConfigurationWidget
         )
     """
     if given is not None and label not in steps:

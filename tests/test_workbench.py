@@ -96,13 +96,13 @@ def test_workbench_accepts_prebuilt_widgets():
 
 
 def test_workbench_include_builds_only_the_requested_steps():
-    wb = WorkbenchWidget(include=("System", "Configuration", "Simulation"))
+    wb = WorkbenchWidget(include=("System Configuration", "Process Configuration", "Simulation"))
 
     assert wb.instrument is not None
     assert wb.configuration is not None
     assert wb.solution is not None
     assert wb.parameter_estimation is None
-    assert list(wb._nav.options) == ["System", "Configuration", "Simulation"]
+    assert list(wb._nav.options) == ["System Configuration", "Process Configuration", "Simulation"]
     assert wb.solution.process is wb.configuration.process
 
 
@@ -110,7 +110,7 @@ def test_workbench_excluding_system_still_builds_a_standalone_configuration():
     # Item #32: the System (Instrument) step is an optional layer, not a
     # precondition -- ConfigurationWidget builds a real bare-column
     # simulation on its own.
-    wb = WorkbenchWidget(include=("Configuration", "Simulation"))
+    wb = WorkbenchWidget(include=("Process Configuration", "Simulation"))
 
     assert wb.instrument is None
     assert wb.configuration.process is not None
@@ -119,7 +119,7 @@ def test_workbench_excluding_system_still_builds_a_standalone_configuration():
 
 def test_workbench_include_rejects_unknown_step():
     with pytest.raises(ValueError):
-        WorkbenchWidget(include=("Configuration", "Not A Step"))
+        WorkbenchWidget(include=("Process Configuration", "Not A Step"))
 
 
 def test_workbench_include_rejects_widget_for_excluded_step():
@@ -127,5 +127,5 @@ def test_workbench_include_rejects_widget_for_excluded_step():
 
     with pytest.raises(ValueError):
         WorkbenchWidget(
-            include=("Configuration",), parameter_estimation=ParameterEstimationWidget()
+            include=("Process Configuration",), parameter_estimation=ParameterEstimationWidget()
         )
