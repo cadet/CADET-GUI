@@ -29,8 +29,12 @@ dependencies = [
     "traitlets"
 ]
 
+[tool.setuptools.packages.find]
+include = ["cadetgui*"]
+
 [tool.setuptools.package-data]
 cadetgui = [
+    "assets/pid/*.svg",
     "parameters/*.json",
     "widgets/*.css",
     "widgets/assets/*.png",

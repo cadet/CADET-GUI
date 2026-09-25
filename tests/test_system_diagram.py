@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 import warnings
+import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import cadetgui.configuration_store as configuration_store
 import pytest
@@ -125,8 +127,10 @@ def test_diagram_is_one_self_contained_svg():
 
     html = diagram.root.value
 
-    assert html.count("<svg") == 1 and html.count("</svg>") == 1
+    assert html.count("<svg xmlns") == 1
     assert "http" not in html.replace("http://www.w3.org/2000/svg", "")
+    assert "<image" not in html and "foreignObject" not in html and "data:" not in html
+    assert "light-dark" not in html and "background" not in html
 
 
 @pytest.mark.parametrize(
@@ -142,3 +146,119 @@ def test_diagram_is_one_self_contained_svg():
 def test_signal_labels_are_plain_names(unit, port, label):
     assert signal_label(unit, port) == label
     assert friendly_signal_options([("raw", (unit, port))]) == [(label, (unit, port))]
+
+
+_ALL_UNITS = {
+    "buffer_a", "buffer_b", "buffer_c", "buffer_d", "feed_inlet", "mixer",
+    "tubing_pre_injection", "sample_loop", "tubing_pre_column", "column",
+    "tubing_post_column", "tubing_detectors", "outlet", "waste",
+}  # fmt: skip
+_ALL_INLETS = ["buffer_a", "buffer_b", "buffer_c", "buffer_d", "feed_inlet"]
+_SVG = "{http://www.w3.org/2000/svg}"
+
+
+def _root(html: str) -> ET.Element:
+    return ET.fromstring(html[html.index("<svg") : html.rindex("</svg>") + len("</svg>")])
+
+
+def _symbols_by_unit(html: str) -> dict[str, list[str]]:
+    return {
+        g.get("data-unit"): [s.get("data-symbol") for s in g.iter(_SVG + "svg")]
+        for g in _root(html).iter(_SVG + "g")
+        if g.get("data-unit")
+    }
+
+
+def _box(node: ET.Element) -> tuple[float, float, float, float]:
+    x, y = float(node.get("x")), float(node.get("y"))
+    return x, y, x + float(node.get("width")), y + float(node.get("height"))
+
+
+def test_symbols_ship_inside_the_package():
+    import cadetgui
+
+    pid = Path(cadetgui.__file__).parent / "assets" / "pid"
+    names = {p.name for p in pid.glob("*.drawio.svg")}
+    for symbol in (
+        "Column", "Mixer", "SampleLoop", "Inlet", "InletA", "InletB", "InletC", "InletD",
+        "Outlet", "UVSensor", "CondSensor",
+    ):  # fmt: skip
+        assert f"{symbol}.drawio.svg" in names
+
+    package_data = (Path(cadetgui.__file__).parents[1] / "pyproject.toml").read_text()
+    assert '"assets/pid/*.svg"' in package_data
+
+
+def test_full_diagram_is_valid_xml_built_from_the_pid_symbols():
+    html = render_system_svg(_ALL_UNITS, (), _ALL_INLETS)
+
+    symbols = _symbols_by_unit(html)
+
+    assert symbols["buffer_a"] == ["InletA"]
+    assert symbols["buffer_b"] == ["InletB"]
+    assert symbols["buffer_c"] == ["InletC"]
+    assert symbols["buffer_d"] == ["InletD"]
+    assert symbols["feed_inlet"] == ["Inlet"]
+    assert symbols["mixer"] == ["Mixer"]
+    assert symbols["sample_loop"] == ["SampleLoop"]
+    assert symbols["column"] == ["Column"]
+    assert symbols["tubing_detectors"] == ["UVSensor", "CondSensor"]
+    assert symbols["outlet"] == ["Outlet"]
+    assert symbols["waste"] == ["Outlet"]
+    assert symbols["tubing_pre_column"] == []
+
+
+def test_symbol_content_is_the_drawn_pid_geometry():
+    html = render_system_svg({"mixer", "column", "outlet"}, (), ["buffer_a"])
+    root = _root(html)
+    column = next(s for s in root.iter(_SVG + "svg") if s.get("data-symbol") == "Column")
+
+    assert column.get("viewBox") == "0 0 321 82"
+    assert "Column" in "".join(column.itertext())
+    assert column.find(f".//{_SVG}rect") is not None
+
+
+def test_symbols_stay_inside_the_canvas_and_never_overlap():
+    for units, bypassed, inlets in (
+        (_ALL_UNITS, (), _ALL_INLETS),
+        (_ALL_UNITS - {"sample_loop"}, ("mixer",), ["buffer_b", "feed_inlet"]),
+        ({"mixer", "column", "outlet", "waste"}, (), None),
+    ):
+        root = _root(render_system_svg(units, bypassed, inlets))
+        _, _, w, h = (float(v) for v in root.get("viewBox").split())
+        boxes = [_box(s) for s in root.iter(_SVG + "svg") if s.get("data-symbol")]
+
+        for x0, y0, x1, y1 in boxes:
+            assert 0 <= x0 and x1 <= w and 0 <= y0 and y1 <= h
+        for i, a in enumerate(boxes):
+            for b in boxes[i + 1 :]:
+                assert a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1]
+
+
+def test_bypassed_mixer_is_dimmed_and_marked():
+    html = render_system_svg({"mixer", "column", "outlet"}, ("mixer",), ["buffer_a"])
+    mixer = next(
+        g for g in _root(html).iter(_SVG + "g") if g.get("data-unit") == "mixer"
+    )
+
+    assert mixer.get("data-state") == "bypassed"
+    assert mixer.find(f"{_SVG}g[@opacity]") is not None
+    assert mixer.find(f".//{_SVG}rect[@stroke-dasharray]") is not None
+    assert "bypassed" in "".join(mixer.itertext())
+
+
+def test_generic_inlet_uses_the_plain_inlet_symbol():
+    html = render_system_svg({"mixer", "column", "outlet"}, inlets=None)
+
+    assert _symbols_by_unit(html)["inlet"] == ["Inlet"]
+
+
+def test_symbol_files_reduce_to_plain_theme_aware_svg():
+    from cadetgui.widgets.composite.system_diagram import _load_symbol
+
+    for name in ("Column", "Mixer", "SampleLoop", "Inlet", "UVSensor", "CondSensor"):
+        sym = _load_symbol(name)
+        ET.fromstring(f'<svg xmlns="http://www.w3.org/2000/svg">{sym.body}</svg>')
+        assert "light-dark" not in sym.body and "base64" not in sym.body
+        assert "data-cell-id" not in sym.body
+        assert _load_symbol(name) is sym

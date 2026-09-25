@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from html import escape
-from typing import Collection, List, Optional, Sequence
+import re
+from dataclasses import dataclass
+from functools import lru_cache
+from html import escape, unescape
+from importlib import resources
+from typing import Collection, List, Optional, Sequence, Tuple
 
 import ipywidgets as W
 
@@ -9,25 +13,155 @@ from ...cadetprocessadapter import UNIT_LABELS
 
 __all__ = ["SystemDiagram", "render_system_svg"]
 
-_BOX_W, _BOX_H, _GAP = 88, 40, 22
-_INLET_W, _INLET_H, _INLET_GAP = 76, 26, 8
-_INLET_TO_MIXER = 40
-_ROW_DROP = 34
-_MARGIN = 12
-_FONT = 11
-
 _MAIN_PATH = (
-    "mixer", "tubing_pre_injection", "sample_loop", "tubing_pre_column",
-    "column", "tubing_post_column", "tubing_detectors", "outlet",
+    "mixer",
+    "tubing_pre_injection",
+    "sample_loop",
+    "tubing_pre_column",
+    "column",
+    "tubing_post_column",
+    "tubing_detectors",
+    "outlet",
 )
 _JUNCTIONS = ("mixer", "tubing_pre_injection")
 _BUFFERS = ("buffer_a", "buffer_b", "buffer_c", "buffer_d")
 
-_STROKE = "var(--cg-primary, #005b82)"
-_MUTED_STROKE = "var(--cg-border-strong, #7b8390)"
+_SYMBOL_OF = {
+    "buffer_a": "InletA",
+    "buffer_b": "InletB",
+    "buffer_c": "InletC",
+    "buffer_d": "InletD",
+    "feed_inlet": "Inlet",
+    "inlet": "Inlet",
+    "mixer": "Mixer",
+    "sample_loop": "SampleLoop",
+    "column": "Column",
+    "outlet": "Outlet",
+    "waste": "Outlet",
+}
+
+# Port geometry inside each symbol: (x of the left port, x of the right port, y of the flow line).
+_PORTS = {
+    "Mixer": (0.5, 60.5, 57.5),
+    "Column": (0.5, 320.5, 40.5),
+    "SampleLoop": (50.5, 100.5, 195.5),
+    "Outlet": (0.5, 0.5, 50.5),
+    "Inlet": (80.5, 80.5, 50.5),
+}
+_LOOP_IN_Y = 145.5
+_LOOP_SAMPLE_PORT = (152.8, 80.5)
+_STEM = (30.5, 95.5)
+
+_GAP = 40
+_TUBE = 80
+_TUBE_WIDTH = 3
+_LINE_WIDTH = 1.5
+_MARGIN = 16
+_BUS = 30
+_INLET_GAP = 30
+_ROW_DROP = 40
+_CAPTION_FONT = 14
+_CAPTION_LEAD = 16
+
 _FG = "var(--cg-fg, #1f2937)"
 _MUTED = "var(--cg-muted, #5b6370)"
+_MUTED_STROKE = "var(--cg-border-strong, #7b8390)"
 _SURFACE = "var(--cg-surface, #ffffff)"
+
+_LIGHT_DARK = (
+    ("light-dark(rgb(0, 0, 0), rgb(255, 255, 255))", _FG),
+    ("light-dark(#ffffff, var(--ge-dark-color, #121212))", _SURFACE),
+)
+
+
+@dataclass(frozen=True)
+class _Symbol:
+    name: str
+    width: float
+    height: float
+    body: str
+    text: str
+
+
+_SWITCH = re.compile(
+    r"<switch>\s*<foreignObject\b.*?</foreignObject>\s*"
+    r'<image x="([-\d.]+)" y="([-\d.]+)" width="([-\d.]+)" height="([-\d.]+)"[^>]*/>\s*</switch>',
+    re.S,
+)
+_EMPTY_GROUP = re.compile(r"<g(?:\s[^>]*)?/>|<g(?:\s[^>]*)?>\s*</g>")
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def _label_as_text(match: re.Match) -> str:
+    fo = match.group(0)
+    fo = fo[: fo.index("</foreignObject>")]
+    x, y, w, h = (float(match.group(i)) for i in range(1, 5))
+    sizes = re.findall(r"font-size:\s*(\d+(?:\.\d+)?)px", fo)
+    size = float(sizes[-1]) if sizes else 12.0
+    plain = unescape(re.sub(r"<[^>]+>", "", re.sub(r"<br\s*/?>", "\n", fo)))
+    lines = [line.strip() for line in _CONTROL.sub("", plain).split("\n")]
+    lines = [line for line in lines if line]
+    if not lines:
+        return ""
+    bold = ' font-weight="bold"' if "<b" in fo or "font-weight: bold" in fo else ""
+    underline = ' text-decoration="underline"' if "<u" in fo else ""
+    y0 = y + h / 2 - (len(lines) - 1) * size * 0.6
+    tspans = "".join(
+        f'<tspan x="{x + w / 2:g}" y="{y0 + i * size * 1.2:g}">{escape(line)}</tspan>'
+        for i, line in enumerate(lines)
+    )
+    return (
+        f'<text text-anchor="middle" dominant-baseline="central" font-size="{size:g}"'
+        f'{bold}{underline} style="fill: {_FG}">{tspans}</text>'
+    )
+
+
+@lru_cache(maxsize=None)
+def _load_symbol(name: str) -> _Symbol:
+    """Read a shipped P&ID symbol and reduce it to theme-aware, standalone SVG content."""
+    raw = (
+        resources.files("cadetgui") / "assets" / "pid" / f"{name}.drawio.svg"
+    ).read_text(encoding="utf-8")
+    root = re.search(r"<svg\b[^>]*>", raw, re.S)
+    if root is None:
+        raise ValueError(f"{name}: not an SVG file")
+    box = re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', root.group(0))
+    if box is None:
+        raise ValueError(f"{name}: SVG has no viewBox")
+    body = raw[root.end() : raw.rindex("</svg>")]
+    body = body.replace("<defs/>", "")
+    body = re.sub(r'<rect fill="#ffffff" width="100%" height="100%"[^>]*/>', "", body)
+    body = _SWITCH.sub(_label_as_text, body)
+    for old, new in _LIGHT_DARK:
+        body = body.replace(old, new)
+    body = re.sub(
+        r' (?:data-cell-id|pointer-events|stroke-miterlimit)="[^"]*"', "", body
+    )
+    body = re.sub(r"[ \t]*\n[ \t]*", "", body)
+    body, n = _EMPTY_GROUP.subn("", body)
+    while n:
+        body, n = _EMPTY_GROUP.subn("", body)
+    texts = re.findall(r"<tspan[^>]*>([^<]*)</tspan>", body)
+    return _Symbol(
+        name,
+        float(box.group(1)),
+        float(box.group(2)),
+        body,
+        unescape(texts[0]) if texts else "",
+    )
+
+
+def _num(value: float) -> str:
+    return f"{value:.1f}".rstrip("0").rstrip(".")
+
+
+def _symbol(name: str, x: float, y: float) -> str:
+    sym = _load_symbol(name)
+    return (
+        f'<svg data-symbol="{name}" x="{_num(x)}" y="{_num(y)}" width="{_num(sym.width)}" '
+        f'height="{_num(sym.height)}" viewBox="0 0 {_num(sym.width)} {_num(sym.height)}">'
+        f"{sym.body}</svg>"
+    )
 
 
 def _lines(label: str) -> List[str]:
@@ -35,47 +169,134 @@ def _lines(label: str) -> List[str]:
     return [head, f"({tail}"] if sep else [label]
 
 
-def _node(
-    unit: str, x: float, y: float, w: float, h: float, *, state: str, note: str = ""
-) -> str:
-    label = UNIT_LABELS.get(unit, unit.capitalize())
-    lines = _lines(label)
-    if note:
-        lines.append(note)
-    if state == "active":
-        fill, stroke, text, dash = _SURFACE, _STROKE, _FG, ""
-        if unit == "column":
-            fill, text = _STROKE, "var(--cg-primary-fg, #ffffff)"
-    else:
-        fill, stroke, text, dash = "none", _MUTED_STROKE, _MUTED, ' stroke-dasharray="4 3"'
-    first = y + h / 2 - (len(lines) - 1) * (_FONT + 1) / 2 + _FONT * 0.35
+def _caption(lines: Sequence[str], cx: float, y: float, *, italic: bool = False) -> str:
+    style = ' font-style="italic"' if italic else ""
     tspans = "".join(
-        f'<tspan x="{x + w / 2:.1f}" y="{first + i * (_FONT + 1):.1f}">{escape(line)}</tspan>'
+        f'<tspan x="{_num(cx)}" y="{_num(y + i * _CAPTION_LEAD)}">{escape(line)}</tspan>'
         for i, line in enumerate(lines)
     )
     return (
-        f'<g data-unit="{unit}" data-state="{state}">'
-        f'<rect x="{x:.1f}" y="{y:.1f}" width="{w}" height="{h}" rx="6" '
-        f'fill="{fill}" stroke="{stroke}" stroke-width="1.5"{dash}/>'
-        f'<text text-anchor="middle" font-size="{_FONT}" fill="{text}">{tspans}</text>'
-        "</g>"
-    )
-
-
-def _arrow(d: str, *, muted: bool = False) -> str:
-    color = _MUTED_STROKE if muted else _STROKE
-    dash = ' stroke-dasharray="4 3"' if muted else ""
-    return (
-        f'<path d="{d}" fill="none" stroke="{color}" stroke-width="1.5"{dash} '
-        f'marker-end="url(#{"cg-arrow-muted" if muted else "cg-arrow"})"/>'
+        f'<text text-anchor="middle" font-size="{_CAPTION_FONT}"{style} '
+        f'style="fill: {_MUTED}">{tspans}</text>'
     )
 
 
 def _marker(marker_id: str, color: str) -> str:
     return (
         f'<marker id="{marker_id}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" '
-        f'markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="{color}"/></marker>'
+        f'markerHeight="7" orient="auto">'
+        f'<path d="M0 0 L8 4 L0 8 z" style="fill: {color}"/></marker>'
     )
+
+
+def _wire(
+    d: str, *, muted: bool = False, arrow: bool = True, width: float = _LINE_WIDTH
+) -> str:
+    color = _MUTED_STROKE if muted else _FG
+    dash = ' stroke-dasharray="5 4"' if muted else ""
+    end = (
+        f' marker-end="url(#{"cg-arrow-muted" if muted else "cg-arrow"})"'
+        if arrow
+        else ""
+    )
+    return (
+        f'<path d="{d}" fill="none" style="stroke: {color}" '
+        f'stroke-width="{width:g}"{dash}{end}/>'
+    )
+
+
+@dataclass
+class _Item:
+    unit: str
+    state: str
+    x: float
+    width: float
+    in_x: float
+    out_x: float
+    up: float
+    down: float
+    symbol: Optional[str]
+
+
+def _item(unit: str, x: float, state: str) -> _Item:
+    if unit == "tubing_detectors":
+        width = 2 * _load_symbol("UVSensor").width + 3 * 20
+        return _Item(unit, state, x, width, 0, width, _STEM[1] + 2, 0, None)
+    if unit.startswith("tubing"):
+        return _Item(unit, state, x, _TUBE, 0, _TUBE, 0, 0, None)
+    name = _SYMBOL_OF[unit]
+    sym = _load_symbol(name)
+    in_x, out_x, port_y = _PORTS[name]
+    return _Item(
+        unit, state, x, sym.width, in_x, out_x, port_y, sym.height - port_y, name
+    )
+
+
+def _label_of(unit: str) -> str:
+    return UNIT_LABELS.get(unit, unit.capitalize())
+
+
+def _extent(it: _Item, note: str) -> Tuple[float, float]:
+    """Return how far the item, captions included, reaches above and below the flow line."""
+    label_lines = len(_lines(_label_of(it.unit)))
+    if it.unit == "tubing_detectors":
+        return it.up, 20 + (label_lines - 1) * _CAPTION_LEAD + 6
+    if it.symbol is None:
+        return 12 + label_lines * _CAPTION_LEAD, 0
+    up, down = it.up, it.down
+    if note:
+        up += 6 + _CAPTION_FONT
+    if _label_of(it.unit) != _load_symbol(it.symbol).text:
+        down += 8 + label_lines * _CAPTION_LEAD
+    return up, down
+
+
+def _tube(x1: float, x2: float, y: float) -> str:
+    return _wire(f"M{_num(x1)} {_num(y)} H{_num(x2)}", arrow=False, width=_TUBE_WIDTH)
+
+
+def _draw_item(it: _Item, my: float, note: str) -> str:
+    label = _label_of(it.unit)
+    lines = _lines(label)
+    cx = it.x + it.width / 2
+
+    if it.unit == "tubing_detectors":
+        sensor_w = _load_symbol("UVSensor").width
+        parts = [_tube(it.x, it.x + it.width, my)]
+        for name, dx in (("UVSensor", 20), ("CondSensor", 40 + sensor_w)):
+            parts.append(_symbol(name, it.x + dx, my - _STEM[1]))
+            parts.append(
+                f'<circle cx="{_num(it.x + dx + _STEM[0])}" cy="{_num(my)}" r="4" '
+                f'style="fill: {_SURFACE}; stroke: {_FG}" stroke-width="1"/>'
+            )
+        parts.append(_caption(lines, cx, my + 20))
+        return "".join(parts)
+
+    if it.symbol is None:
+        first = my - 12 - (len(lines) - 1) * _CAPTION_LEAD
+        return _tube(it.x, it.x + it.width, my) + _caption(lines, cx, first)
+
+    sym = _load_symbol(it.symbol)
+    sy = my - _PORTS[it.symbol][2]
+    inner = _symbol(it.symbol, it.x, sy)
+    if it.state == "bypassed":
+        parts = [
+            f'<g opacity="0.4">{inner}</g>',
+            f'<rect x="{_num(it.x)}" y="{_num(sy)}" width="{_num(sym.width)}" '
+            f'height="{_num(sym.height)}" rx="4" fill="none" style="stroke: {_MUTED_STROKE}" '
+            f'stroke-width="1.5" stroke-dasharray="5 4"/>',
+        ]
+    else:
+        parts = [inner]
+    if note:
+        parts.append(_caption([note], cx, sy - 6, italic=True))
+    if label != sym.text:
+        parts.append(_caption(lines, cx, sy + sym.height + 16))
+    return "".join(parts)
+
+
+def _unit_group(unit: str, state: str, content: str) -> str:
+    return f'<g data-unit="{unit}" data-state="{state}">{content}</g>'
 
 
 def render_system_svg(
@@ -83,65 +304,137 @@ def render_system_svg(
     bypassed: Collection[str] = (),
     inlets: Optional[Sequence[str]] = None,
 ) -> str:
-    """Render the LC flow path as an HTML fragment holding one inline SVG.
+    """Render the LC flow path from the P&ID symbols as an HTML fragment holding one SVG.
 
     `units` are the unit names present in the flow sheet; `bypassed` the ones the user
     excluded. Bypassed units are left out of the path (the mixer, which always stays as the
-    buffer junction, is drawn dashed). `inlets` are the inlet units the process drives; `None`
-    means unknown, drawn as one generic inlet.
+    buffer junction, is drawn dimmed and dashed). `inlets` are the inlet units the process
+    drives; `None` means unknown, drawn as one generic inlet.
     """
     units = set(units)
     bypassed = set(bypassed)
     path = [u for u in _MAIN_PATH if u in units]
+    buffers = ["inlet"] if inlets is None else [b for b in _BUFFERS if b in inlets]
+    inlet_sym = _load_symbol("Inlet")
 
-    if inlets is None:
-        buffers: List[Optional[str]] = [None]
-    else:
-        buffers = [b for b in _BUFFERS if b in inlets]
-    stack_h = len(buffers) * _INLET_H + max(len(buffers) - 1, 0) * _INLET_GAP
-    band_h = max(stack_h, _BOX_H)
-    yc = _MARGIN + band_h / 2
-    x0 = _MARGIN + (_INLET_W + _INLET_TO_MIXER if buffers else 0)
-    xs = {u: x0 + i * (_BOX_W + _GAP) for i, u in enumerate(path)}
-    row2_y = _MARGIN + band_h + _ROW_DROP
-    width = x0 + len(path) * _BOX_W + (len(path) - 1) * _GAP + _MARGIN
-    height = row2_y + _INLET_H + _MARGIN
+    pitch = inlet_sym.height + _INLET_GAP
+    stack_h = max(len(buffers) * pitch - _INLET_GAP, 0)
+    x0 = _MARGIN + (inlet_sym.width + _BUS + 25 if buffers else 0)
 
-    parts = [_marker("cg-arrow", _STROKE), _marker("cg-arrow-muted", _MUTED_STROKE)]
-
-    mixer_left = xs["mixer"]
-    top = yc - stack_h / 2
-    for i, buf in enumerate(buffers):
-        y = top + i * (_INLET_H + _INLET_GAP)
-        parts.append(_node(buf or "inlet", _MARGIN, y, _INLET_W, _INLET_H, state="active"))
-        elbow = _MARGIN + _INLET_W + _INLET_TO_MIXER / 2
-        parts.append(
-            _arrow(f"M{_MARGIN + _INLET_W} {y + _INLET_H / 2:.1f} H{elbow} V{yc} H{mixer_left}")
-        )
-
-    for a, b in zip(path, path[1:]):
-        parts.append(_arrow(f"M{xs[a] + _BOX_W} {yc} H{xs[b]}"))
-
+    items: List[_Item] = []
+    x = x0
     for unit in path:
         state = "bypassed" if unit == "mixer" and "mixer" in bypassed else "active"
-        note = "bypassed" if state == "bypassed" else ""
-        parts.append(_node(unit, xs[unit], yc - _BOX_H / 2, _BOX_W, _BOX_H, state=state, note=note))
+        it = _item(unit, x, state)
+        items.append(it)
+        x += it.width + _GAP
 
-    junction = [u for u in _JUNCTIONS if u in path][-1]
-    if "waste" in units:
-        cx = xs[junction] + _BOX_W / 2
-        parts.append(_arrow(f"M{cx} {yc + _BOX_H / 2} V{row2_y}", muted=True))
-        parts.append(
-            _node("waste", cx - _BOX_W / 2, row2_y, _BOX_W, _INLET_H, state="idle")
-        )
+    up_max = stack_h / 2 + 4
+    item_down = 0.0
+    for it in items:
+        up, down = _extent(it, "bypassed" if it.state == "bypassed" else "")
+        up_max, item_down = max(up_max, up), max(item_down, down)
+    my = _MARGIN + up_max
 
-    if inlets is not None and "feed_inlet" in inlets:
-        target = next(u for u in path if u not in _JUNCTIONS)
-        cx = xs[target] + _BOX_W / 2
-        parts.append(_arrow(f"M{cx} {row2_y} V{yc + _BOX_H / 2}"))
-        parts.append(
-            _node("feed_inlet", cx - _INLET_W / 2, row2_y, _INLET_W, _INLET_H, state="active")
-        )
+    has_loop = "sample_loop" in path
+    junction = next((it for it in reversed(items) if it.unit in _JUNCTIONS), None)
+    target = next((it for it in items if it.unit not in _JUNCTIONS), None)
+    feed_on = inlets is not None and "feed_inlet" in inlets
+    row2_y = my + item_down + _ROW_DROP
+    parts = [_marker("cg-arrow", _FG), _marker("cg-arrow-muted", _MUTED_STROKE)]
+    right = x - _GAP
+
+    first = items[0] if items else None
+    bus_x = _MARGIN + inlet_sym.width + _BUS
+    if buffers and first is not None:
+        top = my - stack_h / 2
+        ys = []
+        for i, buf in enumerate(buffers):
+            y = top + i * pitch
+            content = _symbol(_SYMBOL_OF[buf], _MARGIN, y)
+            label = UNIT_LABELS.get(buf, buf.capitalize())
+            if label != _load_symbol(_SYMBOL_OF[buf]).text:
+                content += _caption(
+                    _lines(label),
+                    _MARGIN + inlet_sym.width / 2,
+                    y + inlet_sym.height + 16,
+                )
+            parts.append(_unit_group(buf, "active", content))
+            py = y + _PORTS["Inlet"][2]
+            ys.append(py)
+            parts.append(
+                _wire(
+                    f"M{_num(_MARGIN + inlet_sym.width - 0.5)} {_num(py)} H{_num(bus_x)}",
+                    arrow=False,
+                )
+            )
+        if len(ys) > 1:
+            parts.append(
+                _wire(f"M{_num(bus_x)} {_num(min(ys))} V{_num(max(ys))}", arrow=False)
+            )
+        parts.append(_wire(f"M{_num(bus_x)} {_num(my)} H{_num(first.x + first.in_x)}"))
+
+    for a, b in zip(items, items[1:]):
+        x1 = a.x + a.out_x
+        if b.unit == "sample_loop":
+            x2 = b.x + b.in_x
+            y2 = my - (_PORTS["SampleLoop"][2] - _LOOP_IN_Y)
+            d = f"M{_num(x1)} {_num(my)} H{_num(x2)} V{_num(y2)}"
+        else:
+            d = f"M{_num(x1)} {_num(my)} H{_num(b.x + b.in_x)}"
+        parts.append(_wire(d, arrow=b.symbol is not None))
+
+    for it in items:
+        note = "bypassed" if it.state == "bypassed" else ""
+        parts.append(_unit_group(it.unit, it.state, _draw_item(it, my, note)))
+
+    if "waste" in units and junction is not None:
+        cx = junction.x + junction.width / 2
+        start = my + junction.down
+        wx = cx - inlet_sym.width / 2
+        content = _symbol("Outlet", wx, row2_y)
+        label = _label_of("waste")
+        content += _caption([label], cx, row2_y + inlet_sym.height + 16)
+        parts.append(_wire(f"M{_num(cx)} {_num(start)} V{_num(row2_y)}", muted=True))
+        parts.append(_unit_group("waste", "idle", content))
+        right = max(right, wx + inlet_sym.width)
+
+    if feed_on:
+        label = _label_of("feed_inlet")
+        if has_loop:
+            loop = next(it for it in items if it.unit == "sample_loop")
+            fx = loop.x + loop.width + _GAP
+            fy = (
+                my - _PORTS["SampleLoop"][2] + _LOOP_SAMPLE_PORT[1] - _PORTS["Inlet"][2]
+            )
+            content = _symbol("Inlet", fx, fy)
+            content += _caption(
+                [label], fx + inlet_sym.width / 2, fy + inlet_sym.height + 16
+            )
+            sample_x = loop.x + _LOOP_SAMPLE_PORT[0]
+            parts.append(
+                _wire(
+                    f"M{_num(fx + 0.5)} {_num(fy + _PORTS['Inlet'][2])} H{_num(sample_x)}",
+                    arrow=False,
+                )
+            )
+            parts.append(_unit_group("feed_inlet", "active", content))
+            right = max(right, fx + inlet_sym.width)
+        elif target is not None:
+            cx = target.x + target.width / 2
+            fx = cx - inlet_sym.width / 2
+            end = my + (target.down if target.symbol else 1)
+            content = _symbol("Inlet", fx, row2_y)
+            content += _caption([label], cx, row2_y + inlet_sym.height + 16)
+            parts.append(_wire(f"M{_num(cx)} {_num(row2_y)} V{_num(end)}"))
+            parts.append(_unit_group("feed_inlet", "active", content))
+            right = max(right, fx + inlet_sym.width)
+
+    width = right + _MARGIN
+    bottom = max(my + item_down, my + stack_h / 2 + 24)
+    if ("waste" in units and junction is not None) or (feed_on and not has_loop):
+        bottom = row2_y + inlet_sym.height + 24
+    height = bottom + _MARGIN
 
     off = [UNIT_LABELS[u] for u in _MAIN_PATH if u in bypassed and u in UNIT_LABELS]
     caption = (
@@ -156,7 +449,7 @@ def render_system_svg(
         f'role="img" aria-label="Flow path of the LC system" '
         f'style="width:100%;max-width:{width:.0f}px;height:auto;display:block" '
         f'font-family="var(--cg-font, system-ui, sans-serif)">'
-        f'{"".join(parts)}</svg>{caption}</div>'
+        f"{''.join(parts)}</svg>{caption}</div>"
     )
 
 
@@ -175,8 +468,7 @@ class SystemDiagram:
     ) -> None:
         """Redraw for `flow_sheet` (a built LCFlowSheet, or `None` while inputs are invalid)."""
         if flow_sheet is None:
-            self.root.value = (
-                f'<em style="color:{_MUTED}">No system to show while inputs are invalid.</em>'
-            )
+            note = "No system to show while inputs are invalid."
+            self.root.value = f'<em style="color:{_MUTED}">{note}</em>'
             return
         self.root.value = render_system_svg(flow_sheet.units_dict, bypassed, inlets)
