@@ -15,9 +15,11 @@ __all__ = ["WorkspaceHeader", "hoisted_header_rows"]
 class WorkspaceHeader:
     """Panel answering "which configuration am I in, where is it saved, what runs on it".
 
-    Composes a `ConfigurationPersistence` (name, Save, and under "Show details"
-    the hash/storage folder/import) with a `BackendVersionsWidget` and a one-line
-    summary of the saved versions and runs of the current configuration.
+    One compact row: the persistence panel's name field and Save button, a
+    summary of the saved versions and runs of the current configuration, and on
+    the right the `BackendVersionsWidget` and the details toggle (hash, storage
+    folder and import expand below the row). Arranges the same widgets as
+    `ConfigurationPersistence.root`, which is then not displayed.
     `refresh()` re-reads that summary; it runs on its own after every save,
     import, rename or folder change.
     """
@@ -27,13 +29,28 @@ class WorkspaceHeader:
         self.backend_versions = BackendVersionsWidget()
         self._summary = W.HTML()
         self._summary.add_class("cadetgui-workspace-summary")
-        footer = W.HBox(
-            [self._summary, self.backend_versions.root],
-            layout=W.Layout(justify_content="space-between", flex_flow="row wrap"),
+        parts = persistence.compact_parts()
+        parts.toggle_button.add_class("cadetgui-workspace-toggle")
+        parts.save_button.add_class("cadetgui-workspace-save")
+        right = W.HBox(
+            [self.backend_versions.root, parts.toggle_button],
+            layout=W.Layout(margin="0 0 0 auto", align_items="center"),
         )
-        self.root = W.VBox([self.persistence.root, footer])
+        row = W.HBox(
+            [parts.name_field, parts.save_button, self._summary, right],
+            layout=W.Layout(flex_flow="row wrap", align_items="center"),
+        )
+        row.add_class("cadetgui-workspace-row")
+        self._status = parts.status
+        self._sync_status_visibility()
+        self._status.observe(self._sync_status_visibility, names="value")
+        self.root = W.VBox([row, parts.status, parts.details])
+        self.root.add_class("cadetgui-workspace-header")
         self.persistence.add_change_listener(self.refresh)
         self.refresh()
+
+    def _sync_status_visibility(self, _change: Any = None) -> None:
+        self._status.layout.display = "" if self._status.value else "none"
 
     def _folder(self) -> Path:
         store_dir = self.persistence.store_dir or configuration_store.default_store_dir()

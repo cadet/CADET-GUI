@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, NamedTuple, Optional
 
 import ipywidgets as W
 
@@ -16,7 +16,17 @@ from .._settings_popover import toggle_box
 from .._status import status_html
 from ..elements import TextField
 
-__all__ = ["ConfigurationPersistence"]
+__all__ = ["ConfigurationPersistence", "CompactParts"]
+
+
+class CompactParts(NamedTuple):
+    """The persistence widgets a compact one-row layout arranges itself."""
+
+    name_field: Any
+    save_button: Any
+    toggle_button: Any
+    status: Any
+    details: Any
 
 
 class ConfigurationPersistence:
@@ -47,7 +57,7 @@ class ConfigurationPersistence:
         self._change_listeners: list[Callable[[], None]] = []
 
         # Always-visible row: name field + Save/Show-details buttons.
-        self._name_field = TextField(label="Configuration name:", value=default_name)
+        self._name_field = TextField(label="Configuration:", value=default_name)
         self._btn_save = W.Button(description="Save", icon="save")
         self._btn_toggle_save_load_details = W.Button(
             description="Show details", icon="chevron-down"
@@ -114,6 +124,19 @@ class ConfigurationPersistence:
     def add_store_dir_listener(self, fn: Callable[[Optional[Path]], None]) -> None:
         """Register a callback fired with the new `store_dir` whenever it's set via the UI."""
         self._store_dir_listeners.append(fn)
+
+    def compact_parts(self) -> CompactParts:
+        """Return the same widgets `root` uses, for a caller laying them out compactly.
+
+        Display either `root` or a layout built from these, never both.
+        """
+        return CompactParts(
+            name_field=self._name_field,
+            save_button=self._btn_save,
+            toggle_button=self._btn_toggle_save_load_details,
+            status=self.save_status,
+            details=self._save_load_details_box,
+        )
 
     def add_change_listener(self, fn: Callable[[], None]) -> None:
         """Register a callback fired (no args) after a save, import, rename or folder change."""

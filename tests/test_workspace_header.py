@@ -37,7 +37,7 @@ def test_header_composes_the_persistence_panel():
     header = config.workspace_header
     assert isinstance(header, WorkspaceHeader)
     assert header.persistence is config.persistence
-    assert contains(header.root, config.persistence.root)
+    assert contains(header.root, config.persistence._btn_save)
     assert contains(header.root, header.backend_versions.root)
 
 
@@ -88,7 +88,7 @@ def test_store_dir_change_is_followed(tmp_path):
 def test_standalone_configuration_embeds_the_header_by_default():
     config = ConfigurationWidget(instrument=InstrumentWidget())
     assert contains(config.root, config.workspace_header.root)
-    assert contains(config.root, config.persistence.root)
+    assert contains(config.root, config.persistence._btn_save)
 
 
 def test_workspace_header_false_keeps_it_out_of_the_root():
@@ -183,3 +183,42 @@ def test_characterization_workbench_with_configuration_given_keeps_its_own_heade
     wb = CharacterizationWorkbenchWidget(instrument=iw, configuration=config)
     assert contains(config.root, config.workspace_header.root)
     assert len(wb.root.children) == 3
+
+
+def test_header_is_a_single_compact_row_with_the_persistence_widgets():
+    config = ConfigurationWidget(instrument=InstrumentWidget())
+    header = config.workspace_header
+    persistence = config.persistence
+    row, status, details = header.root.children
+    assert "cadetgui-workspace-header" in header.root._dom_classes
+    for widget in (
+        persistence._name_field,
+        persistence._btn_save,
+        persistence._btn_toggle_save_load_details,
+        header._summary,
+        header.backend_versions.root,
+    ):
+        assert contains(row, widget)
+    assert status is persistence.save_status
+    assert details is persistence._save_load_details_box
+    assert not contains(header.root, persistence.root)
+
+
+def test_status_line_only_takes_space_when_non_empty():
+    config = ConfigurationWidget(instrument=InstrumentWidget())
+    status = config.persistence.save_status
+    assert status.layout.display == "none"
+    config.persistence._btn_save.click()
+    assert status.layout.display == ""
+    status.value = ""
+    assert status.layout.display == "none"
+
+
+def test_details_toggle_expands_below_the_row():
+    config = ConfigurationWidget(instrument=InstrumentWidget())
+    persistence = config.persistence
+    details = config.workspace_header.root.children[2]
+    assert details.layout.display == "none"
+    persistence._btn_toggle_save_load_details.click()
+    assert details.layout.display == ""
+    assert persistence._btn_toggle_save_load_details.description == "Hide details"

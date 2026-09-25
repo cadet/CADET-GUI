@@ -191,6 +191,62 @@
   color: var(--cg-muted);
 }
 
+/* ---- WorkspaceHeader: one slim row, no card ---- */
+
+.cadetgui-workspace-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px var(--cg-space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--cg-border) 70%, transparent);
+  background: var(--cg-surface);
+}
+
+.cadetgui-workspace-row {
+  gap: var(--cg-space-3);
+  min-height: 36px;
+}
+
+.cadetgui-workspace-header .cadetgui-field {
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  padding: 0;
+}
+
+.cadetgui-workspace-header .cadetgui-field-label {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.cadetgui-workspace-header .cadetgui-field-input.cadetgui-field-input-text {
+  width: 200px;
+  padding: 2px 8px;
+}
+
+.cadetgui-workspace-header .jupyter-widgets.jupyter-button {
+  min-height: 26px;
+  height: 26px;
+  line-height: 24px;
+  padding: 0 10px;
+}
+
+.cadetgui-workspace-header .cadetgui-workspace-toggle.jupyter-button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--cg-muted);
+  font-size: var(--cg-text-sm);
+}
+
+.cadetgui-workspace-header .cadetgui-status {
+  padding: 0 2px;
+}
+
+.cadetgui-workspace-header hr {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--cg-border);
+}
+
 /* ipywidgets renders Button/Dropdown/etc. as .jupyter-widgets + a specific
    widget class — target broadly so this covers plain ipywidgets controls used
    for layout/actions (Button, BoundedIntText) inside our panels. */

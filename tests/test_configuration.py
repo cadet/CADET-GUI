@@ -1004,14 +1004,12 @@ def test_save_load_details_are_collapsed_by_default_and_toggle():
     assert cw.persistence._btn_toggle_save_load_details.description == "Show details"
 
 
-def test_save_load_section_is_the_first_section_in_the_panel():
+def test_workspace_header_is_the_first_section_in_the_panel():
     _, cw = built()
     children = cw.root.children
     # index 0 is the injected style tag, index 1 the panel title
-    header = children[2]
-    assert header is cw.workspace_header.root
-    save_load_section = header.children[0]
-    assert "Save / Load Configuration" in save_load_section.children[0].value
+    assert children[2] is cw.workspace_header.root
+    assert cw.persistence._name_field in cw.workspace_header.root.children[0].children
 
 
 def test_name_error_reflects_whether_the_configuration_is_named():
