@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import ipywidgets as W
 
@@ -8,7 +9,7 @@ from ... import configuration_store
 from .backend_versions import BackendVersionsWidget
 from .configuration_persistence import ConfigurationPersistence
 
-__all__ = ["WorkspaceHeader"]
+__all__ = ["WorkspaceHeader", "hoisted_header_rows"]
 
 
 class WorkspaceHeader:
@@ -59,3 +60,10 @@ class WorkspaceHeader:
             else f"{versions} saved version{'s' if versions != 1 else ''}"
         )
         self._summary.value = f"<span>{saved} · {runs} run{'s' if runs != 1 else ''}</span>"
+
+
+def hoisted_header_rows(configuration: Any) -> list[W.Widget]:
+    """Return `[header.root]` if `configuration` does not embed its header, else `[]`."""
+    if configuration is None or configuration.workspace_header_embedded:
+        return []
+    return [configuration.workspace_header.root]

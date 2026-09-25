@@ -118,3 +118,68 @@ def test_run_count_refreshes_after_a_run_and_a_failed_run():
     assert config.workspace_header.counts[1] == 1
     solution._on_run(None)
     assert config.workspace_header.counts[1] == 2
+
+
+def test_workbench_places_the_header_between_top_bar_and_sidebar():
+    from cadetgui.widgets.composite import WorkbenchWidget
+
+    wb = WorkbenchWidget()
+    header = wb.configuration.workspace_header
+    assert not wb.configuration.workspace_header_embedded
+    assert wb.root.children[2] is header.root
+    assert wb.root.children[3] is wb._shell.body
+    assert not contains(wb.configuration.root, header.root)
+    assert not contains(wb.configuration.root, header.persistence.root)
+
+
+def test_workbench_without_process_configuration_has_no_header():
+    from cadetgui.widgets.composite import WorkbenchWidget
+
+    wb = WorkbenchWidget(include=("System Configuration", "Simulation"))
+    assert wb.configuration is None
+    assert len(wb.root.children) == 3
+
+
+def test_workbench_leaves_an_embedded_configuration_header_alone():
+    from cadetgui.widgets.composite import WorkbenchWidget
+
+    config = ConfigurationWidget(instrument=InstrumentWidget())
+    wb = WorkbenchWidget(configuration=config)
+    assert contains(config.root, config.workspace_header.root)
+    assert wb.root.children[2] is wb._shell.body
+    assert len(wb.root.children) == 3
+
+
+def test_workbench_simulation_follows_the_shared_headers_store_dir(tmp_path):
+    from cadetgui.widgets.composite import WorkbenchWidget
+
+    wb = WorkbenchWidget()
+    other = tmp_path / "elsewhere"
+    persistence = wb.configuration.workspace_header.persistence
+    persistence._store_dir_field.value = str(other)
+    persistence._btn_set_store_dir.click()
+    expected = configuration_store.runs_dir(wb.configuration.config_name, store_dir=other)
+    assert wb.solution.history.store_dir == expected
+
+
+def test_characterization_workbench_places_the_same_header_above_the_sidebar():
+    from cadetgui.widgets.composite import CharacterizationWorkbenchWidget
+
+    wb = CharacterizationWorkbenchWidget()
+    header = wb.configuration.workspace_header
+    assert wb.root.children[2] is header.root
+    assert wb.root.children[3] is wb._shell.body
+    assert not contains(wb.configuration.root, header.root)
+    wb.configuration.config_name = "Char config"
+    assert wb.configuration.persist_to_store().exists()
+    assert header.counts == (1, 0)
+
+
+def test_characterization_workbench_with_configuration_given_keeps_its_own_header():
+    from cadetgui.widgets.composite import CharacterizationWorkbenchWidget
+
+    iw = InstrumentWidget()
+    config = ConfigurationWidget(instrument=iw)
+    wb = CharacterizationWorkbenchWidget(instrument=iw, configuration=config)
+    assert contains(config.root, config.workspace_header.root)
+    assert len(wb.root.children) == 3

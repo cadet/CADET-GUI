@@ -204,6 +204,7 @@ class ConfigurationWidget:
             on_name_change=lambda _name: self._notify(),  # e.g. the Simulation tab's process label
         )
         self.workspace_header = WorkspaceHeader(self.persistence)
+        self.workspace_header_embedded = workspace_header
 
         components_section = W.VBox(
             [

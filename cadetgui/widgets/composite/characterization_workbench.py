@@ -11,6 +11,7 @@ from .characterization import CharacterizationWidget
 from .configuration import ConfigurationWidget
 from .instrument import InstrumentWidget
 from .parameter_history import ParameterHistoryWidget, ParameterPushRecord
+from .workspace_header import hoisted_header_rows
 
 __all__ = ["CharacterizationWorkbenchWidget"]
 
@@ -81,7 +82,9 @@ class CharacterizationWorkbenchWidget:
 
         self.configuration = configuration
         if self.configuration is None:
-            self.configuration = ConfigurationWidget(instrument=self.instrument)
+            self.configuration = ConfigurationWidget(
+                instrument=self.instrument, workspace_header=False
+            )
             self.configuration._model_picker.value = INSTRUMENT_TEMPLATES["Pulse Injection"]
             self.configuration._column_picker.value = COLUMN_MODELS[
                 "Lumped Rate Model With Pores (LRMP)"
@@ -147,7 +150,8 @@ class CharacterizationWorkbenchWidget:
             "</div>"
         )
 
-        self.root = W.VBox([W.HTML(style_tag()), top_bar, self._shell.body])
+        header_rows = hoisted_header_rows(self.configuration)
+        self.root = W.VBox([W.HTML(style_tag()), top_bar, *header_rows, self._shell.body])
         self.root.add_class("cadetgui-panel")
         self.root.add_class("cadetgui-workbench")
 

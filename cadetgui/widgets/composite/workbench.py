@@ -10,6 +10,7 @@ from .configuration import ConfigurationWidget
 from .instrument import InstrumentWidget
 from .parameter_estimation import ParameterEstimationWidget
 from .solution import SolutionWidget
+from .workspace_header import hoisted_header_rows
 
 __all__ = ["WorkbenchWidget"]
 
@@ -59,7 +60,10 @@ class WorkbenchWidget:
             "System Configuration", instrument, steps=steps, factory=InstrumentWidget
         )
         self.configuration = resolve_step(
-            "Process Configuration", configuration, steps=steps, factory=ConfigurationWidget
+            "Process Configuration",
+            configuration,
+            steps=steps,
+            factory=lambda: ConfigurationWidget(workspace_header=False),
         )
         self.solution = resolve_step(
             "Simulation", solution, steps=steps, factory=SolutionWidget
@@ -100,7 +104,8 @@ class WorkbenchWidget:
             "</div>"
         )
 
-        self.root = W.VBox([W.HTML(style_tag()), top_bar, self._shell.body])
+        header_rows = hoisted_header_rows(self.configuration)
+        self.root = W.VBox([W.HTML(style_tag()), top_bar, *header_rows, self._shell.body])
         self.root.add_class("cadetgui-panel")
         self.root.add_class("cadetgui-workbench")
 
