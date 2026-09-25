@@ -57,7 +57,10 @@ class WorkbenchWidget:
         validate_steps(steps, _STEPS)
 
         self.instrument = resolve_step(
-            "System Configuration", instrument, steps=steps, factory=InstrumentWidget
+            "System Configuration",
+            instrument,
+            steps=steps,
+            factory=lambda: InstrumentWidget(hardware_expanded=False),
         )
         self.configuration = resolve_step(
             "Process Configuration",

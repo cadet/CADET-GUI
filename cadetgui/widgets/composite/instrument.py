@@ -20,6 +20,7 @@ from ...cadetprocessadapter import (
 )
 from ...configuration_store import InstrumentState
 from .._chrome import style_tag
+from .._settings_popover import toggle_box
 from .._status import status_html
 from ..elements import ChoiceField, FloatField
 from ..forms import FormRenderer
@@ -53,6 +54,14 @@ _UNIT_SEED_DEFAULTS: Dict[str, Dict[str, float]] = {
 }
 
 _ZERO_ALLOWED_PARAMS = frozenset({"axial_dispersion"})
+
+_TUBING_SHORT_LABELS = {
+    "tubing_pre_injection": "pre-injection",
+    "tubing_pre_column": "pre-column",
+    "tubing_post_column": "post-column",
+    "tubing_detectors": "detectors",
+}
+_DEFAULT_BYPASS = frozenset(BYPASSABLE_UNITS) - {"column"}
 
 
 def _with_bounds_validation(spec: ModelSpec) -> ModelSpec:
@@ -110,9 +119,25 @@ class InstrumentWidget:
     any System input is invalid the offending field shows the error,
     `.flow_sheet` is `None` and listeners are told so -- never a stale sheet
     that contradicts the visible fields.
+
+    The unit toggles, sample-loop controls and per-unit forms live in one
+    collapsible "Hardware in the flow path" section below the diagram and
+    template picker. `hardware_expanded` sets its initial state (collapsed by
+    default; see `set_hardware_expanded` / `.hardware_expanded`). Collapsing only
+    hides the controls: every toggle keeps applying and a one-line summary of
+    the enabled hardware stays next to the header. `apply_state` expands the
+    section when the loaded state has non-default hardware (never collapses it).
+
+    The column toggle is only offered with `allow_column_bypass=True`
+    (characterizing the periphery without a column). Otherwise it is hidden --
+    unless the column is already bypassed, e.g. by a loaded configuration, so
+    the state can always be undone.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self, *, hardware_expanded: bool = False, allow_column_bypass: bool = False
+    ) -> None:
+        self._allow_column_bypass = allow_column_bypass
         self._listeners: List[Callable[[Any], None]] = []
         self._built_sheet: Optional[LCFlowSheet] = None
         self._problems: Dict[str, str] = {}
@@ -194,6 +219,7 @@ class InstrumentWidget:
         sample_loop_subsection.add_class("cadetgui-subsection")
 
         unit_subsections = []
+        self._unit_boxes: Dict[str, W.VBox] = {}
         for name in _UNIT_ORDER:
             children = [self._unit_checkboxes[name]]
             if name in self._unit_form_boxes:
@@ -201,20 +227,29 @@ class InstrumentWidget:
                 children.append(self._unit_form_boxes[name])
             box = W.VBox(children)
             box.add_class("cadetgui-subsection")
+            self._unit_boxes[name] = box
             unit_subsections.append(box)
             if name == "mixer":
                 # Physical order: mixer, then the optional sample loop.
                 unit_subsections.append(sample_loop_subsection)
 
+        self._column_box = self._unit_boxes["column"]
+        self._flow_path_note = W.HTML("", layout=W.Layout(margin="0 0 4px 0"))
+        self._hardware_body = W.VBox([self._flow_path_note, *unit_subsections])
+        self._hardware_toggle = W.Button(
+            description="Hardware in the flow path", icon="chevron-right",
+            tooltip="Show or hide the units in the flow path",
+        )
+        self._hardware_summary = W.HTML("", layout=W.Layout(margin="0 0 0 10px"))
+        self._hardware_summary.add_class("cadetgui-hardware-summary")
+        self._hardware_toggle.on_click(self._on_hardware_toggle)
         self._flow_path_section = W.VBox(
             [
-                W.HTML("<div class='cadetgui-section-title'>Units In Flow Path</div>"),
-                W.HTML(
-                    "<em>Uncheck a unit to remove it from the flow path -- e.g. to "
-                    "characterize the system before adding a column.</em>",
-                    layout=W.Layout(margin="0 0 4px 0"),
+                W.HBox(
+                    [self._hardware_toggle, self._hardware_summary],
+                    layout=W.Layout(align_items="center"),
                 ),
-                *unit_subsections,
+                self._hardware_body,
             ]
         )
         self._flow_path_section.add_class("cadetgui-section")
@@ -239,7 +274,59 @@ class InstrumentWidget:
             checkbox.observe(self._on_change, names="value")
 
         self._apply_loop_field_visibility()
+        self.set_hardware_expanded(hardware_expanded)
+        self._refresh_hardware_summary()
         self._rebuild()
+
+    @property
+    def hardware_expanded(self) -> bool:
+        """Whether the "Hardware in the flow path" controls are currently shown."""
+        return self._hardware_body.layout.display != "none"
+
+    def set_hardware_expanded(self, expanded: bool) -> None:
+        """Show or hide the hardware controls; the summary line stays visible either way."""
+        self._hardware_body.layout.display = "" if expanded else "none"
+        self._hardware_toggle.icon = "chevron-down" if expanded else "chevron-right"
+
+    def _on_hardware_toggle(self, _btn: Any) -> None:
+        self.set_hardware_expanded(toggle_box(self._hardware_body))
+
+    @property
+    def column_toggle_visible(self) -> bool:
+        """Whether the column on/off checkbox is currently offered."""
+        return self._column_box.layout.display != "none"
+
+    def _refresh_hardware_summary(self) -> None:
+        column_on = self._unit_checkboxes["column"].value
+        show_column_toggle = self._allow_column_bypass or not column_on
+        self._column_box.layout.display = "" if show_column_toggle else "none"
+        self._flow_path_note.value = (
+            "<em>Uncheck a unit to remove it from the flow path -- e.g. to characterize "
+            "the system before adding a column.</em>"
+            if self._allow_column_bypass
+            else "<em>Check the hardware that should be part of the simulated flow path.</em>"
+        )
+
+        extras = []
+        if self._unit_checkboxes["mixer"].value:
+            extras.append("mixer")
+        if self._sample_loop_checkbox.value:
+            extras.append(
+                "sample loop (required by template)" if self._loop_locked else "sample loop"
+            )
+        tubing = [
+            short for unit, short in _TUBING_SHORT_LABELS.items()
+            if self._unit_checkboxes[unit].value
+        ]
+        if tubing:
+            extras.append(f"tubing ({', '.join(tubing)})")
+
+        head = "Column" if column_on else "No column"
+        if extras:
+            text = f"{head} + {', '.join(extras)}"
+        else:
+            text = "Column only" if column_on else "No column"
+        self._hardware_summary.value = text
 
     @property
     def flow_sheet(self) -> Optional[LCFlowSheet]:
@@ -353,6 +440,7 @@ class InstrumentWidget:
         if change.get("owner") is self._sample_loop_checkbox and not self._loop_locked:
             self._loop_user_choice = bool(self._sample_loop_checkbox.value)
         self._apply_loop_field_visibility()
+        self._refresh_hardware_summary()
         if self._suspend_rebuild:
             return
         self._rebuild()
@@ -381,6 +469,7 @@ class InstrumentWidget:
             self._sample_loop_checkbox.disabled = False
             self._loop_lock_note.layout.display = "none"
             self._sample_loop_checkbox.value = self._loop_user_choice
+        self._refresh_hardware_summary()
 
     def snapshot(self) -> InstrumentState:
         """Capture the current topology selection as the hashed save/import payload."""
@@ -409,6 +498,9 @@ class InstrumentWidget:
             self._suspend_rebuild = False
 
         self._apply_loop_field_visibility()
+        self._refresh_hardware_summary()
+        if state.include_sample_loop or set(state.bypass_units) != _DEFAULT_BYPASS:
+            self.set_hardware_expanded(True)
         self._rebuild()
 
     def _apply_loop_field_visibility(self) -> None:

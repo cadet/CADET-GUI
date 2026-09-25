@@ -185,6 +185,11 @@
   border-radius: 0 var(--cg-radius) var(--cg-radius) 0;
 }
 
+.cadetgui-hardware-summary {
+  font-size: var(--cg-text-sm);
+  color: var(--cg-muted);
+}
+
 .cadetgui-backend-versions,
 .cadetgui-workspace-summary {
   font-size: var(--cg-text-sm);
