@@ -1,34 +1,31 @@
 from __future__ import annotations
 
-import threading
-import time
 from dataclasses import replace
-from typing import Any, Optional
+from typing import Any, Optional, Sequence, Union
 
 import ipywidgets as W
-import numpy as np
 from CADETProcess.plotting import get_fig_size
 
 from ... import configuration_store
 from ...cadetprocessadapter import measurable_signal_options
+from ...optimizer_runner import OptimizerRunResult, RunSpec
 from ...parameter_estimation import (
-    OPTIMIZERS,
     CalibrationMethod,
     EstimationResult,
     FittableParameter,
+    build_estimation_problem,
     build_reference,
     calibrate_reference,
     list_fittable_parameters,
-    run_estimation,
     simulate_at,
 )
 from ...simulation import run_process
 from .._chrome import style_tag
 from .._mpl_figure import display_figure, new_figure
 from .._series import reference_series, solution_series
-from .._settings_popover import SettingsPopover
 from .._status import status_html
-from ..elements import ChoiceField, ChromatogramChart, LineChart
+from ..elements import ChoiceField, ChromatogramChart
+from ._optimizer_runner_panel import OptimizerRunnerPanel
 from .data_import import DataImportWidget
 from .parameter_space import ParameterSpaceEditor
 
@@ -38,11 +35,12 @@ __all__ = ["ParameterEstimationWidget"]
 class ParameterEstimationWidget:
     """Fit a bound configuration's column/binding parameters against experimental data.
 
-    A deliberately narrow first slice of PRODUCT_VISION.md §16: one configuration,
-    one experimental dataset, one signal, SSE, Nelder-Mead. See
-    `cadetgui.parameter_estimation.run_estimation` for the actual fitting logic --
-    this widget only collects inputs and renders results. Nests `DataImportWidget`
-    (`.data`) as its experimental-data source.
+    One configuration, one experimental dataset, one signal, SSE. This widget
+    collects the inputs and hands `OptimizerRunnerPanel` (`_runner`) a `RunSpec`
+    built around `cadetgui.parameter_estimation.build_estimation_problem`; the
+    panel owns everything about running it (optimizer picker, Run/Cancel, live
+    plot, analytics, fit table, Accept) and is shared with `CharacterizationWidget`.
+    Nests `DataImportWidget` (`.data`) as its experimental-data source.
 
     Deliberately self-contained: its "Preview" section simulates the base
     process itself (lazily, only when the bound process changes) to show the
@@ -64,17 +62,8 @@ class ParameterEstimationWidget:
         # base process changes.
         self._display_result: Optional[Any] = None
         self._preview_process: Optional[Any] = None
-        # Live-progress state for a running fit -- see `_on_run`/`_tick_progress`.
-        self._run_done = threading.Event()
-        self._progress: dict[str, Any] = {"optimizer": None}
-        # Set by "Cancel" -- checked once per generation inside run_estimation
-        # (`cancel_event`), the only point that actually stops a running
-        # optimizer for any of them (Nelder-Mead, U-NSGA-III, ...): see
-        # `cadetgui.parameter_estimation._install_cancel_hook` for why raising
-        # from an evaluator or an `add_callback` doesn't work.
-        self._cancel_event = threading.Event()
 
-        # "Run estimation" section: base-process picker.
+        # Base-process picker, shown at the top of the run section.
         self._saved_options: list[tuple[str, Any]] = []
         self._base_process_picker = ChoiceField(
             label="Base process:", options=[(self._active_label(), None)]
@@ -87,26 +76,6 @@ class ParameterEstimationWidget:
         self._component_picker = ChoiceField(label="Signal represents:", options=[])
         # "Run estimation" section: which simulated port to fit against.
         self._signal_picker = ChoiceField(label="Signal:", options=[])
-        self._optimizer_picker = ChoiceField(
-            label="Optimizer:", options=[(name, name) for name in OPTIMIZERS]
-        )
-        # One knob box per OPTIMIZERS entry, built generically from its
-        # `knobs` tuple -- adding another optimizer to the registry needs no
-        # change here, its fields just show up automatically. Only the
-        # selected optimizer's box is visible at a time (`_on_optimizer_change`),
-        # same show/hide pattern as the calibration-method fields below.
-        # Matches CADET-Process's own NelderMead default (`maxiter=1000`,
-        # `scipyAdapter.py`) -- 50 was too low even for a single fitted
-        # parameter, let alone several; `0` for a U-NSGA-III knob means "let
-        # CADET-Process size it automatically" (see `OPTIMIZERS`'s docstring).
-        self._knob_fields: dict[str, list[W.IntText]] = {
-            name: [W.IntText(value=knob.default, description=knob.label) for knob in spec.knobs]
-            for name, spec in OPTIMIZERS.items()
-        }
-        self._knob_boxes: dict[str, W.HBox] = {
-            name: W.HBox(fields, layout=W.Layout(display="none", flex_flow="row wrap"))
-            for name, fields in self._knob_fields.items()
-        }
         # "Experimental data" section: calibration method + its own fields
         # (only one of the two boxes below is shown at a time).
         self._calibration_picker = ChoiceField(
@@ -127,91 +96,29 @@ class ParameterEstimationWidget:
         self._normalize_area_box = W.HBox(
             [self._target_area_field], layout=W.Layout(display="none")
         )
-        # Run/Cancel/Accept button row + the elapsed-time label next to it.
-        self._btn_run = W.Button(description="Run estimation", icon="magic", button_style="success")
-        self._btn_cancel = W.Button(
-            description="Cancel", icon="stop", button_style="danger",
-            layout=W.Layout(display="none"),
-        )
-        self._btn_accept = W.Button(
-            description="Accept fitted parameters", icon="check",
-            layout=W.Layout(display="none"),
-        )
-        self._live_plot_checkbox = W.Checkbox(
-            description="Live plot", value=False, indent=False
-        )
-        self._elapsed_label = W.HTML(value="")
-        # Live-fit panel: current-best-vs-reference + objective-history plot,
-        # redrawn every tick while "Live plot" is checked (see _redraw_live_plot).
-        # `W.Image` (a plain `.value` trait holding PNG bytes), not `W.Output`
-        # -- `Output`'s capture-based `display()` doesn't reliably route from
-        # a background thread in a real Jupyter kernel (confirmed: elapsed
-        # label/status/fit table, all direct trait assignments, updated fine
-        # from the ticker thread; every `Output`-based plot render silently
-        # never appeared). A direct trait assignment is the same proven
-        # mechanism as those, so it works from any thread the same way.
-        # `display="none"` until there's an actual image -- an empty/unset
-        # `Image.value` otherwise renders as the browser's broken-image icon.
-        # A fixed CSS `width` (not `max_width`/percentage, and not left
-        # unset) is what actually bounds the display size correctly both
-        # ways: unset let the (higher-dpi, "1_col"-sized) native pixel size
-        # overflow past a narrower panel; `max_width="100%"` on its own
-        # previously stretched a *smaller* (100dpi) source up to fill a
-        # *wider* container and went blurry. A fixed width does neither --
-        # same displayed size regardless of native pixels or container width.
-        self._live_plot_out = W.Image(
-            format="png", layout=W.Layout(width="700px", display="none")
-        )
-        self._live_plot_error = W.HTML(value="")
-        self._live_chart = ChromatogramChart(view_width=560, view_height=260, y_label="Signal")
-        self._live_chart.layout.display = "none"
-        self._live_chart.layout.width = "560px"
-        self._history_chart = LineChart(
-            view_width=420, view_height=260, x_label="Generation", x_name="generation",
-            x_unit="", y_label="Objective (SSE)", empty_text="No generations yet",
-        )
-        self._history_chart.layout.display = "none"
-        self._history_chart.layout.width = "420px"
-        # Result table (parameter/before/fitted) + the reference-vs-simulated
-        # overlay plot, both shown after a Preview or a finished run.
-        self._fit_table = W.HTML()
+        # Result overlay: reference-vs-simulated, shown after a Preview or a finished run.
         self._plot_out = W.Image(
             format="png", layout=W.Layout(width="400px", display="none")
         )
         self._chart = ChromatogramChart(view_width=560, view_height=260, y_label="Signal")
         self._chart.layout.display = "none"
         self._chart.layout.width = "560px"
-        # Post-run analytics, from CADET-Process's own OptimizationResults --
-        # not something we compute ourselves. `plot_convergence` (best/avg
-        # objective vs. evaluations) always makes sense; `plot_pairwise`
-        # (histograms + scatter of the fitted variables across the final
-        # population) only if more than one parameter was fitted, same guard
-        # CADET-Process's own `results.plot_figures()` uses.
-        self._analytics_error = W.HTML(value="")
-        self._convergence_out = W.Image(
-            format="png", layout=W.Layout(width="400px", display="none")
-        )
-        self._pairwise_out = W.Image(
-            format="png", layout=W.Layout(width="500px", display="none")
-        )
-        self._show_analytics_checkbox = W.Checkbox(
-            description="Show convergence & correlation", value=False, indent=False
-        )
-        self._analytics_settings = SettingsPopover(
-            tooltip="Run settings", children=[self._show_analytics_checkbox]
-        )
-        # Status line at the bottom of the "Run estimation" section.
-        self.status = W.HTML("<em>Ready.</em>")
-        self.status.add_class("cadetgui-status")
 
-        self._btn_run.on_click(self._on_run)
-        self._btn_cancel.on_click(self._on_cancel)
-        self._btn_accept.on_click(self._on_accept)
+        base_process_row = W.HBox(
+            [self._base_process_picker, self._btn_refresh_store],
+            layout=W.Layout(flex_flow="row wrap"),
+        )
+        base_process_row.add_class("cadetgui-toolbar")
+
+        self._runner = OptimizerRunnerPanel(
+            build_run_spec=self._build_run_spec,
+            leading=[base_process_row],
+        )
+        self.status = self._runner.status
+
         self._btn_refresh_store.on_click(lambda _btn: self._refresh_store_options())
-        self._show_analytics_checkbox.observe(self._on_show_analytics_change, names="value")
         self._base_process_picker.observe(self._on_base_process_change, names="selected_index")
         self._signal_picker.observe(self._on_signal_change, names="selected_index")
-        self._optimizer_picker.observe(self._on_optimizer_change, names="selected_index")
         self._calibration_picker.observe(self._on_calibration_change, names="selected_index")
         self._dataset_picker.observe(self._on_reference_input_change, names="selected_index")
         self._component_picker.observe(self._on_reference_input_change, names="selected_index")
@@ -219,12 +126,6 @@ class ParameterEstimationWidget:
             field.observe(self._on_reference_input_change, names="value")
         self.data.add_listener(self._refresh_dataset_options)
         self._refresh_dataset_options()
-
-        base_process_row = W.HBox(
-            [self._base_process_picker, self._btn_refresh_store],
-            layout=W.Layout(flex_flow="row wrap"),
-        )
-        base_process_row.add_class("cadetgui-toolbar")
 
         # "Signal represents" and calibration are both about *interpreting
         # the imported measurement* -- they belong with the data import, not
@@ -261,16 +162,6 @@ class ParameterEstimationWidget:
         param_space_section.add_class("cadetgui-panel")
         param_space_section.add_class("cadetgui-section")
 
-        # Default-selected optimizer's knob box starts visible; the rest stay
-        # hidden until picked -- same as the calibration-method fields.
-        self._knob_boxes[self._optimizer_picker.value].layout.display = ""
-
-        run_toolbar = W.HBox(
-            [self._live_plot_checkbox],
-            layout=W.Layout(flex_flow="row wrap"),
-        )
-        run_toolbar.add_class("cadetgui-toolbar")
-
         preview_toolbar = W.HBox(
             [self._signal_picker], layout=W.Layout(flex_flow="row wrap")
         )
@@ -286,52 +177,6 @@ class ParameterEstimationWidget:
         )
         preview_section.add_class("cadetgui-section")
 
-        self._analytics_box = W.VBox(
-            [
-                W.HTML("<div class='cadetgui-panel-title'>Convergence &amp; correlation</div>"),
-                self._analytics_error,
-                self._convergence_out,
-                self._pairwise_out,
-            ],
-            layout=W.Layout(display="none"),
-        )
-
-        run_header = W.HBox(
-            [
-                W.HTML("<div class='cadetgui-panel-title'>Run estimation</div>"),
-                self._analytics_settings.button,
-            ],
-            layout=W.Layout(justify_content="space-between", align_items="center"),
-        )
-
-        optimizer_row = W.HBox(
-            [self._optimizer_picker, *self._knob_boxes.values()],
-            layout=W.Layout(flex_flow="row wrap"),
-        )
-        optimizer_row.add_class("cadetgui-toolbar")
-
-        run_section = W.VBox(
-            [
-                run_header,
-                self._analytics_settings.box,
-                base_process_row,
-                run_toolbar,
-                optimizer_row,
-                W.HBox([self._btn_run, self._btn_cancel, self._btn_accept, self._elapsed_label]),
-                self._live_plot_error,
-                W.HBox(
-                    [self._live_chart, self._history_chart],
-                    layout=W.Layout(flex_flow="row wrap"),
-                ),
-                self._live_plot_out,
-                self._fit_table,
-                self._analytics_box,
-                self.status,
-            ]
-        )
-        run_section.add_class("cadetgui-panel")
-        run_section.add_class("cadetgui-section")
-
         self.root = W.VBox(
             [
                 W.HTML(style_tag()),
@@ -339,7 +184,7 @@ class ParameterEstimationWidget:
                 data_section,
                 param_space_section,
                 preview_section,
-                run_section,
+                self._runner.root,
             ]
         )
         self.root.add_class("cadetgui-panel")
@@ -383,13 +228,6 @@ class ParameterEstimationWidget:
             self._config_widget.import_from_store(hash_)
         self._refresh_preview()
 
-    def _on_optimizer_change(self, change: dict) -> None:
-        if change.get("name") != "selected_index":
-            return
-        selected = self._optimizer_picker.value
-        for name, box in self._knob_boxes.items():
-            box.layout.display = "" if name == selected else "none"
-
     def _on_calibration_change(self, change: dict) -> None:
         if change.get("name") != "selected_index":
             return
@@ -414,7 +252,7 @@ class ParameterEstimationWidget:
 
     def _refresh_preview(self, *, force: bool = False) -> None:
         """Simulate the bound process for the overlay, only if it changed since last time."""
-        if self._btn_run.disabled:
+        if self._runner._btn_run.disabled:
             return
         cw = self._config_widget
         process = cw.process if cw is not None else None
@@ -577,23 +415,12 @@ class ParameterEstimationWidget:
             return "Enter a nonzero injected amount to normalize against."
         return None
 
-    def _on_run(self, _btn: Any) -> None:
-        for img in (self._live_plot_out, self._convergence_out, self._pairwise_out):
-            img.value = b""
-            img.layout.display = "none"
-        for chart in (self._live_chart, self._history_chart):
-            chart.series = []
-            chart.layout.display = "none"
-        self._live_plot_error.value = ""
-        self._analytics_error.value = ""
-        self._btn_accept.layout.display = "none"
+    def _build_run_spec(self) -> Union[RunSpec, str]:
         showing_fit = self._last_result is not None
         self._last_result = None
-        self._elapsed_label.value = ""
         error = self._validation_error()
         if error:
-            self.status.value = status_html("error", str(error))
-            return
+            return error
 
         if showing_fit:
             self._preview_process = None
@@ -602,8 +429,8 @@ class ParameterEstimationWidget:
         unit, port = self._signal_picker.value
         reference, _ = self._current_reference()
         params = list(self.param_space.params)
-        selected = []
-        starts = []
+        selected: list[int] = []
+        starts: list[float] = []
         for idx, start, lb, ub in self.param_space.rows():
             params[idx] = replace(params[idx], lb=lb, ub=ub)
             selected.append(idx)
@@ -611,271 +438,70 @@ class ParameterEstimationWidget:
         process = self._config_widget.process
         column = self._config_widget._column_form.built
 
-        optimizer_name = self._optimizer_picker.value
-        optimizer_kwargs = {
-            knob.attr: field.value
-            for knob, field in zip(
-                OPTIMIZERS[optimizer_name].knobs, self._knob_fields[optimizer_name]
-            )
-        }
-
-        self._btn_run.disabled = True
-        self._btn_run.description = "Running..."
-        self._btn_cancel.layout.display = ""
-        self.status.value = status_html("running", "Fitting…")
-
-        self._run_done.clear()
-        self._cancel_event.clear()
-        self._progress = {"optimizer": None, "result": None}
-        start_time = time.monotonic()
-
-        # Run the (potentially long) fit on a background thread -- otherwise
-        # nothing (elapsed timer, live plot, the UI in general) could update
-        # at all until it finished, since Python/Jupyter is single-threaded
-        # for anything running inline in a button click handler. The ticker
-        # only ever touches an *independent* copy of the process (via
-        # `simulate_at`), never the one the worker thread is actively
-        # mutating. Worker starts first: it's what eventually sets
-        # `_run_done`, which the ticker's own loop is waiting on.
-        worker = threading.Thread(
-            target=self._run_estimation_worker,
-            args=(
-                process, column, params, selected, reference, unit, port, starts,
-                optimizer_name, optimizer_kwargs,
-            ),
-            daemon=True,
-        )
-        ticker = threading.Thread(
-            target=self._tick_progress,
-            args=(start_time, process, column, params, selected, reference, unit, port),
-            daemon=True,
-        )
-        worker.start()
-        ticker.start()
-
-    def _run_estimation_worker(
-        self, process: Any, column: Any, params: list[FittableParameter],
-        selected: list[int], reference: Any, unit: str, port: str,
-        starts: list[float], optimizer_name: str, optimizer_kwargs: dict[str, int],
-    ) -> None:
         try:
-            result = run_estimation(
+            problem, working_process = build_estimation_problem(
                 process, column, params, selected, reference, f"{unit}.{port}",
-                optimizer_name=optimizer_name, optimizer_kwargs=optimizer_kwargs,
-                starts=starts, component_name=self._component_picker.value,
-                on_optimizer_ready=lambda opt: self._progress.update(optimizer=opt),
-                cancel_event=self._cancel_event,
+                component_name=self._component_picker.value,
             )
-        except Exception as exc:  # noqa: BLE001 -- run_estimation already catches its own
-            result = EstimationResult({}, None, False, str(exc))
-        self._progress["result"] = result
-        self._run_done.set()
+        except Exception as exc:  # noqa: BLE001
+            return str(exc)
 
-    def _tick_progress(
-        self, start_time: float, process: Any, column: Any,
-        params: list[FittableParameter], selected: list[int],
-        reference: Any, unit: str, port: str,
-    ) -> None:
-        last_n_gen = 0
-        while not self._run_done.wait(timeout=0.5):
-            last_n_gen = self._progress_tick(
-                start_time, process, column, params, selected,
-                reference, unit, port, last_n_gen,
-            )
+        # The live preview only ever touches an independent copy of the
+        # process (via `simulate_at`), never the one the worker thread is
+        # actively mutating.
+        def candidate_solution(x_best: Sequence[float]) -> Any:
+            return simulate_at(process, column, params, selected, list(x_best)).solution[unit][port]
 
-        # Runs once the worker has set `_run_done` -- the one point the
-        # ticker and the (already-finished) worker are guaranteed not to be
-        # touching Output widgets at the same time.
-        self._finish_run(self._progress["result"], start_time)
+        def preview_series(x_best: Sequence[float]) -> Optional[list[dict[str, Any]]]:
+            series = solution_series(candidate_solution(x_best))
+            if series is not None and reference is not None:
+                series.append(
+                    reference_series("measured", reference.time, reference.solution[:, 0])
+                )
+            return series
 
-    def _progress_tick(
-        self, start_time: float, process: Any, column: Any,
-        params: list[FittableParameter], selected: list[int],
-        reference: Any, unit: str, port: str, last_n_gen: int,
-    ) -> int:
-        """One tick's worth of progress reporting. Returns the new `last_n_gen`.
-
-        Split out from `_tick_progress`'s loop so it's callable directly in
-        tests, without any real waiting/threading involved.
-        """
-        elapsed = time.monotonic() - start_time
-        self._elapsed_label.value = f"<em>{elapsed:.0f}s elapsed</em>"
-
-        optimizer = self._progress.get("optimizer")
-        if not self._live_plot_checkbox.value or optimizer is None:
-            return last_n_gen
-        n_gen = len(optimizer.results.populations)
-        if n_gen == 0 or n_gen == last_n_gen:
-            return last_n_gen
-        self._redraw_live_plot(optimizer, process, column, params, selected, reference, unit, port)
-        return n_gen
-
-    def _redraw_live_plot(
-        self, optimizer: Any, process: Any, column: Any,
-        params: list[FittableParameter], selected: list[int],
-        reference: Any, unit: str, port: str,
-    ) -> None:
-        # A failure here must never be silent -- it previously was
-        # (bare `except: return`), which meant a real bug could make the
-        # live panel stay empty for an entire run with zero indication why.
-        # Show the actual error in the panel itself instead of guessing.
-        try:
-            results = optimizer.results
-            x_best = list(results.x[0])
-            f_history = np.asarray(results.f_best_history).reshape(-1)
-            preview = simulate_at(process, column, params, selected, x_best)
-
-            solution = preview.solution[unit][port]
-            series = solution_series(solution)
-            if series is not None:
-                if reference is not None:
-                    series.append(
-                        reference_series("measured", reference.time, reference.solution[:, 0])
-                    )
-                generations = list(range(1, len(f_history) + 1))
-                self._history_chart.series = [
-                    {
-                        "name": "Objective (SSE)",
-                        "times": generations,
-                        "values": [float(v) for v in f_history],
-                    }
-                ]
-                self._live_chart.series = series
-                self._live_plot_out.layout.display = "none"
-                self._live_chart.layout.display = ""
-                self._history_chart.layout.display = ""
-                self._live_plot_error.value = ""
-                return
-
-            width, height = self._FIGSIZE
-            fig = new_figure(figsize=(2 * width, height))  # two "1_col" panels side by side
-            ax1 = fig.add_subplot(1, 2, 1)
-            ax2 = fig.add_subplot(1, 2, 2)
-            solution.plot(ax=ax1)
+        def render_preview(x_best: Sequence[float], ax: Any) -> None:
+            candidate_solution(x_best).plot(ax=ax)
             if reference is not None:
-                ax1.plot(
+                ax.plot(
                     reference.time / 60.0, reference.solution[:, 0],
                     linestyle="--", color="black", linewidth=2, label="measured",
                 )
-                ax1.legend()
-            ax1.set_title("Current best vs. reference")
+                ax.legend()
 
-            ax2.plot(f_history)
-            ax2.set_xlabel("Generation")
-            ax2.set_ylabel("Objective (SSE)")
-            ax2.set_title("Objective history")
+        def fitted_by_index(x_best: Any) -> dict[int, float]:
+            return {idx: x_best[f"var_{idx}"] for idx in selected}
 
-            fig.tight_layout()
-            display_figure(self._live_plot_out, fig)
-            self._live_plot_error.value = ""
-        except Exception as exc:  # noqa: BLE001 -- best-effort per tick, but visibly
-            self._live_plot_error.value = (
-                status_html("error", f"Live plot error: {exc}")
+        def on_finished(result: OptimizerRunResult) -> None:
+            if result.cancelled or not result.success:
+                return
+            self._last_result = EstimationResult(
+                fitted_by_index(result.x_best), result.objective, True, result.message,
+                working_process,
             )
+            # Show the fitted (still detached) process's own curve until the base process changes.
+            self._display_result = run_process(working_process)
+            self._redraw_overlay()
 
-    def _on_cancel(self, _btn: Any) -> None:
-        self._cancel_event.set()
-        self._btn_cancel.disabled = True
-        optimizer_name = self._optimizer_picker.value
-        if OPTIMIZERS[optimizer_name].is_population_based:
-            # Population-based optimizers evaluate their whole population
-            # before the per-generation cancel check is next reached (see
-            # `_install_cancel_hook`'s docstring) -- set the right
-            # expectation instead of looking stuck.
-            self._btn_cancel.description = "Cancelling… (finishing generation)"
-        else:
-            self._btn_cancel.description = "Cancelling…"
-
-    def _finish_run(self, result: EstimationResult, start_time: float) -> None:
-        self._btn_run.disabled = False
-        self._btn_run.description = "Run estimation"
-        self._btn_cancel.layout.display = "none"
-        self._btn_cancel.disabled = False
-        self._btn_cancel.description = "Cancel"
-        self._elapsed_label.value = ""
-        elapsed = time.monotonic() - start_time
-
-        optimizer = self._progress.get("optimizer")
-        if optimizer is not None:
-            self._render_analytics(optimizer)
-
-        if result.cancelled:
-            self.status.value = f"<em>{result.message} ({elapsed:.0f}s)</em>"
-            return
-        if not result.success:
-            self.status.value = status_html("error", str(result.message))
-            return
-
-        self._last_result = result
-        self.status.value = (
-            f"<em>{result.message} Objective (SSE): {result.objective:.4g}. "
-            f"({elapsed:.0f}s)</em>"
+        return RunSpec(
+            problem, starts, render_preview,
+            lambda x_best: self._fit_table_html(fitted_by_index(x_best)),
+            lambda x_best: self._apply_fitted(fitted_by_index(x_best)),
+            on_finished, preview_series,
         )
-        self._render_fit_table(result)
-        # Show the fitted (still detached) process's own curve until the base process changes.
-        self._display_result = run_process(result.fitted_process)
-        self._redraw_overlay()
-        self._btn_accept.layout.display = ""
 
-    def _on_show_analytics_change(self, change: dict) -> None:
-        shown = bool(change["new"])
-        self._analytics_box.layout.display = "" if shown else "none"
-        optimizer = self._progress.get("optimizer")
-        if shown and optimizer is not None and not self._btn_run.disabled:
-            self._render_analytics(optimizer)
-
-    def _render_analytics(self, optimizer: Any) -> None:
-        """Show CADET-Process's own post-run analytics from `optimizer.results`.
-
-        Not something computed here -- `OptimizationResults.plot_convergence`/
-        `.plot_pairwise` (confirmed, not assumed: neither correlation,
-        confidence, nor uncertainty output exists anywhere else in
-        CADET-Process's optimization module, so these two are genuinely what
-        there is to surface). Best-effort: a failure here must be visible,
-        not swallowed -- same rule as `_redraw_live_plot`'s fix earlier.
-        """
-        if not self._show_analytics_checkbox.value:
-            return
-        try:
-            results = optimizer.results
-            if len(results.populations) == 0:
-                return  # nothing ran yet (e.g. cancelled before generation 1)
-
-            fig1 = new_figure(figsize=self._FIGSIZE)
-            ax1 = fig1.subplots(nrows=1, ncols=1, squeeze=False).reshape(-1)
-            results.plot_convergence(ax=ax1)
-            display_figure(self._convergence_out, fig1)
-
-            # Mirrors CADET-Process's own `results.plot_figures()` guard --
-            # a single variable's pairwise grid is a degenerate 1x1 plot.
-            n_var = len(results.x[0])
-            if n_var > 1:
-                width, _ = self._FIGSIZE
-                fig2 = new_figure(figsize=(width * n_var * 0.8, width * n_var * 0.8))
-                ax2 = fig2.subplots(nrows=n_var, ncols=n_var, squeeze=False)
-                results.plot_pairwise(ax=ax2)
-                display_figure(self._pairwise_out, fig2)
-            self._analytics_error.value = ""
-        except Exception as exc:  # noqa: BLE001 -- best-effort, but visibly
-            self._analytics_error.value = (
-                status_html("error", f"Analytics error: {exc}")
-            )
-
-    def _render_fit_table(self, result: EstimationResult) -> None:
+    def _fit_table_html(self, fitted: dict[int, float]) -> str:
         rows = "".join(
             f"<tr><td>{self.param_space.params[idx].label}</td>"
             f"<td>{self.param_space.params[idx].current_value:.4g}</td><td>{value:.4g}</td></tr>"
-            for idx, value in result.fitted.items()
+            for idx, value in fitted.items()
         )
-        self._fit_table.value = (
-            "<table><tr><th>Parameter</th><th>Before</th><th>Fitted</th></tr>" + rows + "</table>"
-        )
+        header = "<tr><th>Parameter</th><th>Before</th><th>Fitted</th></tr>"
+        return f"<table>{header}{rows}</table>"
 
-    def _on_accept(self, _btn: Any) -> None:
-        if self._last_result is None:
-            return
+    def _apply_fitted(self, fitted: dict[int, float]) -> None:
         cw = self._config_widget
-        for idx, value in self._last_result.fitted.items():
+        for idx, value in fitted.items():
             param = self.param_space.params[idx]
             form = cw._column_form if param.owner == "column" else cw._binding_form
             element = form.element(param.name)
@@ -886,7 +512,6 @@ class ParameterEstimationWidget:
                 values[param.component_index] = value
                 element.value = values
         self.status.value = "<em>Applied fitted parameters to the configuration.</em>"
-        self._btn_accept.layout.display = "none"
 
     def display(self) -> None:
         """Render this widget in a Jupyter cell."""

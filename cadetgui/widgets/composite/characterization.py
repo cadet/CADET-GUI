@@ -26,6 +26,7 @@ from ...parameter_estimation import (
 )
 from ...simulation import run_process
 from .._chrome import style_tag
+from .._series import reference_series, solution_series
 from ..elements import ChoiceField
 from ._optimizer_runner_panel import OptimizerRunnerPanel
 from .configuration import ConfigurationWidget
@@ -342,8 +343,7 @@ class CharacterizationWidget:
             build_run_spec=self._build_run_spec, accept_label="Push to Configuration",
         )
 
-        self.status = W.HTML("<em>Ready.</em>")
-        self.status.add_class("cadetgui-status")
+        self.status = self._runner.status
 
         self.root = W.VBox(
             [
@@ -579,12 +579,24 @@ class CharacterizationWidget:
 
         x0 = [(lb.value + ub.value) / 2.0 for lb, ub in self._bound_fields.values()]
 
-        def render_preview(x_best: Sequence[float], ax: Any) -> None:
+        def candidate_solution(x_best: Sequence[float]) -> Any:
             values = dict(zip(self._bound_fields, x_best))
             preview_process = copy.deepcopy(base_process)
             self._apply_values_to_process(preview_process, values)
-            solution = run_process(preview_process).solution[unit][port]
-            solution.plot(ax=ax)
+            return run_process(preview_process).solution[unit][port]
+
+        def preview_series(x_best: Sequence[float]) -> Optional[list[Dict[str, Any]]]:
+            series = solution_series(candidate_solution(x_best))
+            if series is not None:
+                series.append(
+                    reference_series(
+                        "measured (dataset 1)", references[0].time, references[0].solution[:, 0]
+                    )
+                )
+            return series
+
+        def render_preview(x_best: Sequence[float], ax: Any) -> None:
+            candidate_solution(x_best).plot(ax=ax)
             ax.plot(
                 references[0].time / 60.0, references[0].solution[:, 0],
                 linestyle="--", color="black", linewidth=2, label="measured (dataset 1)",
@@ -629,7 +641,9 @@ class CharacterizationWidget:
                 "Save it from the Configuration panel to persist for the next stage.</em>"
             )
 
-        return RunSpec(problem, x0, render_preview, render_fit_table, accept, on_finished)
+        return RunSpec(
+            problem, x0, render_preview, render_fit_table, accept, on_finished, preview_series
+        )
 
     def display(self) -> None:
         """Render this widget in a Jupyter cell."""

@@ -122,6 +122,124 @@ def test_cancel_button_label_reflects_population_based_optimizers():
     assert "generation" not in panel._btn_cancel.description.lower()
 
 
+class _FakeResults:
+    def __init__(self, n_gen: int, n_var: int = 1):
+        self.populations = [None] * n_gen
+        self.f_best_history = [[1.0]] * n_gen
+        self._n_var = n_var
+
+    @property
+    def x(self):
+        return [[0.5] * self._n_var]
+
+    def plot_convergence(self, ax):
+        ax[0].plot([1, 2, 3])
+
+    def plot_pairwise(self, ax):
+        pass
+
+
+class _FakeOptimizer:
+    def __init__(self, results):
+        self.results = results
+
+
+def _series_spec(series):
+    return RunSpec(
+        problem=_trivial_problem(), x0=[0.0],
+        render_preview=lambda x_best, ax: ax.plot([0, 1], [0, 1]),
+        render_fit_table=lambda x_best: "", accept=lambda x_best: None,
+        preview_series=lambda x_best: series,
+    )
+
+
+def test_live_plot_uses_the_interactive_charts_when_the_run_spec_supplies_series():
+    panel = OptimizerRunnerPanel(build_run_spec=lambda: "unused")
+    series = [{"name": "c", "times": [0.0, 1.0], "values": [0.0, 1.0]}]
+
+    panel._redraw_live_plot(_FakeOptimizer(_FakeResults(2)), _series_spec(series))
+
+    assert panel._live_chart.series == series
+    assert panel._live_chart.layout.display == ""
+    assert panel._history_chart.layout.display == ""
+    assert panel._history_chart.series[0]["values"] == [1.0, 1.0]
+    assert panel._live_plot_out.layout.display == "none"
+
+
+def test_live_plot_falls_back_to_matplotlib_when_there_is_no_series():
+    panel = OptimizerRunnerPanel(build_run_spec=lambda: "unused")
+
+    panel._redraw_live_plot(_FakeOptimizer(_FakeResults(2)), _series_spec(None))
+
+    assert panel._live_plot_out.value
+    assert panel._live_plot_out.layout.display == ""
+    assert panel._live_chart.layout.display == "none"
+    assert panel._live_plot_error.value == ""
+
+
+def test_starting_a_run_clears_and_hides_the_live_charts(_synchronous_threads):
+    panel = OptimizerRunnerPanel(build_run_spec=lambda: "nothing to run")
+    panel._live_chart.series = [{"name": "x", "times": [0.0], "values": [1.0]}]
+    panel._history_chart.series = [{"name": "x", "times": [1.0], "values": [1.0]}]
+    panel._live_chart.layout.display = ""
+
+    panel._on_run(None)
+
+    assert panel._live_chart.series == []
+    assert panel._history_chart.series == []
+    assert panel._live_chart.layout.display == "none"
+
+
+def test_analytics_are_opt_in_through_the_settings_popover():
+    panel = OptimizerRunnerPanel(build_run_spec=lambda: "unused")
+    optimizer = _FakeOptimizer(_FakeResults(3, n_var=2))
+
+    assert panel._show_analytics_checkbox.value is False
+    assert panel._analytics_box.layout.display == "none"
+    assert panel._analytics_settings.box.layout.display == "none"
+    panel._render_analytics(optimizer)
+    assert panel._convergence_out.value == b""
+
+    panel._progress["optimizer"] = optimizer
+    panel._show_analytics_checkbox.value = True
+
+    assert panel._analytics_box.layout.display == ""
+    assert panel._convergence_out.value
+    assert panel._pairwise_out.value
+
+
+def test_a_crashing_optimization_is_reported_and_re_enables_run(
+    _synchronous_threads, monkeypatch
+):
+    import cadetgui.widgets.composite._optimizer_runner_panel as module
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("synthetic optimizer crash")
+
+    monkeypatch.setattr(module, "run_optimization", boom)
+    panel = OptimizerRunnerPanel(
+        build_run_spec=lambda: _run_spec(accepted={}, on_finished_calls=[])
+    )
+
+    panel._on_run(None)
+
+    assert "synthetic optimizer crash" in panel.status.value
+    assert "cadetgui-msg-error" in panel.status.value
+    assert panel._btn_run.disabled is False
+
+
+def test_run_label_and_leading_widgets_are_configurable():
+    import ipywidgets as W
+
+    lead = W.HTML("lead")
+    panel = OptimizerRunnerPanel(
+        build_run_spec=lambda: "unused", run_label="Go", leading=[lead]
+    )
+
+    assert panel._btn_run.description == "Go"
+    assert lead in panel.root.children
+
+
 @pytest.mark.slow
 def test_cancel_stops_a_real_run_and_reports_cancelled():
     accepted: dict = {}

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional, Sequence, Union
 
 import ipywidgets as W
 import numpy as np
@@ -15,31 +15,34 @@ from ...optimizer_runner import (
     run_optimization,
 )
 from .._mpl_figure import display_figure, new_figure
+from .._settings_popover import SettingsPopover
 from .._status import status_html
-from ..elements import ChoiceField
+from ..elements import ChoiceField, ChromatogramChart, LineChart
 
 __all__ = ["OptimizerRunnerPanel"]
 
 
 class OptimizerRunnerPanel:
-    """Optimizer-picker/Run/Cancel/Accept/live-progress chrome, generic over what's optimized.
+    """The optimizer run section: picker + knobs, Run/Cancel/Accept, live plot, analytics.
 
-    Originally the run-section of `ParameterEstimationWidget` (single-process,
-    SSE-only fits); extracted so `CharacterizationWidget`
-    (`widgets/composite/characterization.py`) can drive the exact same
-    threading/cancel/live-plot/accept mechanics against a
-    `CADETProcess.characterization.CharacterizeXxx`-built `OptimizationProblem`
-    instead, without duplicating any of it.
+    The one implementation of that chrome, shared by `ParameterEstimationWidget`
+    (single-process fits) and `CharacterizationWidget` (joint multi-dataset
+    stage fits): optimizer selection and its knobs, background run/cancel
+    threading with an elapsed timer, the interactive live plot, the opt-in
+    post-run convergence/correlation analytics, the fit table and the Accept
+    flow.
 
     `build_run_spec` is called fresh on every "Run" click and must return a
     `cadetgui.optimizer_runner.RunSpec`, or a validation-error string (shown
     in `.status`, run aborted). Everything problem-specific -- how to preview
     a candidate point, how to render the fit table, where fitted values get
     written back -- lives on that `RunSpec`, not here.
+
+    `leading` widgets are placed between the section header and the run
+    controls (e.g. a base-process picker).
     """
 
-    # Matches CADET-Process's own "1_col" default, same choice
-    # `ParameterEstimationWidget` made for its own plots.
+    # Matches CADET-Process's own "1_col" default.
     _FIGSIZE = get_fig_size("1_col")
 
     def __init__(
@@ -47,9 +50,16 @@ class OptimizerRunnerPanel:
         *,
         build_run_spec: Callable[[], Union[RunSpec, str]],
         accept_label: str = "Accept fitted parameters",
+        run_label: str = "Run estimation",
+        title: str = "Run estimation",
+        leading: Sequence[W.Widget] = (),
     ) -> None:
         self._build_run_spec = build_run_spec
+        self._run_label = run_label
         self._run_done = threading.Event()
+        # Set by "Cancel" -- checked once per generation inside
+        # `run_optimization`, the only point that actually stops a running
+        # optimizer (see `optimizer_runner.install_cancel_hook`).
         self._cancel_event = threading.Event()
         self._progress: dict[str, Any] = {"optimizer": None, "result": None}
         self._last_run_spec: Optional[RunSpec] = None
@@ -71,7 +81,7 @@ class OptimizerRunnerPanel:
         }
         self._knob_boxes[self._optimizer_picker.value].layout.display = ""
 
-        self._btn_run = W.Button(description="Run", icon="magic", button_style="success")
+        self._btn_run = W.Button(description=run_label, icon="magic", button_style="success")
         self._btn_cancel = W.Button(
             description="Cancel", icon="stop", button_style="danger",
             layout=W.Layout(display="none"),
@@ -83,13 +93,30 @@ class OptimizerRunnerPanel:
         self._live_plot_checkbox = W.Checkbox(description="Live plot", value=False, indent=False)
         self._elapsed_label = W.HTML(value="")
 
-        # `W.Image`, not `W.Output` -- see `_mpl_figure.display_figure`'s
-        # docstring for why (background-thread rendering, confirmed live).
+        # Live panel: current-best-vs-reference chart + objective history,
+        # redrawn every tick while "Live plot" is checked. Interactive charts
+        # (plain trait assignments, safe from the ticker thread); `W.Image`
+        # -- not `W.Output`, see `_mpl_figure.display_figure` -- only backs the
+        # matplotlib fallback for signals that aren't a time x component trace.
+        # A fixed CSS width bounds the displayed size regardless of native
+        # pixels or container width.
         self._live_plot_out = W.Image(
             format="png", layout=W.Layout(width="700px", display="none")
         )
         self._live_plot_error = W.HTML(value="")
+        self._live_chart = ChromatogramChart(view_width=560, view_height=260, y_label="Signal")
+        self._live_chart.layout.display = "none"
+        self._live_chart.layout.width = "560px"
+        self._history_chart = LineChart(
+            view_width=420, view_height=260, x_label="Generation", x_name="generation",
+            x_unit="", y_label="Objective (SSE)", empty_text="No generations yet",
+        )
+        self._history_chart.layout.display = "none"
+        self._history_chart.layout.width = "420px"
         self._fit_table = W.HTML()
+
+        # Post-run analytics from CADET-Process's own OptimizationResults,
+        # opt-in via the section's settings popover.
         self._analytics_error = W.HTML(value="")
         self._convergence_out = W.Image(
             format="png", layout=W.Layout(width="400px", display="none")
@@ -97,35 +124,66 @@ class OptimizerRunnerPanel:
         self._pairwise_out = W.Image(
             format="png", layout=W.Layout(width="500px", display="none")
         )
+        self._show_analytics_checkbox = W.Checkbox(
+            description="Show convergence & correlation", value=False, indent=False
+        )
+        self._analytics_settings = SettingsPopover(
+            tooltip="Run settings", children=[self._show_analytics_checkbox]
+        )
         self.status = W.HTML("<em>Ready.</em>")
         self.status.add_class("cadetgui-status")
 
         self._btn_run.on_click(self._on_run)
         self._btn_cancel.on_click(self._on_cancel)
         self._btn_accept.on_click(self._on_accept)
+        self._show_analytics_checkbox.observe(self._on_show_analytics_change, names="value")
         self._optimizer_picker.observe(self._on_optimizer_change, names="selected_index")
 
+        run_header = W.HBox(
+            [
+                W.HTML(f"<div class='cadetgui-panel-title'>{title}</div>"),
+                self._analytics_settings.button,
+            ],
+            layout=W.Layout(justify_content="space-between", align_items="center"),
+        )
+        run_toolbar = W.HBox([self._live_plot_checkbox], layout=W.Layout(flex_flow="row wrap"))
+        run_toolbar.add_class("cadetgui-toolbar")
         optimizer_row = W.HBox(
             [self._optimizer_picker, *self._knob_boxes.values()],
             layout=W.Layout(flex_flow="row wrap"),
         )
         optimizer_row.add_class("cadetgui-toolbar")
-
-        self.root = W.VBox(
+        self._analytics_box = W.VBox(
             [
-                optimizer_row,
-                W.HBox([self._btn_run, self._btn_cancel, self._btn_accept, self._elapsed_label]),
-                self._live_plot_checkbox,
-                self._live_plot_error,
-                self._live_plot_out,
-                self._fit_table,
                 W.HTML("<div class='cadetgui-panel-title'>Convergence &amp; correlation</div>"),
                 self._analytics_error,
                 self._convergence_out,
                 self._pairwise_out,
+            ],
+            layout=W.Layout(display="none"),
+        )
+
+        self.root = W.VBox(
+            [
+                run_header,
+                self._analytics_settings.box,
+                *leading,
+                run_toolbar,
+                optimizer_row,
+                W.HBox([self._btn_run, self._btn_cancel, self._btn_accept, self._elapsed_label]),
+                self._live_plot_error,
+                W.HBox(
+                    [self._live_chart, self._history_chart],
+                    layout=W.Layout(flex_flow="row wrap"),
+                ),
+                self._live_plot_out,
+                self._fit_table,
+                self._analytics_box,
                 self.status,
             ]
         )
+        self.root.add_class("cadetgui-panel")
+        self.root.add_class("cadetgui-section")
 
     def _on_optimizer_change(self, change: dict) -> None:
         if change.get("name") != "selected_index":
@@ -138,6 +196,9 @@ class OptimizerRunnerPanel:
         for img in (self._live_plot_out, self._convergence_out, self._pairwise_out):
             img.value = b""
             img.layout.display = "none"
+        for chart in (self._live_chart, self._history_chart):
+            chart.series = []
+            chart.layout.display = "none"
         self._live_plot_error.value = ""
         self._analytics_error.value = ""
         self._fit_table.value = ""
@@ -162,7 +223,7 @@ class OptimizerRunnerPanel:
         self._btn_run.disabled = True
         self._btn_run.description = "Running..."
         self._btn_cancel.layout.display = ""
-        self.status.value = status_html("running", "Running…")
+        self.status.value = status_html("running", "Fitting…")
 
         self._run_done.clear()
         self._cancel_event.clear()
@@ -187,11 +248,14 @@ class OptimizerRunnerPanel:
     def _run_worker(
         self, run_spec: RunSpec, optimizer_name: str, optimizer_kwargs: dict[str, int]
     ) -> None:
-        result = run_optimization(
-            run_spec.problem, optimizer_name, optimizer_kwargs, run_spec.x0,
-            cancel_event=self._cancel_event,
-            on_optimizer_ready=lambda opt: self._progress.update(optimizer=opt),
-        )
+        try:
+            result = run_optimization(
+                run_spec.problem, optimizer_name, optimizer_kwargs, run_spec.x0,
+                cancel_event=self._cancel_event,
+                on_optimizer_ready=lambda opt: self._progress.update(optimizer=opt),
+            )
+        except Exception as exc:  # noqa: BLE001 -- run_optimization already catches its own
+            result = OptimizerRunResult({}, None, False, str(exc), optimizer_name=optimizer_name)
         self._progress["result"] = result
         self._run_done.set()
 
@@ -232,17 +296,36 @@ class OptimizerRunnerPanel:
             x_best = list(results.x[0])
             f_history = np.asarray(results.f_best_history).reshape(-1)
 
+            series = (
+                run_spec.preview_series(x_best) if run_spec.preview_series is not None else None
+            )
+            if series is not None:
+                generations = list(range(1, len(f_history) + 1))
+                self._history_chart.series = [
+                    {
+                        "name": "Objective (SSE)",
+                        "times": generations,
+                        "values": [float(v) for v in f_history],
+                    }
+                ]
+                self._live_chart.series = series
+                self._live_plot_out.layout.display = "none"
+                self._live_chart.layout.display = ""
+                self._history_chart.layout.display = ""
+                self._live_plot_error.value = ""
+                return
+
             width, height = self._FIGSIZE
             fig = new_figure(figsize=(2 * width, height))  # two "1_col" panels side by side
             ax1 = fig.add_subplot(1, 2, 1)
             ax2 = fig.add_subplot(1, 2, 2)
 
             run_spec.render_preview(x_best, ax1)
-            ax1.set_title("Current best")
+            ax1.set_title("Current best vs. reference")
 
             ax2.plot(f_history)
             ax2.set_xlabel("Generation")
-            ax2.set_ylabel("Objective")
+            ax2.set_ylabel("Objective (SSE)")
             ax2.set_title("Objective history")
 
             fig.tight_layout()
@@ -267,7 +350,7 @@ class OptimizerRunnerPanel:
 
     def _finish_run(self, result: OptimizerRunResult, start_time: float, run_spec: RunSpec) -> None:
         self._btn_run.disabled = False
-        self._btn_run.description = "Run"
+        self._btn_run.description = self._run_label
         self._btn_cancel.layout.display = "none"
         self._btn_cancel.disabled = False
         self._btn_cancel.description = "Cancel"
@@ -285,7 +368,8 @@ class OptimizerRunnerPanel:
         else:
             self._last_result = result
             self.status.value = (
-                f"<em>{result.message} Objective: {result.objective:.4g}. ({elapsed:.0f}s)</em>"
+                f"<em>{result.message} Objective (SSE): {result.objective:.4g}. "
+                f"({elapsed:.0f}s)</em>"
             )
             self._fit_table.value = run_spec.render_fit_table(result.x_best)
             self._btn_accept.layout.display = ""
@@ -293,14 +377,24 @@ class OptimizerRunnerPanel:
         if run_spec.on_finished is not None:
             run_spec.on_finished(result)
 
+    def _on_show_analytics_change(self, change: dict) -> None:
+        shown = bool(change["new"])
+        self._analytics_box.layout.display = "" if shown else "none"
+        optimizer = self._progress.get("optimizer")
+        if shown and optimizer is not None and not self._btn_run.disabled:
+            self._render_analytics(optimizer)
+
     def _render_analytics(self, optimizer: Any) -> None:
         """Show CADET-Process's own post-run analytics from `optimizer.results`.
 
         Not something computed here -- `OptimizationResults.plot_convergence`/
         `.plot_pairwise` (correlation/confidence/uncertainty output exists
         nowhere else in CADET-Process's optimization module). Best-effort: a
-        failure here must be visible, not swallowed.
+        failure here must be visible, not swallowed. Does nothing unless the
+        settings checkbox is on.
         """
+        if not self._show_analytics_checkbox.value:
+            return
         try:
             results = optimizer.results
             if len(results.populations) == 0:

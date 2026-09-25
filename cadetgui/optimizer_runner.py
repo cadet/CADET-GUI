@@ -188,14 +188,18 @@ class RunSpec:
     Built by `OptimizerRunnerPanel` (widgets/composite/_optimizer_runner_panel.py)'s
     caller, supplied fresh on every "Run" click via a `build_run_spec` callback.
 
-    `render_preview(x_best, ax)` is called during the live-progress ticker
-    with a candidate point's values (positionally parallel to
-    `problem.variable_names`) and must draw onto the given (already-created)
-    matplotlib `Axes` -- e.g. a reference-vs-simulated overlay for a
-    single-process fit, or an N-panel grid the caller manages internally for
-    a joint multi-process characterization stage. The panel itself owns the
-    figure this `Axes` belongs to (it's laid out next to a generic
-    objective-history panel the panel draws on its own).
+    `preview_series(x_best)`, when given, is called during the live-progress
+    ticker with a candidate point's values (positionally parallel to
+    `problem.variable_names`) and returns the interactive live chart's series
+    (one per component, plus the measured reference), or `None` when the
+    candidate's signal isn't a time x component trace. It must never mutate
+    anything the worker thread is writing to (simulate a fresh deep copy).
+
+    `render_preview(x_best, ax)` is the matplotlib fallback used whenever
+    `preview_series` is absent or returns `None`: it must draw onto the given
+    (already-created) `Axes`. The panel itself owns the figure this `Axes`
+    belongs to (it's laid out next to a generic objective-history panel the
+    panel draws on its own).
 
     `render_fit_table` turns a `{variable_name: fitted_value}` mapping into
     an HTML results table. `accept` is called once, with the same mapping,
@@ -216,3 +220,4 @@ class RunSpec:
     render_fit_table: Callable[[Mapping[str, float]], str]
     accept: Callable[[Mapping[str, float]], None]
     on_finished: Optional[Callable[[OptimizerRunResult], None]] = None
+    preview_series: Optional[Callable[[Sequence[float]], Optional[list[dict[str, Any]]]]] = None

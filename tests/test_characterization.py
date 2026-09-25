@@ -220,6 +220,36 @@ def test_bed_stage_joint_fits_two_datasets_with_a_multi_objective_optimizer_and_
     assert after["particle_porosity"] == before
 
 
+def test_runner_section_offers_the_shared_run_chrome():
+    from cadetgui.widgets.composite._optimizer_runner_panel import OptimizerRunnerPanel
+
+    _, cw = _built_with_instrument(column_key="Lumped Rate Model With Pores (LRMP)")
+    w = CharacterizationWidget("bed", config=cw)
+
+    assert isinstance(w._runner, OptimizerRunnerPanel)
+    assert w._runner.root in w.root.children
+    assert w.status is w._runner.status
+    assert w._runner._btn_run.description == "Run estimation"
+    assert w._runner._show_analytics_checkbox.value is False  # analytics are opt-in
+    assert w._runner._live_chart.layout.display == "none"
+
+
+def test_the_run_spec_previews_a_candidate_as_interactive_chart_series():
+    _, cw = _built_with_instrument(column_key="Lumped Rate Model With Pores (LRMP)")
+    w = CharacterizationWidget("bed", config=cw)
+    w.data.datasets.append(_dataset("d1"))
+    w._refresh_dataset_options()
+    w._dataset_select.value = tuple(w.data.datasets)
+    w._signal_picker.selected_index = 0
+
+    spec = w._build_run_spec()
+    series = spec.preview_series([lb.value for lb, _ in w._bound_fields.values()])
+
+    assert series
+    measured = [s for s in series if s.get("reference")]
+    assert [s["name"] for s in measured] == ["measured (dataset 1)"]
+
+
 def test_signal_picker_offers_only_measurable_positions_without_a_preview():
     iw, cw = _built_with_instrument(column_key="Lumped Rate Model With Pores (LRMP)")
     w = CharacterizationWidget("bed", config=cw)
