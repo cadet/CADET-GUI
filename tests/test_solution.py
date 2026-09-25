@@ -802,6 +802,7 @@ def test_signal_dropdown_offers_only_measurable_positions():
 
     assert labels[0] == "Outlet"
     assert "Column outlet" in labels
-    assert not any(label.startswith(("Buffer", "Feed")) for label in labels)
+    assert "Column inlet" in labels
+    assert not any(label.startswith(("Buffer C", "Buffer D")) for label in labels)
     assert not any(label.startswith("Mixer") for label in labels)
-    assert not any(label.endswith((" inlet", " volume")) for label in labels)
+    assert not any(label.endswith(" volume") for label in labels)

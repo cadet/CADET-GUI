@@ -230,9 +230,13 @@ def test_signal_picker_offers_only_measurable_positions_without_a_preview():
     assert labels
     assert labels[0] == "Outlet"
     assert "Column outlet" in labels
-    # Inputs and hardware-internal ports are not places a detector sits.
-    assert not any(label.startswith(("Buffer", "Feed")) for label in labels)
-    assert not any(label.endswith(" inlet") for label in labels)
+    # The column inlet and the inlets the process drives are offered ...
+    assert "Column inlet" in labels
+    assert "Buffer A inlet" in labels
+    # ... idle inlets and hardware-internal ports are not.
+    idle = ("Buffer B", "Buffer C", "Buffer D", "Feed")
+    assert not any(label.startswith(idle) for label in labels)
+    assert not any(label.startswith("Tubing") and label.endswith(" inlet") for label in labels)
     assert not any(label.startswith(("Mixer", "Sample loop")) for label in labels)
     assert not any(label.endswith(" volume") for label in labels)
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Literal, Mapping, Optional, Sequence
+from typing import Any, Callable, Collection, Dict, Literal, Mapping, Optional, Sequence
 
 from CADETProcess.instruments import (
     LWE,
@@ -464,8 +464,10 @@ def _as_list(value: Any) -> list[Any]:
 def signal_label(unit: str, port: str) -> str:
     """Plain-language name of a signal position, e.g. "Column outlet" or "Outlet"."""
     name = UNIT_LABELS.get(unit, unit.replace("_", " ").capitalize())
-    if unit in ("outlet", "waste") or (port == "outlet" and unit in _INLET_UNITS):
+    if unit in ("outlet", "waste"):
         return name
+    if port == "outlet" and unit in _INLET_UNITS:
+        return f"{name} inlet"
     return f"{name} {port}"
 
 
@@ -767,21 +769,26 @@ _INFRASTRUCTURE_UNITS = ("mixer", "sample_loop")
 
 
 def measurable_signal_ports(
-    units: Mapping[str, Any], options: Sequence[tuple[str, tuple[str, str]]]
+    units: Mapping[str, Any],
+    options: Sequence[tuple[str, tuple[str, str]]],
+    inlets: Collection[str] = (),
 ) -> list[tuple[str, tuple[str, str]]]:
-    """Keep the signal positions a detector could actually sit at.
+    """Keep the signal positions worth looking at or comparing against.
 
     `classify_signal_ports`/`list_signal_ports` list every port of every unit
     in the flow sheet -- buffer and feed sources, the mixer junction, the
     sample loop, each unit's inlet and `volume` port -- which is far more
     than there is anything to compare or look at. Keep the process outlets
-    (sinks) and the outlet port of each remaining unit (column, tubing
-    segments), in the order given (sinks first).
+    (sinks), the outlet port of each remaining unit (column, tubing
+    segments), the column inlet, and the sources of the inlets named in
+    `inlets` (the ones the process drives), in the order given.
     """
     return [
         (label, (unit, port))
         for label, (unit, port) in options
         if isinstance(units[unit], Outlet)
+        or (isinstance(units[unit], Inlet) and unit in inlets)
+        or (unit == "column" and port == "inlet")
         or (
             port == "outlet"
             and not isinstance(units[unit], Inlet)

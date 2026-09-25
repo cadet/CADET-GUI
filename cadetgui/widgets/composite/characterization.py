@@ -19,6 +19,7 @@ from CADETProcess.simulator import Cadet
 
 from ...cadetprocessadapter import (
     FieldSpec,
+    active_inlets,
     friendly_signal_options,
     list_signal_ports,
     measurable_signal_ports,
@@ -393,7 +394,11 @@ class CharacterizationWidget:
         process = process if process is not None else self._config.process
         options = (
             friendly_signal_options(
-                measurable_signal_ports(process.flow_sheet.units_dict, list_signal_ports(process))
+                measurable_signal_ports(
+                    process.flow_sheet.units_dict,
+                    list_signal_ports(process),
+                    active_inlets(process),
+                )
             )
             if process is not None
             else []

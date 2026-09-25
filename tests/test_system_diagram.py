@@ -243,7 +243,9 @@ def test_diagram_is_one_self_contained_svg():
         ("waste", "inlet", "Waste outlet"),
         ("column", "outlet", "Column outlet"),
         ("tubing_detectors", "outlet", "Tubing (detectors) outlet"),
-        ("buffer_a", "outlet", "Buffer A"),
+        ("buffer_a", "outlet", "Buffer A inlet"),
+        ("feed_inlet", "outlet", "Feed inlet"),
+        ("column", "inlet", "Column inlet"),
     ],
 )
 def test_signal_labels_are_plain_names(unit, port, label):

@@ -6,6 +6,7 @@ import ipywidgets as W
 
 from ... import configuration_store, run_store
 from ...cadetprocessadapter import (
+    active_inlets,
     classify_signal_ports,
     friendly_signal_options,
     measurable_signal_ports,
@@ -402,7 +403,9 @@ class SolutionWidget:
         # offers every port, so saved data stays complete.
         options = friendly_signal_options(
             measurable_signal_ports(
-                result.process.flow_sheet.units_dict, classify_signal_ports(result)
+                result.process.flow_sheet.units_dict,
+                classify_signal_ports(result),
+                active_inlets(result.process),
             )
         )
         self._signal_picker.set_options(options, keep_value=True)
