@@ -436,6 +436,25 @@ def active_inlets(process: Any) -> list[str]:
     return [name for name in _INLET_UNITS if name in driven]
 
 
+def inlet_contents(process: Any) -> dict[str, list[str]]:
+    """Component names each driven inlet carries; `"sample_loop"` is listed when it holds sample."""
+    flow_sheet = process.flow_sheet
+    names = list(flow_sheet.component_system.names)
+    units = flow_sheet.units_dict
+    contents: dict[str, list[str]] = {}
+    for name in [*active_inlets(process), "sample_loop"]:
+        if name not in units:
+            continue
+        found = [n for n, c in zip(names, units[name].c) if any(_as_list(c))]
+        if found or name != "sample_loop":
+            contents[name] = found
+    return contents
+
+
+def _as_list(value: Any) -> list[Any]:
+    return list(value) if hasattr(value, "__iter__") else [value]
+
+
 def signal_label(unit: str, port: str) -> str:
     """Plain-language name of a signal position, e.g. "Column outlet" or "Process outlet"."""
     name = UNIT_LABELS.get(unit, unit.replace("_", " ").capitalize())

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from html import escape, unescape
 from importlib import resources
-from typing import Collection, List, Optional, Sequence, Tuple
+from typing import Collection, List, Mapping, Optional, Sequence, Tuple
 
 import ipywidgets as W
 
@@ -51,14 +51,15 @@ _PORTS = {
 _LOOP_IN_Y = 145.5
 _LOOP_SAMPLE_PORT = (152.8, 80.5)
 _STEM = (30.5, 95.5)
+_FEED_RISE = _PORTS["SampleLoop"][2] - _LOOP_SAMPLE_PORT[1] + _PORTS["Inlet"][2]
 
-_GAP = 40
+_GAP = 28
 _TUBE = 80
 _TUBE_WIDTH = 3
 _LINE_WIDTH = 1.5
 _MARGIN = 16
 _BUS = 30
-_INLET_GAP = 30
+_INLET_GAP = 40
 _ROW_DROP = 40
 _CAPTION_FONT = 14
 _CAPTION_LEAD = 16
@@ -169,15 +170,25 @@ def _lines(label: str) -> List[str]:
     return [head, f"({tail}"] if sep else [label]
 
 
-def _caption(lines: Sequence[str], cx: float, y: float, *, italic: bool = False) -> str:
+def _caption(
+    lines: Sequence[str],
+    cx: float,
+    y: float,
+    *,
+    italic: bool = False,
+    start: bool = False,
+    strong: bool = False,
+) -> str:
     style = ' font-style="italic"' if italic else ""
+    anchor = "start" if start else "middle"
+    weight = ' font-weight="bold"' if strong else ""
     tspans = "".join(
         f'<tspan x="{_num(cx)}" y="{_num(y + i * _CAPTION_LEAD)}">{escape(line)}</tspan>'
         for i, line in enumerate(lines)
     )
     return (
-        f'<text text-anchor="middle" font-size="{_CAPTION_FONT}"{style} '
-        f'style="fill: {_MUTED}">{tspans}</text>'
+        f'<text text-anchor="{anchor}" font-size="{_CAPTION_FONT}"{style}{weight} '
+        f'style="fill: {_FG if strong else _MUTED}">{tspans}</text>'
     )
 
 
@@ -299,26 +310,112 @@ def _unit_group(unit: str, state: str, content: str) -> str:
     return f'<g data-unit="{unit}" data-state="{state}">{content}</g>'
 
 
+def _dim(content: str, on: bool) -> str:
+    return content if on else f'<g opacity="0.4">{content}</g>'
+
+
+def _names(names: Sequence[str]) -> str:
+    text = ", ".join(names)
+    return text if len(text) <= 24 else f"{len(names)} components"
+
+
+def _inlet_lines(unit: str, on: bool, carries: Optional[Mapping[str, Sequence[str]]]) -> List[str]:
+    if unit == "feed_inlet":
+        head = ["Feed inlet", "(sample components)"]
+        names = (carries or {}).get(unit)
+        if not on:
+            return [*head, "unused"]
+        return [*head, _names(names)] if names else head
+    label = _label_of(unit)
+    if not on:
+        return [label, "(unused)"]
+    if carries is None or unit not in carries:
+        return [label]
+    return [label, f"({_names(carries[unit])})" if carries[unit] else "(buffer only)"]
+
+
+def _letters(units: Sequence[str]) -> str:
+    letters = [u[-1].upper() for u in units]
+    if len(letters) == len(_BUFFERS):
+        return "A\u2013D"
+    return letters[0] if len(letters) == 1 else ", ".join(letters[:-1]) + " and " + letters[-1]
+
+
+def _usage_notes(
+    inlets: Collection[str],
+    carries: Optional[Mapping[str, Sequence[str]]],
+    shown: Collection[str],
+    path: Collection[str],
+    mixer_on: bool = True,
+) -> List[str]:
+    """One plain-language sentence per active inlet group, then what is not used."""
+    carries = carries or {}
+    target = "the column" if "column" in path else "the flow path"
+    notes: List[str] = []
+    if "feed_inlet" in inlets:
+        names = carries.get("feed_inlet", [])
+        what = f" ({', '.join(names)})" if names else ""
+        via = "through the sample loop" if "sample_loop" in path else "straight"
+        notes.append(f"Feed inlet carries the sample components{what} {via} into {target}.")
+    on = [b for b in _BUFFERS if b in inlets]
+    if on:
+        names = list(dict.fromkeys(n for b in on for n in carries.get(b, [])))
+        what = ", ".join(names) if names else "plain buffer"
+        noun, verb = ("Buffer", "carries") if len(on) == 1 else ("Buffers", "carry")
+        via = " through the mixer" if mixer_on else ""
+        notes.append(f"{noun} {_letters(on)} {verb} {what}{via} into {target}.")
+    if carries.get("sample_loop") and "sample_loop" in path:
+        notes.append(
+            f"The sample ({', '.join(carries['sample_loop'])}) is pre-filled in the sample "
+            f"loop and injected onto {target}."
+        )
+    off = []
+    if "feed_inlet" in shown and "feed_inlet" not in inlets:
+        off.append("the feed inlet")
+    off_buffers = [b for b in _BUFFERS if b in shown and b not in inlets]
+    if off_buffers:
+        off.append(f"buffer{'' if len(off_buffers) == 1 else 's'} {_letters(off_buffers)}")
+    if off:
+        notes.append(f"Not used: {' and '.join(off)}.")
+    return notes
+
+
 def render_system_svg(
     units: Collection[str],
     bypassed: Collection[str] = (),
     inlets: Optional[Sequence[str]] = None,
+    carries: Optional[Mapping[str, Sequence[str]]] = None,
 ) -> str:
     """Render the LC flow path from the P&ID symbols as an HTML fragment holding one SVG.
 
     `units` are the unit names present in the flow sheet; `bypassed` the ones the user
     excluded. Bypassed units are left out of the path (the mixer, which always stays as the
     buffer junction, is drawn dimmed and dashed). `inlets` are the inlet units the process
-    drives; `None` means unknown, drawn as one generic inlet.
+    drives; `None` means unknown, drawn as one generic inlet. Every buffer inlet and the feed
+    inlet of the flow sheet is drawn, the ones outside `inlets` dimmed and marked unused.
+    `carries` maps an inlet (and `"sample_loop"`) to the component names it delivers and adds
+    them to the labels and to a plain-language caption under the drawing.
     """
     units = set(units)
     bypassed = set(bypassed)
     path = [u for u in _MAIN_PATH if u in units]
-    buffers = ["inlet"] if inlets is None else [b for b in _BUFFERS if b in inlets]
+    has_loop = "sample_loop" in path
+    known = inlets is not None
+    active = set(inlets or ())
+    if known:
+        buffers = [b for b in _BUFFERS if b in units or b in active]
+        active_buffers = [b for b in buffers if b in active]
+    else:
+        buffers = active_buffers = ["inlet"]
+    feed_shown = known and ("feed_inlet" in units or "feed_inlet" in active)
+    feed_on = feed_shown and "feed_inlet" in active
     inlet_sym = _load_symbol("Inlet")
+    feed_lines = _inlet_lines("feed_inlet", feed_on, carries if known else None)
+    feed_extra = (len(feed_lines) - 1) * _CAPTION_LEAD
 
     pitch = inlet_sym.height + _INLET_GAP
     stack_h = max(len(buffers) * pitch - _INLET_GAP, 0)
+    heading = 24 if known and buffers else 0
     x0 = _MARGIN + (inlet_sym.width + _BUS + 25 if buffers else 0)
 
     items: List[_Item] = []
@@ -329,17 +426,17 @@ def render_system_svg(
         items.append(it)
         x += it.width + _GAP
 
-    up_max = stack_h / 2 + 4
+    up_max = stack_h / 2 + 4 + heading
+    if feed_shown and has_loop:
+        up_max = max(up_max, _FEED_RISE + 6 + feed_extra + _CAPTION_FONT)
     item_down = 0.0
     for it in items:
         up, down = _extent(it, "bypassed" if it.state == "bypassed" else "")
         up_max, item_down = max(up_max, up), max(item_down, down)
     my = _MARGIN + up_max
 
-    has_loop = "sample_loop" in path
     junction = next((it for it in reversed(items) if it.unit in _JUNCTIONS), None)
     target = next((it for it in items if it.unit not in _JUNCTIONS), None)
-    feed_on = inlets is not None and "feed_inlet" in inlets
     row2_y = my + item_down + _ROW_DROP
     parts = [_marker("cg-arrow", _FG), _marker("cg-arrow-muted", _MUTED_STROKE)]
     right = x - _GAP
@@ -348,31 +445,47 @@ def render_system_svg(
     bus_x = _MARGIN + inlet_sym.width + _BUS
     if buffers and first is not None:
         top = my - stack_h / 2
-        ys = []
+        if known:
+            head = _caption(
+                ["Buffers via mixer"], _MARGIN, top - 12, start=True, strong=bool(active_buffers)
+            )
+            parts.append(head)
+        ys = {}
         for i, buf in enumerate(buffers):
             y = top + i * pitch
-            content = _symbol(_SYMBOL_OF[buf], _MARGIN, y)
-            label = UNIT_LABELS.get(buf, buf.capitalize())
-            if label != _load_symbol(_SYMBOL_OF[buf]).text:
+            on = buf in active_buffers
+            content = _dim(_symbol(_SYMBOL_OF[buf], _MARGIN, y), on)
+            lines = _inlet_lines(buf, on, carries) if known else _lines(_label_of(buf))
+            if known or _label_of(buf) != _load_symbol(_SYMBOL_OF[buf]).text:
                 content += _caption(
-                    _lines(label),
-                    _MARGIN + inlet_sym.width / 2,
-                    y + inlet_sym.height + 16,
+                    lines, _MARGIN + inlet_sym.width / 2, y + inlet_sym.height + 16
                 )
-            parts.append(_unit_group(buf, "active", content))
-            py = y + _PORTS["Inlet"][2]
-            ys.append(py)
+            parts.append(_unit_group(buf, "active" if on else "unused", content))
+            ys[buf] = y + _PORTS["Inlet"][2]
             parts.append(
                 _wire(
-                    f"M{_num(_MARGIN + inlet_sym.width - 0.5)} {_num(py)} H{_num(bus_x)}",
+                    f"M{_num(_MARGIN + inlet_sym.width - 0.5)} {_num(ys[buf])} H{_num(bus_x)}",
                     arrow=False,
+                    muted=not on,
                 )
             )
-        if len(ys) > 1:
+        on_ys = [ys[b] for b in active_buffers] + [my]
+        all_ys = list(ys.values()) + [my]
+        if max(all_ys) > min(all_ys) and len(active_buffers) < len(buffers):
             parts.append(
-                _wire(f"M{_num(bus_x)} {_num(min(ys))} V{_num(max(ys))}", arrow=False)
+                _wire(f"M{_num(bus_x)} {_num(min(all_ys))} V{_num(max(all_ys))}",
+                      arrow=False, muted=True)
             )
-        parts.append(_wire(f"M{_num(bus_x)} {_num(my)} H{_num(first.x + first.in_x)}"))
+        if active_buffers and max(on_ys) > min(on_ys):
+            parts.append(
+                _wire(f"M{_num(bus_x)} {_num(min(on_ys))} V{_num(max(on_ys))}", arrow=False)
+            )
+        parts.append(
+            _wire(
+                f"M{_num(bus_x)} {_num(my)} H{_num(first.x + first.in_x)}",
+                muted=not active_buffers,
+            )
+        )
 
     for a, b in zip(items, items[1:]):
         x1 = a.x + a.out_x
@@ -399,49 +512,48 @@ def render_system_svg(
         parts.append(_unit_group("waste", "idle", content))
         right = max(right, wx + inlet_sym.width)
 
-    if feed_on:
-        label = _label_of("feed_inlet")
-        if has_loop:
-            loop = next(it for it in items if it.unit == "sample_loop")
-            fx = loop.x + loop.width + _GAP
-            fy = (
-                my - _PORTS["SampleLoop"][2] + _LOOP_SAMPLE_PORT[1] - _PORTS["Inlet"][2]
+    feed_state = "active" if feed_on else "unused"
+    if feed_shown and has_loop:
+        loop = next(it for it in items if it.unit == "sample_loop")
+        fx = loop.x + loop.width + _GAP
+        fy = my - _FEED_RISE
+        content = _dim(_symbol("Inlet", fx, fy), feed_on)
+        content += _caption(feed_lines, fx + inlet_sym.width / 2, fy - 6 - feed_extra)
+        sample_x = loop.x + _LOOP_SAMPLE_PORT[0]
+        parts.append(
+            _wire(
+                f"M{_num(fx + 0.5)} {_num(fy + _PORTS['Inlet'][2])} H{_num(sample_x)}",
+                arrow=False,
+                muted=not feed_on,
             )
-            content = _symbol("Inlet", fx, fy)
-            content += _caption(
-                [label], fx + inlet_sym.width / 2, fy + inlet_sym.height + 16
-            )
-            sample_x = loop.x + _LOOP_SAMPLE_PORT[0]
-            parts.append(
-                _wire(
-                    f"M{_num(fx + 0.5)} {_num(fy + _PORTS['Inlet'][2])} H{_num(sample_x)}",
-                    arrow=False,
-                )
-            )
-            parts.append(_unit_group("feed_inlet", "active", content))
-            right = max(right, fx + inlet_sym.width)
-        elif target is not None:
-            cx = target.x + target.width / 2
-            fx = cx - inlet_sym.width / 2
-            end = my + (target.down if target.symbol else 1)
-            content = _symbol("Inlet", fx, row2_y)
-            content += _caption([label], cx, row2_y + inlet_sym.height + 16)
-            parts.append(_wire(f"M{_num(cx)} {_num(row2_y)} V{_num(end)}"))
-            parts.append(_unit_group("feed_inlet", "active", content))
-            right = max(right, fx + inlet_sym.width)
+        )
+        parts.append(_unit_group("feed_inlet", feed_state, content))
+        right = max(right, fx + inlet_sym.width)
+    elif feed_shown and target is not None:
+        cx = target.x + target.width / 2
+        fx = cx - inlet_sym.width / 2
+        end = my + (target.down if target.symbol else 1)
+        content = _dim(_symbol("Inlet", fx, row2_y), feed_on)
+        content += _caption(feed_lines, cx, row2_y + inlet_sym.height + 16)
+        parts.append(_wire(f"M{_num(cx)} {_num(row2_y)} V{_num(end)}", muted=not feed_on))
+        parts.append(_unit_group("feed_inlet", feed_state, content))
+        right = max(right, fx + inlet_sym.width)
 
     width = right + _MARGIN
-    bottom = max(my + item_down, my + stack_h / 2 + 24)
-    if ("waste" in units and junction is not None) or (feed_on and not has_loop):
-        bottom = row2_y + inlet_sym.height + 24
+    bottom = max(my + item_down, my + stack_h / 2 + 24 + (_CAPTION_LEAD if known else 0))
+    if ("waste" in units and junction is not None) or (feed_shown and not has_loop):
+        below = row2_y + inlet_sym.height + 24 + (feed_extra if feed_shown and not has_loop else 0)
+        bottom = max(bottom, below)
     height = bottom + _MARGIN
 
+    shown = set(buffers) | ({"feed_inlet"} if feed_shown else set())
+    notes = _usage_notes(active, carries, shown, path, "mixer" not in bypassed) if known else []
     off = [UNIT_LABELS[u] for u in _MAIN_PATH if u in bypassed and u in UNIT_LABELS]
-    caption = (
-        f'<div style="font-size:12px;color:{_MUTED};margin-top:4px">'
-        f"Not in the flow path: {escape(', '.join(off))}</div>"
-        if off
-        else ""
+    if off:
+        notes.append(f"Not in the flow path: {', '.join(off)}")
+    caption = "".join(
+        f'<div style="font-size:12px;color:{_MUTED};margin-top:4px">{escape(n)}</div>'
+        for n in notes
     )
     return (
         f'<div class="cadetgui-system-diagram">'
@@ -465,10 +577,11 @@ class SystemDiagram:
         flow_sheet: object,
         bypassed: Collection[str] = (),
         inlets: Optional[Sequence[str]] = None,
+        carries: Optional[Mapping[str, Sequence[str]]] = None,
     ) -> None:
         """Redraw for `flow_sheet` (a built LCFlowSheet, or `None` while inputs are invalid)."""
         if flow_sheet is None:
             note = "No system to show while inputs are invalid."
             self.root.value = f'<em style="color:{_MUTED}">{note}</em>'
             return
-        self.root.value = render_system_svg(flow_sheet.units_dict, bypassed, inlets)
+        self.root.value = render_system_svg(flow_sheet.units_dict, bypassed, inlets, carries)

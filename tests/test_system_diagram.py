@@ -11,6 +11,7 @@ from cadetgui.cadetprocessadapter import (
     INSTRUMENT_TEMPLATES,
     active_inlets,
     friendly_signal_options,
+    inlet_contents,
     signal_label,
 )
 from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
@@ -72,31 +73,130 @@ def test_diagram_follows_the_sample_loop():
     assert _states(iw._diagram.root.value)["sample_loop"] == "active"
 
 
-def test_only_inlets_the_template_uses_are_drawn():
-    iw, cw = _bound("Step")
-    states = _states(iw._diagram.root.value)
-    assert states["buffer_b"] == "active"
-    assert not {"buffer_a", "buffer_c", "buffer_d", "feed_inlet"} & states.keys()
-
-    cw._model_picker.value = INSTRUMENT_TEMPLATES["Pulse Injection"]
-    states = _states(iw._diagram.root.value)
-    assert states["buffer_a"] == "active"
-    assert "buffer_b" not in states
-    assert states["sample_loop"] == "active"
-
-    cw._model_picker.value = INSTRUMENT_TEMPLATES["Load–Wash–Elute (LWE)"]
-    states = _states(iw._diagram.root.value)
-    assert {"buffer_a", "buffer_b"} <= states.keys()
-    assert not {"buffer_c", "buffer_d"} & states.keys()
+def _captions(html: str) -> list[str]:
+    return re.findall(r'<div style="font-size:12px[^>]*>([^<]*)</div>', html)
 
 
-def test_breakthrough_draws_the_feed_inlet():
-    iw, _cw = _bound("Breakthrough")
+def test_fresh_system_pane_shows_breakthrough_feed_path_with_buffers_unused():
+    iw = InstrumentWidget()
+    cw = ConfigurationWidget(instrument=iw)
+    assert type(cw.process).__name__ == "Breakthrough"
 
     states = _states(iw._diagram.root.value)
 
     assert states["feed_inlet"] == "active"
-    assert not {"buffer_a", "buffer_b", "buffer_c", "buffer_d"} & states.keys()
+    assert {states[b] for b in ("buffer_a", "buffer_b", "buffer_c", "buffer_d")} == {"unused"}
+
+
+def test_step_uses_buffer_b_and_leaves_feed_unused():
+    iw, _cw = _bound("Step")
+    states = _states(iw._diagram.root.value)
+
+    assert states["buffer_b"] == "active"
+    assert {states[u] for u in ("buffer_a", "buffer_c", "buffer_d", "feed_inlet")} == {"unused"}
+
+
+def test_switching_template_moves_the_active_state_between_feed_and_buffers():
+    iw, cw = _bound("Pulse Injection")
+    states = _states(iw._diagram.root.value)
+    assert states["buffer_a"] == "active"
+    assert {states[u] for u in ("buffer_b", "buffer_c", "buffer_d", "feed_inlet")} == {"unused"}
+    assert states["sample_loop"] == "active"
+
+    cw._model_picker.value = INSTRUMENT_TEMPLATES["Load–Wash–Elute (LWE)"]
+    states = _states(iw._diagram.root.value)
+    assert {states["buffer_a"], states["buffer_b"]} == {"active"}
+    assert {states["buffer_c"], states["buffer_d"], states["feed_inlet"]} == {"unused"}
+
+    cw._model_picker.value = INSTRUMENT_TEMPLATES["Breakthrough"]
+    states = _states(iw._diagram.root.value)
+    assert states["feed_inlet"] == "active"
+    assert "active" not in {states[b] for b in ("buffer_a", "buffer_b", "buffer_c", "buffer_d")}
+
+
+def test_unused_inlets_are_dimmed_and_labelled_not_hidden():
+    iw, _cw = _bound("Breakthrough")
+    root = _root(iw._diagram.root.value)
+    groups = {g.get("data-unit"): g for g in root.iter(_SVG + "g") if g.get("data-unit")}
+
+    unused = groups["buffer_c"]
+    assert unused.find(f"{_SVG}g[@opacity]") is not None
+    assert "unused" in "".join(unused.itertext())
+    assert groups["buffer_c"].find(f".//{_SVG}svg") is not None
+    feed = "".join(groups["feed_inlet"].itertext())
+    assert "Feed inlet" in feed and "sample components" in feed
+    assert groups["feed_inlet"].find(f"{_SVG}g[@opacity]") is None
+    assert "Buffers via mixer" in "".join(root.itertext())
+
+
+def test_breakthrough_caption_names_the_sample_components_on_the_feed_path():
+    iw = InstrumentWidget()
+    cw = ConfigurationWidget(instrument=iw)
+    cw.components = ["Salt", "Protein"]
+
+    captions = _captions(iw._diagram.root.value)
+
+    assert captions[0] == (
+        "Feed inlet carries the sample components (Salt, Protein) straight into the column."
+    )
+    assert captions[1] == "Not used: buffers A\u2013D."
+
+
+def test_step_caption_names_the_buffer_path():
+    iw, cw = _bound("Step")
+    cw.components = ["Salt", "Protein"]
+    captions = _captions(iw._diagram.root.value)
+
+    assert captions[0] == "Buffer B carries Salt, Protein into the column."
+    assert captions[1] == "Not used: the feed inlet and buffers A, C and D."
+
+
+def test_loop_templates_caption_says_the_sample_sits_in_the_loop():
+    iw, cw = _bound("Load–Wash–Elute (LWE)")
+    cw.components = ["Salt", "Protein"]
+    captions = _captions(iw._diagram.root.value)
+
+    assert captions[0].startswith("Buffers A and B carry ")
+    assert "pre-filled in the sample loop" in captions[1]
+    assert captions[2] == "Not used: the feed inlet and buffers C and D."
+
+    cw._model_picker.value = INSTRUMENT_TEMPLATES["Pulse Injection"]
+    captions = _captions(iw._diagram.root.value)
+    assert captions[0].startswith("Buffer A carries plain buffer")
+
+
+def test_caption_mentions_the_mixer_only_while_it_is_in_the_path():
+    iw, _cw = _bound("Step")
+    assert "through the mixer" not in _captions(iw._diagram.root.value)[0]
+
+    iw._unit_checkboxes["mixer"].value = True
+
+    assert "through the mixer" in _captions(iw._diagram.root.value)[0]
+
+
+def test_inlet_contents_lists_only_driven_inlets_and_a_filled_loop():
+    _iw, cw = _bound("Step")
+    cw.components = ["Salt", "Protein"]
+    assert inlet_contents(cw.process) == {"buffer_b": ["Salt", "Protein"]}
+
+    cw._model_picker.value = INSTRUMENT_TEMPLATES["Pulse Injection"]
+    assert inlet_contents(cw.process) == {"buffer_a": [], "sample_loop": ["Salt", "Protein"]}
+
+    cw._model_picker.value = INSTRUMENT_TEMPLATES["Breakthrough"]
+    assert inlet_contents(cw.process) == {"feed_inlet": ["Salt", "Protein"]}
+
+
+def test_long_component_lists_are_summarised_in_the_label():
+    names = [f"Component number {i}" for i in range(3)]
+    html = render_system_svg(_ALL_UNITS, (), ["feed_inlet"], {"feed_inlet": names})
+
+    assert "3 components" in html
+
+
+def test_unknown_inlets_add_no_usage_caption():
+    html = render_system_svg({"mixer", "column", "outlet", "waste"}, inlets=None)
+
+    assert _captions(html) == []
 
 
 def test_active_inlets_are_read_from_the_process_events():
@@ -222,6 +322,9 @@ def test_symbols_stay_inside_the_canvas_and_never_overlap():
     for units, bypassed, inlets in (
         (_ALL_UNITS, (), _ALL_INLETS),
         (_ALL_UNITS - {"sample_loop"}, ("mixer",), ["buffer_b", "feed_inlet"]),
+        (_ALL_UNITS, (), ["feed_inlet"]),
+        (_ALL_UNITS - {"sample_loop"}, (), []),
+        (_ALL_UNITS - {"sample_loop"}, (), ["feed_inlet"]),
         ({"mixer", "column", "outlet", "waste"}, (), None),
     ):
         root = _root(render_system_svg(units, bypassed, inlets))

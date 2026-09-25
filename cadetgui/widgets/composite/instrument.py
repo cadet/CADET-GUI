@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence
 
 import ipywidgets as W
 from CADETProcess.instruments import LCFlowSheet
@@ -166,6 +166,7 @@ class InstrumentWidget:
         }
 
         self._active_inlets: Optional[List[str]] = None
+        self._carries: Optional[Mapping[str, Sequence[str]]] = None
         self._diagram = SystemDiagram()
 
         self.status = W.HTML("<em>Building the system...</em>")
@@ -269,13 +270,23 @@ class InstrumentWidget:
         if not self._suspend_rebuild:
             self._rebuild()
 
-    def set_active_inlets(self, names: Optional[Iterable[str]]) -> None:
-        """Set which inlets the selected process drives (`None`: unknown) and redraw the diagram."""
+    def set_active_inlets(
+        self,
+        names: Optional[Iterable[str]],
+        carries: Optional[Mapping[str, Sequence[str]]] = None,
+    ) -> None:
+        """Set which inlets the selected process drives (`None`: unknown) and redraw the diagram.
+
+        `carries` maps each driven inlet to the component names it delivers.
+        """
         self._active_inlets = None if names is None else list(names)
+        self._carries = carries
         self._refresh_diagram()
 
     def _refresh_diagram(self) -> None:
-        self._diagram.update(self.flow_sheet, self.bypass_units(), self._active_inlets)
+        self._diagram.update(
+            self.flow_sheet, self.bypass_units(), self._active_inlets, self._carries
+        )
 
     def _notify(self) -> None:
         self._refresh_diagram()
