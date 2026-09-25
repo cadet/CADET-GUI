@@ -12,6 +12,7 @@ from cadetgui.configuration_store import (
     list_store,
     load_from_store,
     load_h5,
+    runs_dir,
     safe_config_dirname,
     save_h5,
     save_to_store,
@@ -161,6 +162,25 @@ def test_config_dir_creates_a_subfolder_named_after_the_configuration(tmp_path):
 
     assert path == tmp_path / "My_Config"
     assert path.is_dir()
+
+
+def test_runs_dir_is_a_runs_subfolder_of_the_configuration_folder(tmp_path):
+    path = runs_dir("My Config", store_dir=tmp_path)
+
+    assert path == tmp_path / "My_Config" / "runs"
+    assert path.is_dir()
+
+
+def test_runs_dir_moves_runs_left_in_the_configuration_folder_but_not_its_configs(tmp_path):
+    folder = config_dir("My Config", store_dir=tmp_path)
+    for name in ("run_1.json", "run_1.h5", "config_abc.h5"):
+        (folder / name).write_text(name)
+
+    path = runs_dir("My Config", store_dir=tmp_path)
+
+    assert sorted(p.name for p in path.iterdir()) == ["run_1.h5", "run_1.json"]
+    assert [p.name for p in folder.iterdir() if p.is_file()] == ["config_abc.h5"]
+    assert (path / "run_1.json").read_text() == "run_1.json"
 
 
 def test_save_to_store_reuses_the_existing_folder_for_identical_content_under_a_new_name(

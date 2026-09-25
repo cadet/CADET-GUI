@@ -19,6 +19,7 @@ __all__ = [
     "default_store_dir",
     "safe_config_dirname",
     "config_dir",
+    "runs_dir",
     "save_h5",
     "load_h5",
     "save_to_store",
@@ -101,6 +102,22 @@ def config_dir(name: str, *, store_dir: Optional[Path] = None) -> Path:
     path = store_dir / safe_config_dirname(name)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def runs_dir(name: str, *, store_dir: Optional[Path] = None) -> Path:
+    """Return the `runs` subfolder of a configuration's folder, created on demand.
+
+    Run manifests and raw outputs that older versions left directly in the
+    configuration's folder are moved in here once, so existing runs stay listed.
+    """
+    folder = config_dir(name, store_dir=store_dir)
+    runs = folder / "runs"
+    runs.mkdir(exist_ok=True)
+    for legacy in [*folder.glob("run_*.json"), *folder.glob("run_*.h5")]:
+        target = runs / legacy.name
+        if not target.exists():
+            legacy.rename(target)
+    return runs
 
 
 def _decode_h5_leaf(value: Any) -> Any:

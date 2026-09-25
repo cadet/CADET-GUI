@@ -188,7 +188,7 @@ class SolutionWidget:
     def _sync_history_store_dir(self) -> None:
         if self._config_widget is None or self._history_store_dir_overridden:
             return
-        self.history.store_dir = configuration_store.config_dir(
+        self.history.store_dir = configuration_store.runs_dir(
             self._config_widget.config_name,
             store_dir=self._config_widget.persistence.store_dir,
         )

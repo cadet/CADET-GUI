@@ -83,7 +83,7 @@ def test_solutionwidget_bind_to_config_adopts_an_already_set_store_dir(tmp_path)
     sw = SolutionWidget()
     sw.bind_to_config(cw)
 
-    expected = configuration_store.config_dir(cw.config_name, store_dir=tmp_path / "project")
+    expected = configuration_store.runs_dir(cw.config_name, store_dir=tmp_path / "project")
     assert sw.history.store_dir == expected
 
 
@@ -95,7 +95,7 @@ def test_solutionwidget_bind_to_config_defaults_to_the_configuration_folder_even
     sw = SolutionWidget()
     sw.bind_to_config(cw)
 
-    expected = configuration_store.config_dir(cw.config_name, store_dir=None)
+    expected = configuration_store.runs_dir(cw.config_name, store_dir=None)
     assert sw.history.store_dir == expected
 
 
@@ -107,7 +107,7 @@ def test_solutionwidget_bind_to_config_follows_later_store_dir_changes(tmp_path)
     cw.persistence._store_dir_field.value = str(tmp_path / "project")
     cw.persistence._on_set_store_dir(None)
 
-    expected = configuration_store.config_dir(cw.config_name, store_dir=tmp_path / "project")
+    expected = configuration_store.runs_dir(cw.config_name, store_dir=tmp_path / "project")
     assert sw.history.store_dir == expected
 
 
@@ -147,7 +147,7 @@ def test_solutionwidget_resuming_auto_follow_by_clearing_the_override(tmp_path):
     sw.history._store_dir_field.value = ""
     sw.history._on_set_store_dir(None)
 
-    expected = configuration_store.config_dir(cw.config_name, store_dir=tmp_path / "project")
+    expected = configuration_store.runs_dir(cw.config_name, store_dir=tmp_path / "project")
     assert sw.history.store_dir == expected
 
 
@@ -159,7 +159,7 @@ def test_solutionwidget_history_store_dir_follows_a_live_rename(tmp_path):
 
     cw.persistence._name_field.value = "Renamed Config"
 
-    expected = configuration_store.config_dir("Renamed Config", store_dir=None)
+    expected = configuration_store.runs_dir("Renamed Config", store_dir=None)
     assert sw.history.store_dir == expected
     assert sw.history.store_dir != first
 
