@@ -15,14 +15,15 @@ from ...cadetprocessadapter import (
     INSTRUMENT_COMPATIBLE_COLUMNS,
     INSTRUMENT_TEMPLATES,
     MULTIPLEXABLE_COLUMN_PARAMS,
-    PARAMS,
     STANDALONE_TEMPLATES,
     active_inlets,
     build_parameter_config_spec,
     equilibration_inlets,
     inlet_contents,
     lwe_spec,
+    process_phase_spans,
     require_positive,
+    sample_injection_times,
     step_elution_spec,
     template_required_units,
 )
@@ -45,6 +46,8 @@ __all__ = ["ConfigurationWidget"]
 
 _CYCLE_TIME_SLIDER_MAX_SECONDS = 300.0 * 60.0
 _DEFAULT_CONFIG_NAME = "New Experiment"
+_M3S_TO_ML_MIN = 6.0e7
+_ML_MIN_UNITS = r"\frac{\mathrm{mL}}{\mathrm{min}}"
 
 # These templates model a buffer/salt gradient against a load/sample, which is
 # meaningless with a single component -- auto-add a second one on selection.
@@ -745,6 +748,8 @@ class ConfigurationWidget:
         self._event_sliders = {}
         self._cycle_time_minutes_element = None
         self._event_chart.series = []
+        self._event_chart.phases = []
+        self._event_chart.markers = []
 
     def _rebuild_event_sliders(self) -> None:
         """Add a slider next to each scalar timing/flow field.
@@ -861,25 +866,38 @@ class ConfigurationWidget:
         self._cycle_time_minutes_element.layout.display = "" if show_minutes else "none"
 
     def _redraw_event_plot(self) -> None:
-        """Feed the interactive chart raw values from `Process.parameter_timelines`.
+        """Feed the interactive chart from `Process.parameter_timelines` and its phases.
 
         Reuses the form's own already-committed build rather than building
-        again here.
+        again here. Valve-state timelines are not plotted; the phases and the
+        sample injection are drawn as bands and a marker instead.
         """
         if self._model_form is None or self._model_form.built is None:
             return
         process = self._model_form.built
+        chart = self._event_chart
         try:
             cycle_time = float(process.cycle_time)
             if cycle_time <= 0:
-                self._event_chart.series = []
+                chart.series = []
+                chart.phases = []
+                chart.markers = []
                 return
             n_samples = 300
             times_s = [cycle_time * i / (n_samples - 1) for i in range(n_samples)]
             times_min = [t / 60.0 for t in times_s]
 
+            timelines = {
+                name: timeline
+                for name, timeline in process.parameter_timelines.items()
+                if "output_states" not in name.split(".")
+            }
+            quantities = {name.split(".")[-1] for name in timelines}
+            flow_only = quantities == {"flow_rate"}
+            scale = _M3S_TO_ML_MIN if flow_only else 1.0
+
             series = []
-            for name, timeline in process.parameter_timelines.items():
+            for name, timeline in timelines.items():
                 raw = timeline.value(times_s)
                 raw = raw.tolist() if hasattr(raw, "tolist") else list(raw)
                 n_cols = len(raw[0]) if raw and isinstance(raw[0], (list, tuple)) else 1
@@ -898,27 +916,36 @@ class ConfigurationWidget:
                     else:
                         label = f"{display_name} [{col}]"
                     values = [
-                        float(row[col]) if isinstance(row, (list, tuple)) else float(row)
+                        scale * (float(row[col]) if isinstance(row, (list, tuple)) else float(row))
                         for row in raw
                     ]
                     series.append({"name": label, "times": times_min, "values": values})
+            if flow_only:
+                series = [s for s in series if any(s["values"])] or series
 
-            quantities = {name.split(".")[-1] for name in process.parameter_timelines}
             if len(quantities) == 1:
                 quantity = next(iter(quantities))
-                quantity_units = {
-                    "flow_rate": PARAMS["flow_rate"].units,
-                    "c": CONCENTRATION_UNITS,
-                }
-                units = quantity_units.get(quantity)
+                if quantity == "flow_rate":
+                    units = _ML_MIN_UNITS
+                else:
+                    units = CONCENTRATION_UNITS if quantity == "c" else None
                 if quantity == "c":
                     label = "Concentration"
                 else:
                     label = quantity.replace("_", " ").capitalize()
-                self._event_chart.y_label = f"{label} / {units}" if units else label
+                chart.y_label = f"{label} / {units}" if units else label
             else:
-                self._event_chart.y_label = "state"
-            self._event_chart.series = series
+                chart.y_label = "state"
+
+            chart.phases = [
+                {"name": p["name"], "start": p["start"] / 60.0, "end": p["end"] / 60.0}
+                for p in process_phase_spans(process, self._model_form.spec.phase_names)
+            ]
+            chart.markers = [
+                {"name": "Sample injection", "time": t / 60.0}
+                for t in sample_injection_times(process)
+            ]
+            chart.series = series
         except Exception:
             return
 

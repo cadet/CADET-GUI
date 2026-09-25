@@ -517,7 +517,7 @@ def test_event_chart_populates_even_without_an_instrument_bound():
 def test_event_chart_y_label_is_flow_rate_quantity_and_unit():
     _, cw = built()
     cw._model_picker.value = cw._registry["Step"]  # every timeline is *.flow_rate
-    assert cw._event_chart.y_label == r"Flow rate / \frac{\mathrm{m}^{3}}{\mathrm{s}}"
+    assert cw._event_chart.y_label == r"Flow rate / \frac{\mathrm{mL}}{\mathrm{min}}"
 
 
 def test_cycle_time_slider_is_capped_at_300_minutes_by_default():

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Collection, Dict, Literal, Mapping, Optional, Sequence
 
@@ -139,6 +140,8 @@ class ModelSpec:
     # setup -- so `export_script()` uses this instead of its LCFlowSheet-based
     # default pattern when set. None for every INSTRUMENT_TEMPLATES entry.
     export: Callable[[Mapping[str, Any]], list[str]] | None = None
+    # Display names of the process's `PhasedProcess` phases, in order.
+    phase_names: tuple[str, ...] = ()
 
 
 def _pick(keys: Sequence[str]) -> list[FieldSpec]:
@@ -175,7 +178,9 @@ def pulse_injection_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
         _concentration_field("c_sample", "Sample concentration", 10.0, cs),
         *_pick(["cycle_time", "flow_rate"]),
     ]
-    return ModelSpec(title="Pulse Injection", fields=fields, build=_build)
+    return ModelSpec(
+        title="Pulse Injection", fields=fields, build=_build, phase_names=("Pulse injection",)
+    )
 
 
 def step_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
@@ -196,7 +201,7 @@ def step_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
         _concentration_field("c_buffer_b", "Buffer B concentration", 1000.0, cs),
         *_pick(["cycle_time", "flow_rate"]),
     ]
-    return ModelSpec(title="Step", fields=fields, build=_build)
+    return ModelSpec(title="Step", fields=fields, build=_build, phase_names=("Step",))
 
 
 def lwe_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
@@ -226,7 +231,10 @@ def lwe_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
         _concentration_field("c_sample", "Sample concentration", 20.0, cs),
         *_pick(["delta_t_wash", "delta_t_elute", "delta_t_final_wash", "flow_rate_wash"]),
     ]
-    return ModelSpec(title="Load–Wash–Elute (LWE)", fields=fields, build=_build)
+    return ModelSpec(
+        title="Load–Wash–Elute (LWE)", fields=fields, build=_build,
+        phase_names=("Wash", "Elute (gradient)", "Final wash"),
+    )
 
 
 def step_elution_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
@@ -254,7 +262,10 @@ def step_elution_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
         _concentration_field("c_sample", "Sample concentration", 20.0, cs),
         *_pick(["delta_t_wash", "delta_t_elute", "delta_t_final_wash", "flow_rate_wash"]),
     ]
-    return ModelSpec(title="Step Elution", fields=fields, build=_build)
+    return ModelSpec(
+        title="Step Elution", fields=fields, build=_build,
+        phase_names=("Wash", "Elute", "Final wash"),
+    )
 
 
 def breakthrough_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
@@ -281,7 +292,9 @@ def breakthrough_spec(flow_sheet: LCFlowSheet) -> ModelSpec:
             ),
         ),
     ]
-    return ModelSpec(title="Breakthrough", fields=fields, build=_build)
+    return ModelSpec(
+        title="Breakthrough", fields=fields, build=_build, phase_names=("Breakthrough",)
+    )
 
 
 def pulse_feed_spec(unit: Any) -> ModelSpec:
@@ -362,6 +375,44 @@ def pulse_feed_spec(unit: Any) -> ModelSpec:
     ]
     return ModelSpec(
         title="Pulse Feed (Single Component)", fields=fields, build=_build, export=_export
+    )
+
+
+_PHASE_EVENT = re.compile(r"^phase_(\d+)_")
+_SAMPLE_INJECTION_EVENT = re.compile(r"^valve_sample_loop_inject(_\d+)?$")
+
+
+def process_phase_spans(process: Any, names: Sequence[str] = ()) -> list[dict[str, Any]]:
+    """`PhasedProcess` phases as `{"name", "start", "end"}` dicts in seconds.
+
+    Phases are recovered from the `phase_<i>_<buffer>` events `PhasedProcess`
+    emits; a phase ends where the next one starts (the last, at `cycle_time`).
+    `names` are applied only when there is one per phase, else "Phase <i>".
+    Processes without phase events give an empty list.
+    """
+    starts: dict[int, float] = {}
+    for event in process.events:
+        match = _PHASE_EVENT.match(event.name)
+        if match:
+            i = int(match.group(1))
+            starts[i] = min(float(event.time), starts.get(i, math.inf))
+    if not starts:
+        return []
+    order = sorted(starts)
+    named = len(names) == len(order)
+    spans = []
+    for pos, i in enumerate(order):
+        end = starts[order[pos + 1]] if pos + 1 < len(order) else float(process.cycle_time)
+        spans.append(
+            {"name": names[pos] if named else f"Phase {pos + 1}", "start": starts[i], "end": end}
+        )
+    return spans
+
+
+def sample_injection_times(process: Any) -> list[float]:
+    """Return the times (s) at which the process switches the sample loop into the flow path."""
+    return sorted(
+        float(e.time) for e in process.events if _SAMPLE_INJECTION_EVENT.match(e.name)
     )
 
 
