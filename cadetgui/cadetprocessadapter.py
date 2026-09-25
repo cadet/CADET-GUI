@@ -368,11 +368,11 @@ def pulse_feed_spec(unit: Any) -> ModelSpec:
 # PhasedProcess's fully generic phase-list composition is out of scope here --
 # see REQUIREMENTS.md's "generic user-authored event widget" open decision.
 INSTRUMENT_TEMPLATES: dict[str, Callable[[LCFlowSheet], ModelSpec]] = {
+    "Breakthrough": breakthrough_spec,
     "Step": step_spec,
     "Pulse Injection": pulse_injection_spec,
     "Load–Wash–Elute (LWE)": lwe_spec,
     "Step Elution": step_elution_spec,
-    "Breakthrough": breakthrough_spec,
 }
 
 _TEMPLATE_REQUIRED_UNITS: dict[Callable[..., ModelSpec], frozenset[str]] = {

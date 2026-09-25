@@ -38,7 +38,7 @@ def test_configuration_widget_builds_process_automatically_with_defaults():
     _, cw = built()
 
     assert cw.process is not None
-    assert type(cw.process).__name__ == "Step"
+    assert type(cw.process).__name__ == "Breakthrough"
 
 
 def test_configuration_widget_notifies_listeners_on_a_valid_field_change():
@@ -204,8 +204,7 @@ def test_export_script_includes_binding_model_and_round_trips():
 
 
 def test_components_field_defaults_to_one_named_component():
-    # Pulse Injection is the default template and stays single-component-friendly
-    # (a non-binding tracer pulse is the standard characterization experiment).
+    # The default template stays single-component-friendly.
     iw, cw = built()
     assert cw.components == ["Component 1"]
     assert cw._get_column().n_comp == 1
@@ -213,7 +212,7 @@ def test_components_field_defaults_to_one_named_component():
 
 
 def test_component_minimum_and_note_match_the_selected_template():
-    iw, cw = built()  # defaults to Pulse Injection
+    iw, cw = built()  # defaults to Breakthrough
     assert cw._components.min_components == 1
     assert cw._component_note.layout.display == "none"
 
@@ -665,14 +664,14 @@ def test_bound_configuration_offers_the_five_lc_templates_and_no_cstr_by_default
     cw = ConfigurationWidget(instrument=iw)
 
     assert cw._model_picker.option_labels == [
+        "Breakthrough",
         "Step",
         "Pulse Injection",
         "Load–Wash–Elute (LWE)",
         "Step Elution",
-        "Breakthrough",
     ]
     assert "Continuous Stirred Tank Reactor (CSTR)" not in cw._column_picker.option_labels
-    assert type(cw.process).__name__ == "Step"
+    assert type(cw.process).__name__ == "Breakthrough"
 
 
 def test_unbound_configuration_still_offers_pulse_feed_and_cstr():
@@ -715,12 +714,12 @@ def test_model_form_edit_does_not_resurrect_a_process_while_the_system_is_invali
     assert cw.process is None
 
 
-def test_bound_configuration_starts_on_step_with_no_sample_loop():
+def test_bound_configuration_starts_on_breakthrough_with_no_sample_loop():
     iw = InstrumentWidget()
     cw = ConfigurationWidget(instrument=iw)
 
-    assert cw._model_picker.option_labels[cw._model_picker.selected_index] == "Step"
-    assert type(cw.process).__name__ == "Step"
+    assert cw._model_picker.option_labels[cw._model_picker.selected_index] == "Breakthrough"
+    assert type(cw.process).__name__ == "Breakthrough"
     assert iw._sample_loop_checkbox.value is False
     assert iw._sample_loop_checkbox.disabled is False
     assert set(iw.bypass_units()) == set(iw._unit_checkboxes) - {"column"}
