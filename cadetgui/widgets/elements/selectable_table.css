@@ -1,0 +1,106 @@
+/* Shared tokens come from tokens.css (prepended at load, see _tokens.py). */
+
+.cadetgui-table {
+  min-width: 320px;
+  flex: 1 1 320px;
+  font-family: var(--cg-font);
+  font-size: var(--cg-text);
+  line-height: var(--cg-leading);
+  color: var(--cg-fg);
+}
+
+.cadetgui-table-caption {
+  margin-bottom: 4px;
+  color: var(--cg-muted);
+  font-size: var(--cg-text-sm);
+  font-weight: 600;
+}
+
+.cadetgui-table-caption[hidden] {
+  display: none;
+}
+
+.cadetgui-table-scroll {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius);
+}
+
+.cadetgui-table-grid {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cadetgui-table-grid th {
+  position: sticky;
+  top: 0;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--cg-border);
+  background: color-mix(in srgb, var(--cg-focus) 8%, var(--cg-bg));
+  color: var(--cg-muted);
+  font-size: var(--cg-text-sm);
+  font-weight: 600;
+  text-align: left;
+}
+
+.cadetgui-table-grid td {
+  padding: 5px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--cg-border) 55%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.cadetgui-table-grid tbody tr {
+  cursor: pointer;
+}
+
+.cadetgui-table-grid tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.cadetgui-table-grid tbody tr:hover {
+  background: color-mix(in srgb, var(--cg-fg) 5%, transparent);
+}
+
+.cadetgui-table-grid tbody tr.is-selected {
+  background: color-mix(in srgb, var(--cg-focus) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--cg-focus);
+}
+
+.cadetgui-table-grid tbody tr:focus-visible {
+  outline: 2px solid var(--cg-focus);
+  outline-offset: -2px;
+}
+
+.cadetgui-table-empty {
+  padding: 10px;
+  color: var(--cg-muted);
+}
+
+.cadetgui-field-error {
+  color: var(--cg-danger);
+  font-size: var(--cg-text-sm);
+}
+
+.cadetgui-field-error[hidden] {
+  display: none;
+}
+
+.cadetgui-chip {
+  --_c: var(--cg-muted);
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--_c) 55%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--_c) 12%, transparent);
+  color: color-mix(in srgb, var(--_c) 75%, var(--cg-fg));
+  font-size: var(--cg-text-sm);
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.cadetgui-chip-error { --_c: var(--cg-danger); }
+.cadetgui-chip-warn { --_c: var(--cg-warn); }
+.cadetgui-chip-ok { --_c: var(--cg-success); }
+.cadetgui-chip-info { --_c: var(--cg-focus); }

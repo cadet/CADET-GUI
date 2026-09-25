@@ -1,0 +1,294 @@
+from __future__ import annotations
+
+import pytest
+from cadetgui.widgets.elements import (
+    BoolField,
+    ChoiceField,
+    ComponentListField,
+    Element,
+    EventTimelineChart,
+    FloatField,
+    FloatListField,
+    TextField,
+)
+
+
+def test_floatfield_value_and_label():
+    f = FloatField(label="Flow rate", value=1.5)
+    assert f.value == pytest.approx(1.5)
+    assert f.label == "Flow rate"
+    assert f.is_valid
+
+
+def test_floatfield_bounds_default_to_unbounded():
+    f = FloatField(label="x")
+    assert f.min is None
+    assert f.max is None
+
+
+def test_floatfield_validate_runs_on_change():
+    def positive(v):
+        if v <= 0:
+            return "must be > 0"
+
+    f = FloatField(value=1.0, validate=positive)
+    assert f.is_valid
+
+    f.value = -1.0
+    assert not f.is_valid
+    assert f.error == "must be > 0"
+
+    f.value = 2.0
+    assert f.is_valid
+
+
+def test_floatfield_observe_fires_on_value_change():
+    f = FloatField(value=0.0)
+    seen = []
+    f.observe(lambda change: seen.append(change["new"]), names="value")
+    f.value = 5.0
+    assert seen == [5.0]
+
+
+def test_floatfield_is_element():
+    assert isinstance(FloatField(), Element)
+
+
+def test_floatfield_units_default_to_empty_and_can_be_set():
+    assert FloatField().units == ""
+    assert FloatField(units="m").units == "m"
+
+
+def test_floatfield_ships_esm_and_css():
+    f = FloatField()
+    assert "function render" in f._esm
+    assert ".cadetgui-field" in f._css
+
+
+@pytest.mark.parametrize(
+    "cls", [FloatField, FloatListField, BoolField, TextField, EventTimelineChart]
+)
+def test_unit_rendering_elements_ship_the_latex_unit_parser(cls):
+    assert "function parseUnit" in cls()._esm
+
+
+def test_textfield_get_set():
+    t = TextField(label="Name", value="Alice")
+    assert t.value == "Alice"
+    t.value = "Bob"
+    assert t.value == "Bob"
+
+
+def test_boolfield_get_set():
+    b = BoolField(label="Flag", value=False)
+    assert b.value is False
+    b.value = True
+    assert b.value is True
+
+
+def test_floatlistfield_defaults_and_set():
+    fl = FloatListField(label="Feed")
+    assert fl.value == [0.0]
+
+    fl2 = FloatListField(value=[1.0, 2.5, 3])
+    assert fl2.value == [1.0, 2.5, 3.0]
+
+    fl2.value = [4.0]
+    assert fl2.value == [4.0]
+
+
+def test_floatlistfield_free_form_has_no_component_names():
+    fl = FloatListField(value=[1.0, 2.0])
+    assert fl.component_names == []
+
+
+def test_floatlistfield_pinned_mode_sizes_value_to_component_count():
+    fl = FloatListField(value=[1.0], component_names=["Salt", "Protein", "Impurity"])
+    assert fl.component_names == ["Salt", "Protein", "Impurity"]
+    assert fl.value == [1.0, 0.0, 0.0]
+
+
+def test_floatlistfield_pinned_mode_truncates_longer_value():
+    fl = FloatListField(value=[1.0, 2.0, 3.0], component_names=["Salt"])
+    assert fl.value == [1.0]
+
+
+def test_floatlistfield_pinned_mode_with_matching_value_is_unchanged():
+    fl = FloatListField(value=[1.0, 2.0], component_names=["Salt", "Protein"])
+    assert fl.value == [1.0, 2.0]
+
+
+def test_choicefield_selects_by_value_and_tracks_index():
+    col_a, col_b = object(), object()
+    c = ChoiceField(label="Column", options=[("GRM", col_a), ("LRMP", col_b)], value=col_b)
+    assert c.value is col_b
+    assert c.selected_index == 1
+    assert c.option_labels == ["GRM", "LRMP"]
+
+
+def test_choicefield_defaults_to_first_option():
+    c = ChoiceField(options=[("A", 1), ("B", 2)])
+    assert c.value == 1
+    assert c.selected_index == 0
+
+
+def test_choicefield_set_value_updates_index():
+    c = ChoiceField(options=[("A", 1), ("B", 2)], value=1)
+    c.value = 2
+    assert c.selected_index == 1
+
+
+def test_choicefield_set_options_keeps_matching_value():
+    c = ChoiceField(options=[("A", 1), ("B", 2)], value=2)
+    c.set_options([("B", 2), ("C", 3)])
+    assert c.value == 2
+    assert c.selected_index == 0
+
+
+def test_choicefield_set_options_falls_back_to_first_option_when_current_value_is_gone():
+    # Real bug: previously fell through to selected_index=None here (silently
+    # unselected) instead of the same "no options -> None, else index 0"
+    # fallback the empty-options case already had.
+    c = ChoiceField(options=[("A", 1), ("B", 2)], value=2)
+    c.set_options([("C", 3), ("D", 4)])
+    assert c.selected_index == 0
+    assert c.value == 3
+
+
+def test_choicefield_validate_observes_selected_index():
+    def not_none(v):
+        if v is None:
+            return "required"
+
+    c = ChoiceField(options=[("A", 1)], value=1, validate=not_none)
+    assert c.is_valid
+
+    c.set_options([])
+    assert not c.is_valid
+    assert c.error == "required"
+
+
+def test_componentlistfield_defaults_to_one_component():
+    f = ComponentListField(label="Components:")
+    assert f.value == ["Component 1"]
+
+
+def test_componentlistfield_accepts_initial_names():
+    f = ComponentListField(value=["Salt", "Protein"])
+    assert f.value == ["Salt", "Protein"]
+
+
+def test_componentlistfield_empty_initial_value_falls_back_to_default():
+    f = ComponentListField(value=[])
+    assert f.value == ["Component 1"]
+
+
+def test_componentlistfield_observe_fires_on_value_change():
+    f = ComponentListField()
+    seen = []
+    f.observe(lambda change: seen.append(change["new"]), names="value")
+    f.value = ["A", "B", "C"]
+    assert seen == [["A", "B", "C"]]
+
+
+def test_line_chart_subclasses_share_traits_with_their_own_defaults():
+    from cadetgui.widgets.elements import (
+        ChromatogramChart,
+        EventTimelineChart,
+        LineChart,
+    )
+
+    assert LineChart().y_label == ""
+    assert EventTimelineChart().y_label == "state"
+    assert EventTimelineChart().empty_text == "No events yet"
+    assert EventTimelineChart().phases == []
+    assert EventTimelineChart().markers == []
+    assert not LineChart().has_trait("phases")
+    chromatogram = ChromatogramChart(series=[{"name": "a", "times": [0.0], "values": [1.0]}])
+    assert chromatogram.view_width > LineChart().view_width
+    assert chromatogram.series[0]["name"] == "a"
+
+
+def test_selectable_table_behaves_like_a_choice_field_and_carries_rows():
+    from cadetgui.widgets.elements import ChoiceField, SelectableTable
+
+    table = SelectableTable(
+        columns=["Name", "State"],
+        options=[("a", 1), ("b", 2)],
+        rows=[["a", ("ok", "ok")], ["b", ("failed", "error")]],
+    )
+
+    assert isinstance(table, ChoiceField)
+    assert table.value == 1
+    table.selected_index = 1
+    assert table.value == 2
+    assert table.rows[1][1] == {"text": "failed", "chip": "error"}
+    assert table.rows[0][0] == {"text": "a"}
+
+
+def test_selectable_table_defaults_rows_to_the_option_labels():
+    from cadetgui.widgets.elements import SelectableTable
+
+    table = SelectableTable(options=[("only", 0)])
+
+    assert table.rows == [[{"text": "only"}]]
+
+
+def test_selectable_table_set_options_replaces_rows_and_rejects_a_length_mismatch():
+    import pytest
+    from cadetgui.widgets.elements import SelectableTable
+
+    table = SelectableTable(columns=["x"])
+    table.set_options([("a", 1), ("b", 2)], rows=[["A"], ["B"]])
+
+    assert [r[0]["text"] for r in table.rows] == ["A", "B"]
+    with pytest.raises(ValueError):
+        table.set_options([("a", 1)], rows=[["A"], ["B"]])
+    table.set_options([])
+    assert table.rows == [] and table.value is None
+
+
+def test_choicefield_set_options_select_none_leaves_nothing_selected():
+    from cadetgui.widgets.elements import ChoiceField
+
+    c = ChoiceField(options=[("A", 1), ("B", 2)], value=2)
+
+    c.set_options([("A", 1), ("B", 2)], select_none=True)
+
+    assert c.selected_index is None
+    assert c.value is None
+    assert c.option_labels == ["A", "B"]
+
+
+def test_selectable_table_select_none_keeps_rows_and_can_be_selected_afterwards():
+    from cadetgui.widgets.elements import SelectableTable
+
+    table = SelectableTable(options=[("a", 1)])
+
+    table.set_options([("a", 1), ("b", 2)], rows=[["A"], ["B"]], select_none=True)
+
+    assert table.selected_index is None
+    assert len(table.rows) == 2
+    table.selected_index = 1
+    assert table.value == 2
+
+
+def test_elements_are_enabled_by_default_and_take_a_disabled_flag():
+    from cadetgui.widgets.elements import (
+        BoolField,
+        FloatField,
+        FloatListField,
+        TextField,
+    )
+
+    elements = [
+        FloatField(value=1.0),
+        FloatListField(value=[1.0]),
+        BoolField(value=True),
+        TextField(value="a"),
+        ChoiceField(options=[("A", 1)]),
+    ]
+    assert not any(e.disabled for e in elements)
+    for e in elements:
+        e.disabled = True
+    assert all(e.disabled for e in elements)

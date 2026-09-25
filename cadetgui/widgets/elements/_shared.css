@@ -1,0 +1,298 @@
+/* Shared styling for atomic elements. Class names are shared across element
+   JS files (float_field.js, etc.) so this one stylesheet covers all of them.
+   Shared tokens come from tokens.css (prepended at load, see _tokens.py). */
+
+.cadetgui-field {
+  --cg-unit: var(--cg-muted);
+  /* One step darker than --cg-muted, toward --cg-fg -- distinguishes a
+     field's own label from a component-name sub-label, which stays at
+     plain --cg-muted. Derived rather than a second hardcoded hex per
+     theme, so it stays correct if --cg-fg/--cg-muted ever change. */
+  --cg-label: color-mix(in srgb, var(--cg-fg) 35%, var(--cg-muted));
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2px 0;
+  font-family: var(--cg-font);
+  font-size: var(--cg-text);
+  line-height: var(--cg-leading);
+  color: var(--cg-fg);
+}
+
+.cadetgui-field.cadetgui-field-disabled {
+  opacity: 0.5;
+}
+
+.cadetgui-field-label {
+  /* Fixed column, not just a min-width floor: otherwise a long label
+     ("Final wash duration") grows past a short one ("Length"), so
+     whatever follows starts at a different x per row. */
+  width: 160px;
+  flex: 0 0 160px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--cg-label);
+}
+
+.cadetgui-field-unit {
+  color: var(--cg-unit);
+  flex: 0 0 auto;
+  min-width: 46px;
+  font-family: "STIX Two Math", "Cambria Math", Georgia, "Times New Roman", serif;
+  font-size: 1.07em;
+}
+
+.cadetgui-field-unit sup,
+.cadetgui-field-unit sub {
+  font-size: 0.8em;
+  line-height: 0;
+}
+
+.cadetgui-field-unit sub[data-tooltip] {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.cadetgui-field-unit[hidden] {
+  display: none;
+}
+
+.cadetgui-field-input {
+  font-variant-numeric: tabular-nums;
+  width: 100px;
+  padding: 4px 8px;
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  background: var(--cg-bg);
+  color: var(--cg-fg);
+  font: inherit;
+}
+
+.cadetgui-field-input.cadetgui-field-input-text {
+  width: min(340px, 100%);
+}
+
+.cadetgui-field-input:focus {
+  outline: none;
+  border-color: var(--cg-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-focus) 30%, transparent);
+}
+
+.cadetgui-field[aria-invalid="true"] .cadetgui-field-input,
+.cadetgui-field-input[aria-invalid="true"] {
+  border-color: var(--cg-danger);
+  border-width: 2px;
+  padding: 3px 7px;
+}
+
+/* Own class, not .cadetgui-field-input: a dropdown (Column/Binding Model,
+   Process Template) holds full written-out names ("General Rate Model
+   (GRM)"), not a short number/text value -- sharing the 100px input width
+   would truncate every option. */
+.cadetgui-field-select {
+  min-width: 260px;
+  padding: 4px 8px;
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  background: var(--cg-bg);
+  color: var(--cg-fg);
+  font: inherit;
+}
+
+.cadetgui-field-select:focus {
+  outline: none;
+  border-color: var(--cg-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-focus) 30%, transparent);
+}
+
+.cadetgui-field-error {
+  color: var(--cg-danger);
+  font-size: var(--cg-text-sm);
+}
+
+/* Forces the error onto its own line the moment it appears, instead of
+   widening the field's row inline -- otherwise a field paired with an
+   event slider (an HBox sibling, not part of this flex row) would grow
+   past the available width and push the slider onto the next line the
+   instant an error showed up. Scoped off .cadetgui-field-list: that
+   variant switches to flex-direction: column when stacked, where
+   flex-basis is a *height* percentage, not what's wanted here -- it
+   already puts its error on its own line for free, being a column. */
+.cadetgui-field:not(.cadetgui-field-list) > .cadetgui-field-error {
+  flex-basis: 100%;
+}
+
+.cadetgui-field-error[hidden] {
+  display: none;
+}
+
+.cadetgui-field-bool {
+  gap: 0.4rem;
+  position: relative;
+}
+
+.cadetgui-field-bool .cadetgui-field-label {
+  /* Undo the fixed-width column above: a checkbox's label comes *after*
+     the input, with nothing following it that needs to line up, so it
+     should size to its own text instead of truncating. */
+  width: auto;
+  flex: 0 1 auto;
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  color: var(--cg-fg);
+}
+
+/* Toggle-switch look, not a native checkbox glyph -- the real <input> stays
+   in place (clickable/keyboard-focusable, just invisible), overlaid exactly
+   on a track+knob drawn as ::before/::after on the wrapping label. Same
+   technique as chrome.css's plain-ipywidgets-Checkbox rule below, so every
+   boolean in the app reads as one visual system. */
+.cadetgui-field-bool input[type="checkbox"] {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 18px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.cadetgui-field-bool::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--cg-border-strong);
+  transition: background 0.15s ease;
+}
+
+.cadetgui-field-bool::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: left 0.15s ease;
+}
+
+.cadetgui-field-bool:has(input:checked)::before {
+  background: var(--cg-focus);
+}
+
+.cadetgui-field-bool:has(input:checked)::after {
+  left: 18px;
+}
+
+/* Default (0 or 1 value): stays a plain row, same as every other field --
+   label left, single input right on the same line. Only a genuinely
+   multi-row list (more than one component/value) switches to a label-on-
+   top, indented-rows-below layout; JS toggles this class based on row
+   count, since CSS alone can't count flex siblings. */
+.cadetgui-field-list.cadetgui-field-list-stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+
+.cadetgui-field-list-stacked > .cadetgui-field-list-body {
+  /* Matches the label width + gap of every other field's row layout, so
+     the input column doesn't jump sideways the moment a second row makes
+     this field switch from row to stacked layout. */
+  padding-left: calc(160px + 0.6rem);
+}
+
+.cadetgui-field-list-stacked > .cadetgui-field-label {
+  /* .cadetgui-field-label's flex: 0 0 140px pins its *main-axis* size to
+     140px -- width in the normal row layout, but height once the stacked
+     variant switches to flex-direction: column, leaving a 140px-tall blank
+     label box above the rows. Reset it to size from content instead. */
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.cadetgui-field-list-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.cadetgui-field-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.cadetgui-field-list-row input {
+  width: 100px;
+  padding: 4px 8px;
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  background: var(--cg-bg);
+  color: var(--cg-fg);
+  font: inherit;
+}
+
+.cadetgui-field-list-row button,
+.cadetgui-field-list-add {
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  background: var(--cg-bg);
+  color: var(--cg-muted);
+  font: inherit;
+  cursor: pointer;
+  padding: 3px 8px;
+}
+
+.cadetgui-field-list-row button:hover,
+.cadetgui-field-list-add:hover {
+  border-color: var(--cg-focus);
+  color: var(--cg-focus);
+}
+
+.cadetgui-field-list-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+  border-color: var(--cg-border-strong);
+  color: var(--cg-muted);
+}
+
+.cadetgui-field-list-add {
+  width: fit-content;
+}
+
+.cadetgui-field-list-add[hidden] {
+  display: none;
+}
+
+.cadetgui-field-component-name {
+  min-width: 90px;
+  flex: 0 0 auto;
+  color: var(--cg-muted);
+  font-family: var(--cg-font);
+  font-size: var(--cg-text-sm);
+}
+
+.cadetgui-field-list-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.cadetgui-field-count {
+  color: var(--cg-muted);
+  font-size: var(--cg-text-sm);
+}

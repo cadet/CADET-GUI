@@ -1,0 +1,215 @@
+/* Shared tokens come from tokens.css (prepended at load, see _tokens.py). */
+
+.cadetgui-chart {
+  position: relative;
+  font-family: var(--cg-font);
+  color: var(--cg-fg);
+}
+
+.cadetgui-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.cadetgui-chart-grid line {
+  stroke: var(--cg-border);
+  stroke-width: 1;
+}
+
+.cadetgui-chart-axislabel {
+  fill: var(--cg-muted);
+  font-size: 13px;
+  font-family: var(--cg-font);
+}
+
+.cadetgui-chart-axistitle {
+  fill: var(--cg-muted);
+  font-size: 14px;
+  font-family: "STIX Two Math", "Cambria Math", Georgia, "Times New Roman", serif;
+}
+
+.cadetgui-chart-empty {
+  fill: var(--cg-muted);
+  font-size: 14px;
+}
+
+.cadetgui-chart-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.cadetgui-chart-area {
+  stroke: none;
+  fill-opacity: 0.14;
+}
+
+.cadetgui-chart-phase-band {
+  fill: var(--cg-muted);
+  fill-opacity: 0.12;
+  pointer-events: none;
+}
+
+.cadetgui-chart-phase-edge {
+  stroke: var(--cg-muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+
+.cadetgui-chart-phase-labels {
+  pointer-events: none;
+}
+
+.cadetgui-chart-phase-label {
+  fill: var(--cg-fg);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--cg-font);
+  paint-order: stroke;
+  stroke: var(--cg-bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.cadetgui-chart-marker {
+  stroke: var(--cg-fg);
+  stroke-width: 1.5;
+}
+
+.cadetgui-chart-marker-head {
+  fill: var(--cg-fg);
+}
+
+.cadetgui-chart-marker-label {
+  font-weight: 400;
+}
+
+.cadetgui-chart-crosshair {
+  stroke: var(--cg-muted);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.cadetgui-chart-legend {
+  display: flex;
+  flex-flow: row wrap;
+  gap: 4px 6px;
+  margin-top: 6px;
+  font-size: var(--cg-text-sm);
+}
+
+.cadetgui-chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--cg-radius-sm);
+  background: none;
+  color: var(--cg-fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.cadetgui-chart-legend-item:hover,
+.cadetgui-chart-legend-item:focus-visible {
+  border-color: var(--cg-border-strong);
+}
+
+.cadetgui-chart-legend-item:focus-visible {
+  outline: 2px solid var(--cg-focus);
+  outline-offset: 1px;
+}
+
+.cadetgui-chart-legend-item.is-off {
+  color: var(--cg-muted);
+  text-decoration: line-through;
+}
+
+.cadetgui-chart-legend-item.is-off .cadetgui-chart-legend-swatch {
+  opacity: 0.35;
+}
+
+.cadetgui-chart-legend-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  border-radius: 1px;
+}
+
+.cadetgui-chart-selection {
+  fill: var(--cg-muted);
+  fill-opacity: 0.18;
+  stroke: var(--cg-muted);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.cadetgui-chart-reset {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 1px 8px;
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  background: var(--cg-bg);
+  color: var(--cg-muted);
+  font: inherit;
+  font-size: var(--cg-text-sm);
+  cursor: pointer;
+}
+
+.cadetgui-chart-reset:hover {
+  color: var(--cg-fg);
+}
+
+.cadetgui-chart-reset[hidden] {
+  display: none;
+}
+
+.cadetgui-chart-tooltip {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 6px 9px;
+  font-size: var(--cg-text-sm);
+  line-height: var(--cg-leading);
+  white-space: nowrap;
+}
+
+.cadetgui-chart-tooltip-time {
+  color: var(--cg-muted);
+  font-size: var(--cg-text-sm);
+  margin-bottom: 3px;
+}
+
+.cadetgui-chart-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cadetgui-chart-tooltip-key {
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  flex: 0 0 auto;
+}
+
+.cadetgui-chart-tooltip-value {
+  color: var(--cg-fg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cadetgui-chart-tooltip-name {
+  color: var(--cg-muted);
+}

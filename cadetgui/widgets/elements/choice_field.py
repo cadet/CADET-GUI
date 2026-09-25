@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, List, Optional, Sequence, Tuple
+
+import traitlets as T
+
+from .._tokens import with_tokens
+from .base import Element, Validator
+
+__all__ = ["ChoiceField"]
+
+_DIR = Path(__file__).parent
+
+
+class ChoiceField(Element):
+    """Dropdown selecting one of several (label, value) options.
+
+    `value` may be any Python object, not just JSON-serializable ones — only
+    the option labels and the selected index cross the anywidget sync boundary;
+    the label -> value mapping stays server-side.
+    """
+
+    option_labels = T.List(T.Unicode()).tag(sync=True)
+    selected_index = T.Int(allow_none=True, default_value=None).tag(sync=True)
+
+    _value_trait_name = "selected_index"
+
+    _esm = _DIR / "choice_field.js"
+    _css = with_tokens(_DIR / "_shared.css")
+
+    def __init__(
+        self,
+        *,
+        label: str = "",
+        options: Sequence[Tuple[str, Any]] = (),
+        value: Any = None,
+        validate: Optional[Validator] = None,
+    ) -> None:
+        self._options: List[Tuple[str, Any]] = list(options)
+        index = self._index_of(value) if value is not None else (0 if self._options else None)
+        super().__init__(
+            label=label,
+            option_labels=[opt_label for opt_label, _ in self._options],
+            selected_index=index,
+            validate=validate,
+        )
+
+    def _index_of(self, value: Any) -> Optional[int]:
+        for i, (_, v) in enumerate(self._options):
+            if v == value:
+                return i
+        return None
+
+    @property
+    def value(self) -> Any:
+        """The currently selected option's value (None if nothing is selected)."""
+        if self.selected_index is None or not (0 <= self.selected_index < len(self._options)):
+            return None
+        return self._options[self.selected_index][1]
+
+    @value.setter
+    def value(self, new_value: Any) -> None:
+        self.selected_index = self._index_of(new_value)
+
+    def set_options(
+        self,
+        options: Sequence[Tuple[str, Any]],
+        *,
+        keep_value: bool = True,
+        select_none: bool = False,
+    ) -> None:
+        """Replace the options, keeping the current value selected if it's still valid.
+
+        Falls back to the first option (not `None`) when the current value
+        isn't among the new ones -- e.g. switching a registry out from under
+        an already-selected value that the new registry doesn't have.
+        `select_none=True` skips that and leaves nothing selected.
+        """
+        current = self.value if keep_value and not select_none else None
+        self._options = list(options)
+        self.option_labels = [opt_label for opt_label, _ in self._options]
+        index = self._index_of(current) if current is not None else None
+        if index is None and not select_none:
+            index = 0 if self._options else None
+        self.selected_index = index

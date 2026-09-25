@@ -1,0 +1,71 @@
+/* Single source of the --cg-* design tokens. Prepended to chrome.css and to
+   every element's own stylesheet (see _tokens.py), because each anywidget
+   element gets its own CSS instance and may also render outside a panel. */
+
+.cadetgui-panel,
+.cadetgui-field,
+.cadetgui-chart,
+.cadetgui-table {
+  --cg-fg: #1f2937;
+  --cg-muted: #5b6370;
+  --cg-border: #d1d5db;
+  --cg-border-strong: #7b8390; /* input/control outlines, >=3:1 on surface and page */
+  --cg-bg: #ffffff;
+  --cg-surface: #ffffff;
+  --cg-page: #f5f7fa;
+
+  --cg-brand: #005b82; /* CADET logo navy -- fixed, not theme-swapped */
+  --cg-focus: #005b82;
+  --cg-primary: #005b82;
+  --cg-primary-fg: #ffffff;
+
+  --cg-danger: #c81e1e;
+  --cg-success: #047857;
+  --cg-warn: #a16207;
+
+  --cg-radius-sm: 6px;
+  --cg-radius: 8px;
+  --cg-radius-lg: 12px;
+  --cg-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
+  --cg-shadow-pop: 0 4px 14px rgba(16, 24, 40, 0.16);
+
+  --cg-space-1: 4px;
+  --cg-space-2: 8px;
+  --cg-space-3: 12px;
+  --cg-space-4: 16px;
+  --cg-space-5: 24px;
+
+  --cg-font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --cg-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --cg-text: 14px;
+  --cg-text-sm: 12.5px;
+  --cg-text-lg: 16px;
+  --cg-text-xl: 19px;
+  --cg-leading: 1.45;
+}
+
+@media (prefers-color-scheme: dark) {
+  .cadetgui-panel,
+  .cadetgui-field,
+  .cadetgui-chart,
+  .cadetgui-table {
+    --cg-fg: #e5e7eb;
+    --cg-muted: #9ca3af;
+    --cg-border: #4b5563;
+    --cg-border-strong: #7a8391;
+    --cg-bg: #1f2937;
+    --cg-surface: #1f2937;
+    --cg-page: #111827;
+
+    --cg-focus: #4fa8d1;
+    --cg-primary: #26759b;
+    --cg-primary-fg: #ffffff;
+
+    --cg-danger: #f87171;
+    --cg-success: #34d399;
+    --cg-warn: #facc15;
+
+    --cg-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5);
+    --cg-shadow-pop: 0 4px 14px rgba(0, 0, 0, 0.55);
+  }
+}

@@ -1,0 +1,545 @@
+/* Shared chrome for composite/form widgets (FormRenderer, ConfigurationWidget,
+   SolutionWidget) — these compose plain ipywidgets containers, not anywidget
+   elements, so this gets injected via a <style> HTML child rather than an
+   anywidget `_css`. Tokens come from tokens.css (prepended at load, see _tokens.py). */
+
+.cadetgui-spinner {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin-right: 6px;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  vertical-align: -1px;
+  animation: cadetgui-spin 0.7s linear infinite;
+}
+
+@keyframes cadetgui-spin {
+  to { transform: rotate(360deg); }
+}
+
+.cadetgui-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: var(--cg-font);
+  font-size: var(--cg-text);
+  line-height: var(--cg-leading);
+  color: var(--cg-fg);
+  -webkit-font-smoothing: antialiased;
+}
+
+.cadetgui-panel-title {
+  margin: 0 0 var(--cg-space-1) 0;
+  padding-bottom: var(--cg-space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--cg-border) 70%, transparent);
+  font-size: var(--cg-text-xl);
+  font-weight: 650;
+  color: var(--cg-fg);
+}
+
+.cadetgui-toolbar {
+  gap: 10px 18px !important;
+  align-items: center !important;
+}
+
+.cadetgui-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--cg-space-2);
+  font-size: var(--cg-text-lg);
+  font-weight: 600;
+  color: var(--cg-fg);
+}
+
+.cadetgui-section-title::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--cg-focus);
+}
+
+.cadetgui-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cg-space-3);
+  padding: var(--cg-space-4);
+  border: 1px solid color-mix(in srgb, var(--cg-border) 70%, transparent);
+  border-radius: var(--cg-radius-lg);
+  background: var(--cg-surface);
+  box-shadow: var(--cg-shadow);
+}
+
+/* A card inside a card stays flat, so stacked shadows don't pile up. */
+.cadetgui-section .cadetgui-section {
+  border-radius: var(--cg-radius);
+  background: color-mix(in srgb, var(--cg-border) 8%, var(--cg-surface));
+  box-shadow: none;
+}
+
+/* A lighter, un-bordered nested box inside a .cadetgui-section -- e.g. one
+   flow-path unit's own toggle + parameter form, or the sample loop's own
+   toggle + fields, each visually distinct from its sibling units instead of
+   sitting flush at the same level as the section's own controls. A light
+   horizontal rule *between* consecutive subsections reads as a plainer list
+   separator than a vertical bar down the side of each one. */
+.cadetgui-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 4px;
+}
+
+.cadetgui-subsection + .cadetgui-subsection {
+  border-top: 1px solid color-mix(in srgb, var(--cg-border) 55%, transparent);
+}
+
+.cadetgui-subsection .cadetgui-field {
+  padding-left: 0;
+}
+
+.cadetgui-row {
+  display: flex;
+  flex-flow: row wrap;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.cadetgui-row > .cadetgui-section-half {
+  flex: 1 1 340px;
+  min-width: 0;
+}
+
+.cadetgui-row > .cadetgui-section-wide {
+  flex: 3 1 540px;
+  min-width: 0;
+}
+
+.cadetgui-section.cadetgui-settings-box {
+  gap: 4px;
+  background: color-mix(in srgb, var(--cg-fg) 8%, var(--cg-surface));
+  box-shadow: none;
+}
+
+.cadetgui-settings-box .cadetgui-section-title {
+  margin-bottom: 4px;
+  font-size: var(--cg-text);
+  color: var(--cg-muted);
+}
+
+.cadetgui-settings-box .cadetgui-section-title::before {
+  display: none;
+}
+
+.cadetgui-status {
+  font-size: var(--cg-text-sm);
+  color: var(--cg-muted);
+}
+
+.cadetgui-msg {
+  --_c: var(--cg-muted);
+  color: var(--_c);
+}
+
+.cadetgui-msg::before {
+  content: "\2022  ";
+  font-weight: 700;
+}
+
+.cadetgui-msg-error { --_c: var(--cg-danger, #c81e1e); }
+.cadetgui-msg-error::before { content: "\2715  "; }
+.cadetgui-msg-warn { --_c: var(--cg-warn, #a16207); }
+.cadetgui-msg-warn::before { content: "!  "; }
+.cadetgui-msg-ok { --_c: var(--cg-success, #047857); }
+.cadetgui-msg-ok::before { content: "\2713  "; }
+.cadetgui-msg-info { --_c: var(--cg-focus, #005b82); }
+
+.cadetgui-chip {
+  --_c: var(--cg-muted);
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--_c) 55%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--_c) 12%, transparent);
+  color: color-mix(in srgb, var(--_c) 75%, var(--cg-fg));
+  font-size: var(--cg-text-sm);
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.cadetgui-chip-error { --_c: var(--cg-danger, #c81e1e); }
+.cadetgui-chip-warn { --_c: var(--cg-warn, #a16207); }
+.cadetgui-chip-ok { --_c: var(--cg-success, #047857); }
+.cadetgui-chip-info { --_c: var(--cg-focus, #005b82); }
+
+.cadetgui-note {
+  font-size: var(--cg-text-sm);
+  color: var(--cg-muted);
+  padding: 6px 10px;
+  border-left: 3px solid var(--cg-focus);
+  background: color-mix(in srgb, var(--cg-focus) 8%, transparent);
+  border-radius: 0 var(--cg-radius) var(--cg-radius) 0;
+}
+
+.cadetgui-hardware-summary {
+  font-size: var(--cg-text-sm);
+  color: var(--cg-muted);
+}
+
+.cadetgui-backend-versions,
+.cadetgui-workspace-summary {
+  font-size: var(--cg-text-sm);
+  color: var(--cg-muted);
+}
+
+/* ---- WorkspaceHeader: one slim row, no card ---- */
+
+.cadetgui-workspace-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px var(--cg-space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--cg-border) 70%, transparent);
+  background: color-mix(in srgb, var(--cg-focus) 12%, transparent);
+}
+
+.cadetgui-workspace-row {
+  gap: var(--cg-space-3);
+  min-height: 36px;
+}
+
+.cadetgui-workspace-header .cadetgui-field {
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  padding: 0;
+}
+
+.cadetgui-workspace-header .cadetgui-field-label {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.cadetgui-workspace-header .cadetgui-field-input.cadetgui-field-input-text {
+  width: 200px;
+  padding: 2px 8px;
+}
+
+.cadetgui-workspace-header .jupyter-widgets.jupyter-button {
+  min-height: 26px;
+  height: 26px;
+  line-height: 24px;
+  padding: 0 10px;
+}
+
+.cadetgui-workspace-header .cadetgui-workspace-toggle.jupyter-button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--cg-muted);
+  font-size: var(--cg-text-sm);
+}
+
+.cadetgui-workspace-header .cadetgui-status {
+  padding: 0 2px;
+}
+
+.cadetgui-workspace-header hr {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--cg-border);
+}
+
+/* ipywidgets renders Button/Dropdown/etc. as .jupyter-widgets + a specific
+   widget class — target broadly so this covers plain ipywidgets controls used
+   for layout/actions (Button, BoundedIntText) inside our panels. */
+.cadetgui-panel .jupyter-widgets.jupyter-button {
+  min-height: 30px;
+  border-radius: var(--cg-radius-sm);
+  border: 1px solid var(--cg-border-strong);
+  background: var(--cg-surface);
+  color: var(--cg-fg);
+  font: inherit;
+  font-size: var(--cg-text);
+  box-shadow: none;
+  transition: background 0.12s ease, border-color 0.12s ease, filter 0.12s ease;
+}
+
+.cadetgui-panel .jupyter-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cg-fg) 6%, var(--cg-surface));
+  border-color: color-mix(in srgb, var(--cg-fg) 30%, var(--cg-border-strong));
+}
+
+.cadetgui-panel .jupyter-button:active:not(:disabled) {
+  background: color-mix(in srgb, var(--cg-fg) 11%, var(--cg-surface));
+}
+
+.cadetgui-panel .jupyter-button:focus-visible {
+  outline: none;
+  border-color: var(--cg-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-focus) 35%, transparent);
+}
+
+.cadetgui-panel .jupyter-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* Primary call to action: ipywidgets' "success" style is only ever used for
+   the run buttons, so it is the filled primary rather than green (green
+   stays a status color). */
+.cadetgui-panel .jupyter-button.mod-success {
+  background: var(--cg-primary);
+  border-color: var(--cg-primary);
+  color: var(--cg-primary-fg);
+  font-weight: 600;
+}
+
+.cadetgui-panel .jupyter-button.mod-success:hover:not(:disabled),
+.cadetgui-panel .jupyter-button.mod-success:active:not(:disabled) {
+  background: color-mix(in srgb, var(--cg-primary) 88%, #000000);
+  border-color: color-mix(in srgb, var(--cg-primary) 88%, #000000);
+}
+
+.cadetgui-panel .jupyter-button.mod-success:focus-visible {
+  border-color: var(--cg-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-focus) 35%, transparent);
+}
+
+.cadetgui-panel .jupyter-button.mod-danger {
+  background: transparent;
+  border-color: var(--cg-danger);
+  color: var(--cg-danger);
+}
+
+.cadetgui-panel .jupyter-button.mod-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cg-danger) 10%, transparent);
+  border-color: var(--cg-danger);
+}
+
+/* Toggle-switch look for every plain ipywidgets.Checkbox in the app, not a
+   native checkbox glyph -- same technique (and the same track/knob geometry)
+   as elements/_shared.css's .cadetgui-field-bool rule, so a form-rendered
+   boolean field and a plain settings checkbox read as one visual system.
+   ipywidgets 8's CheckboxView renders <div class="widget-checkbox"><label
+   class="widget-label-basic"><input type=checkbox><span>...description...
+   </span></label></div> -- the real <input> stays clickable/focusable, just
+   invisible, overlaid on a track+knob drawn on the wrapping <label>. */
+.cadetgui-panel .widget-checkbox .widget-label-basic {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding-left: 44px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cadetgui-panel .widget-checkbox input[type="checkbox"] {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 18px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.cadetgui-panel .widget-checkbox .widget-label-basic::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--cg-border-strong);
+  transition: background 0.15s ease;
+}
+
+.cadetgui-panel .widget-checkbox .widget-label-basic::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: left 0.15s ease;
+}
+
+.cadetgui-panel .widget-checkbox .widget-label-basic:has(input:checked)::before {
+  background: var(--cg-focus);
+}
+
+.cadetgui-panel .widget-checkbox .widget-label-basic:has(input:checked)::after {
+  left: 18px;
+}
+
+.cadetgui-panel input[type="number"],
+.cadetgui-panel input[type="text"],
+.cadetgui-panel select {
+  min-height: 30px;
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  background: var(--cg-bg);
+  color: var(--cg-fg);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  padding: 4px 8px;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.cadetgui-panel input[type="number"]:focus,
+.cadetgui-panel input[type="text"]:focus,
+.cadetgui-panel select:focus {
+  outline: none;
+  border-color: var(--cg-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-focus) 30%, transparent);
+}
+
+.cadetgui-panel input::placeholder {
+  color: var(--cg-muted);
+  opacity: 1;
+}
+
+.cadetgui-script textarea {
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  background: var(--cg-bg);
+  color: var(--cg-fg);
+  font-family: var(--cg-font-mono);
+  font-size: var(--cg-text-sm);
+  padding: 10px;
+}
+
+/* ---- WorkbenchWidget: top bar + sidebar shell ---- */
+
+.cadetgui-workbench {
+  gap: 0 !important;
+}
+
+.cadetgui-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--cg-space-3);
+  padding: var(--cg-space-3) var(--cg-space-5);
+  border: 1px solid color-mix(in srgb, var(--cg-border) 70%, transparent);
+  border-radius: var(--cg-radius-lg) var(--cg-radius-lg) 0 0;
+  /* Fixed white, not var(--cg-bg): the logo PNG's ink is a fixed navy, so it
+     needs a fixed light backdrop in both themes -- a dark-mode --cg-bg would
+     wash out the wordmark, which can't recolor itself. */
+  background: #ffffff;
+  box-shadow: var(--cg-shadow);
+  position: relative;
+  z-index: 1;
+}
+
+.cadetgui-topbar img {
+  height: 26px;
+  display: block;
+}
+
+.cadetgui-topbar-title {
+  display: flex;
+  align-items: center;
+  gap: var(--cg-space-3);
+  font-size: var(--cg-text-lg);
+  font-weight: 600;
+  color: var(--cg-brand);
+  letter-spacing: 0.01em;
+}
+
+.cadetgui-topbar-title::before {
+  content: "";
+  width: 1px;
+  height: 18px;
+  background: #d1d5db;
+}
+
+.cadetgui-workbench-body {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: flex-start;
+  border: 1px solid color-mix(in srgb, var(--cg-border) 70%, transparent);
+  border-top: none;
+  border-radius: 0 0 var(--cg-radius-lg) var(--cg-radius-lg);
+  overflow: hidden;
+}
+
+.cadetgui-sidebar-nav {
+  flex: 0 0 200px;
+  padding: var(--cg-space-3) var(--cg-space-2);
+  border-right: 1px solid color-mix(in srgb, var(--cg-border) 70%, transparent);
+  background: var(--cg-surface);
+  align-self: stretch;
+}
+
+/* ToggleButtons renders its own buttons in a row inside one wrapper div;
+   force that wrapper into a vertical stack instead of restyling the
+   picker itself -- keeps its built-in single-select/active-state behavior. */
+.cadetgui-sidebar-nav > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cadetgui-sidebar-nav .widget-toggle-button {
+  width: 100%;
+  height: auto;
+  min-height: 34px;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 0 var(--cg-space-3);
+  border-radius: var(--cg-radius);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--cg-muted);
+  font-size: var(--cg-text);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.cadetgui-sidebar-nav .widget-toggle-button:hover:not(.mod-active) {
+  background: color-mix(in srgb, var(--cg-fg) 6%, transparent);
+  color: var(--cg-fg);
+}
+
+.cadetgui-sidebar-nav .widget-toggle-button {
+  display: flex;
+  align-items: center;
+}
+
+.cadetgui-sidebar-nav .widget-toggle-button .fa {
+  margin-left: auto;
+  padding-left: var(--cg-space-3);
+}
+
+.cadetgui-sidebar-nav .widget-toggle-button .fa-exclamation-triangle {
+  color: var(--cg-warn);
+}
+
+.cadetgui-sidebar-nav .widget-toggle-button.mod-active {
+  background: color-mix(in srgb, var(--cg-focus) 12%, transparent);
+  border-color: transparent;
+  box-shadow: inset 3px 0 0 var(--cg-focus);
+  color: var(--cg-focus);
+  font-weight: 600;
+}
+
+.cadetgui-workbench-content {
+  flex: 1 1 480px;
+  min-width: 0;
+  align-self: stretch;
+  padding: var(--cg-space-4);
+  background: var(--cg-page);
+}
