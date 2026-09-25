@@ -1,4 +1,5 @@
 """Task widgets assembled from elements + forms."""
+from .backend_versions import BackendVersionsWidget
 from .characterization import CharacterizationWidget
 from .characterization_workbench import CharacterizationWorkbenchWidget
 from .configuration import ConfigurationWidget
@@ -11,6 +12,7 @@ from .solution import SolutionWidget
 from .workbench import WorkbenchWidget
 
 __all__ = [
+    "BackendVersionsWidget",
     "InstrumentWidget",
     "ConfigurationWidget",
     "SolutionWidget",

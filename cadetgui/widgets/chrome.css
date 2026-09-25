@@ -185,6 +185,11 @@
   border-radius: 0 var(--cg-radius) var(--cg-radius) 0;
 }
 
+.cadetgui-backend-versions {
+  font-size: var(--cg-text-sm);
+  color: var(--cg-muted);
+}
+
 /* ipywidgets renders Button/Dropdown/etc. as .jupyter-widgets + a specific
    widget class — target broadly so this covers plain ipywidgets controls used
    for layout/actions (Button, BoundedIntText) inside our panels. */
