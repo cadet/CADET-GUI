@@ -347,6 +347,7 @@ def _usage_notes(
     shown: Collection[str],
     path: Collection[str],
     mixer_on: bool = True,
+    equilibration: Collection[str] = (),
 ) -> List[str]:
     """One plain-language sentence per active inlet group, then what is not used."""
     carries = carries or {}
@@ -357,7 +358,13 @@ def _usage_notes(
         what = f" ({', '.join(names)})" if names else ""
         via = "through the sample loop" if "sample_loop" in path else "straight"
         notes.append(f"Feed inlet carries the sample components{what} {via} into {target}.")
-    on = [b for b in _BUFFERS if b in inlets]
+    eq = [b for b in _BUFFERS if b in equilibration and b in inlets]
+    on = [b for b in _BUFFERS if b in inlets and b not in eq]
+    if eq:
+        via = " through the mixer" if mixer_on else ""
+        lead = f"The system starts pre-equilibrated with buffer {_letters(eq)}{via}"
+        follow = f"; at t=0 the flow switches to buffer {_letters(on)}" if on else ""
+        notes.append(f"{lead}{follow}.")
     if on:
         names = list(dict.fromkeys(n for b in on for n in carries.get(b, [])))
         what = ", ".join(names) if names else "plain buffer"
@@ -385,6 +392,7 @@ def render_system_svg(
     bypassed: Collection[str] = (),
     inlets: Optional[Sequence[str]] = None,
     carries: Optional[Mapping[str, Sequence[str]]] = None,
+    equilibration: Collection[str] = (),
 ) -> str:
     """Render the LC flow path from the P&ID symbols as an HTML fragment holding one SVG.
 
@@ -555,7 +563,11 @@ def render_system_svg(
     height = bottom + _MARGIN
 
     shown = set(buffers) | ({"feed_inlet"} if feed_shown else set())
-    notes = _usage_notes(active, carries, shown, path, "mixer" not in bypassed) if known else []
+    notes = (
+        _usage_notes(active, carries, shown, path, "mixer" not in bypassed, equilibration)
+        if known
+        else []
+    )
     off = [UNIT_LABELS[u] for u in _MAIN_PATH if u in bypassed and u in UNIT_LABELS]
     if off:
         notes.append(f"Not in the flow path: {', '.join(off)}")
@@ -586,10 +598,13 @@ class SystemDiagram:
         bypassed: Collection[str] = (),
         inlets: Optional[Sequence[str]] = None,
         carries: Optional[Mapping[str, Sequence[str]]] = None,
+        equilibration: Collection[str] = (),
     ) -> None:
         """Redraw for `flow_sheet` (a built LCFlowSheet, or `None` while inputs are invalid)."""
         if flow_sheet is None:
             note = "No system to show while inputs are invalid."
             self.root.value = f'<em style="color:{_MUTED}">{note}</em>'
             return
-        self.root.value = render_system_svg(flow_sheet.units_dict, bypassed, inlets, carries)
+        self.root.value = render_system_svg(
+            flow_sheet.units_dict, bypassed, inlets, carries, equilibration
+        )

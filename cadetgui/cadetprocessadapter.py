@@ -433,7 +433,13 @@ def active_inlets(process: Any) -> list[str]:
         if event.parameter_path.startswith("flow_sheet.")
         and event.parameter_path.endswith(".flow_rate")
     }
+    driven.update(equilibration_inlets(process))
     return [name for name in _INLET_UNITS if name in driven]
+
+
+def equilibration_inlets(process: Any) -> list[str]:
+    """Inlets that only pre-equilibrate the system before the process starts (Step: buffer A)."""
+    return ["buffer_a"] if isinstance(process, Step) else []
 
 
 def inlet_contents(process: Any) -> dict[str, list[str]]:

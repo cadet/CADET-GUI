@@ -88,12 +88,12 @@ def test_fresh_system_pane_shows_breakthrough_feed_path_with_buffers_unused():
     assert {states[b] for b in ("buffer_a", "buffer_b", "buffer_c", "buffer_d")} == {"unused"}
 
 
-def test_step_uses_buffer_b_and_leaves_feed_unused():
+def test_step_equilibrates_with_buffer_a_then_switches_to_buffer_b():
     iw, _cw = _bound("Step")
     states = _states(iw._diagram.root.value)
 
-    assert states["buffer_b"] == "active"
-    assert {states[u] for u in ("buffer_a", "buffer_c", "buffer_d", "feed_inlet")} == {"unused"}
+    assert {states["buffer_a"], states["buffer_b"]} == {"active"}
+    assert {states[u] for u in ("buffer_c", "buffer_d", "feed_inlet")} == {"unused"}
 
 
 def test_switching_template_moves_the_active_state_between_feed_and_buffers():
@@ -147,8 +147,11 @@ def test_step_caption_names_the_buffer_path():
     cw.components = ["Salt", "Protein"]
     captions = _captions(iw._diagram.root.value)
 
-    assert captions[0] == "Buffer B carries Salt, Protein into the column."
-    assert captions[1] == "Not used: the feed inlet and buffers A, C and D."
+    assert captions[0] == (
+        "The system starts pre-equilibrated with buffer A; at t=0 the flow switches to buffer B."
+    )
+    assert captions[1] == "Buffer B carries Salt, Protein into the column."
+    assert captions[2] == "Not used: the feed inlet and buffers C and D."
 
 
 def test_loop_templates_caption_says_the_sample_sits_in_the_loop():
@@ -177,7 +180,7 @@ def test_caption_mentions_the_mixer_only_while_it_is_in_the_path():
 def test_inlet_contents_lists_only_driven_inlets_and_a_filled_loop():
     _iw, cw = _bound("Step")
     cw.components = ["Salt", "Protein"]
-    assert inlet_contents(cw.process) == {"buffer_b": ["Salt", "Protein"]}
+    assert inlet_contents(cw.process) == {"buffer_a": [], "buffer_b": ["Salt", "Protein"]}
 
     cw._model_picker.value = INSTRUMENT_TEMPLATES["Pulse Injection"]
     assert inlet_contents(cw.process) == {"buffer_a": [], "sample_loop": ["Salt", "Protein"]}

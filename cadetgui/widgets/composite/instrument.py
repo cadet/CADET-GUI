@@ -167,6 +167,7 @@ class InstrumentWidget:
 
         self._active_inlets: Optional[List[str]] = None
         self._carries: Optional[Mapping[str, Sequence[str]]] = None
+        self._equilibration: Sequence[str] = ()
         self._diagram = SystemDiagram()
 
         self.status = W.HTML("<em>Building the system...</em>")
@@ -274,18 +275,22 @@ class InstrumentWidget:
         self,
         names: Optional[Iterable[str]],
         carries: Optional[Mapping[str, Sequence[str]]] = None,
+        equilibration: Sequence[str] = (),
     ) -> None:
         """Set which inlets the selected process drives (`None`: unknown) and redraw the diagram.
 
-        `carries` maps each driven inlet to the component names it delivers.
+        `carries` maps each driven inlet to the component names it delivers; `equilibration`
+        lists inlets that only pre-equilibrate the system.
         """
         self._active_inlets = None if names is None else list(names)
         self._carries = carries
+        self._equilibration = tuple(equilibration)
         self._refresh_diagram()
 
     def _refresh_diagram(self) -> None:
         self._diagram.update(
-            self.flow_sheet, self.bypass_units(), self._active_inlets, self._carries
+            self.flow_sheet, self.bypass_units(), self._active_inlets, self._carries,
+            self._equilibration,
         )
 
     def _notify(self) -> None:
