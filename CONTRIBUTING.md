@@ -11,42 +11,25 @@
 
 ### Coding Style
 
-We use the [`Ruff` linter / formatter](https://docs.astral.sh/ruff/formatter/) for all Python files.
-To install the latest version of Ruff, use the following command:
-
+We use [`Ruff`](https://docs.astral.sh/ruff/) for linting and formatting all Python files.
 
 ```bash
 pip install ruff
+ruff check    # lint
+ruff format   # format
 ```
-
-**Linting:** To check your files for compliance with our coding standards, run the following command:
-
-```bash
-ruff check
-```
-
-This command will analyze the specified directory and report any issues that need to be addressed.
-
-**Formatting:** To automatically format your files according to our coding standards, use:
-
-```bash
-ruff format
-```
-
-This command will apply the necessary formatting changes to ensure consistency across the codebase.
 
 ### Unit Tests
 
-Install the dev dependencies and run the suite with [pytest](https://docs.pytest.org/):
-
 ```bash
-pip install -e ".[dev]"
+pip install -e . --group dev
 pytest
 ```
 
 Slow tests (real optimizer runs) are marked `@pytest.mark.slow`; skip them
-during day-to-day work with `pytest -m "not slow"`, but run the full suite,
-slow tests included, before opening a pull request.
+locally with `pytest -m "not slow"`, but run the full suite before opening a
+pull request. CI (`.github/workflows/tests.yml`) runs the full suite,
+including headless-browser element tests, on every push to `main` and PR.
 
 ### Pre-commit Hooks
 
@@ -63,14 +46,11 @@ slow tests included, before opening a pull request.
 
 ## Versioning
 
-CADET-GUI follows the same versioning approach as
-[CADET-Process](https://github.com/fau-advanced-separations/CADET-Process):
-a plain `MAJOR.MINOR.PATCH` string in `__version__`
-(`cadetgui/__init__.py`), the single source of truth `pyproject.toml` reads
-dynamically (`[tool.setuptools.dynamic] version = { attr =
-"cadetgui.__version__" }`) — never duplicate the version number elsewhere.
-While the project is pre-1.0, a MINOR bump may still include breaking
-changes; PATCH is for fixes only. Tag each release `vX.Y.Z` to match.
+CADET-GUI follows [CADET-Process](https://github.com/fau-advanced-separations/CADET-Process)'s
+versioning: a plain `MAJOR.MINOR.PATCH` string in `cadetgui/__init__.py`'s
+`__version__`, read dynamically by `pyproject.toml` — never duplicate it
+elsewhere. Pre-1.0, a MINOR bump may include breaking changes; PATCH is
+fixes only. Tag each release `vX.Y.Z`.
 
 ## Publish Package
 
