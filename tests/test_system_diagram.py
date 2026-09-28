@@ -452,6 +452,15 @@ def test_system_dropdown_pick_builds_the_process_once():
     assert iw._template_picker.value == "Step"
 
 
+def test_characterization_workbench_seeds_pulse_injection_and_mirrors_it():
+    from cadetgui.widgets.composite import CharacterizationWorkbenchWidget
+
+    wb = CharacterizationWorkbenchWidget()
+
+    assert wb.configuration._model_picker.value is INSTRUMENT_TEMPLATES["Pulse Injection"]
+    assert wb.instrument._template_picker.value == "Pulse Injection"
+
+
 def _column_caption(html: str) -> list[str]:
     group = next(
         g for g in _root(html).iter(_SVG + "g") if g.get("data-unit") == "column"
