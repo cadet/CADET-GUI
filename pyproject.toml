@@ -25,7 +25,7 @@ classifiers = [
     "Intended Audience :: Science/Research"
 ]
 dependencies = [
-    "CADETProcess>=0.11",
+    "CADET-Process>=0.11",
     "anywidget",
     "ipywidgets>=8",
     "traitlets",
@@ -52,6 +52,7 @@ cadetgui = [
 [dependency-groups]
 testing = [
     "coverage",
+    "playwright",
     "pytest",
     "pytest-cov"
 ]
@@ -66,6 +67,7 @@ docs = [
 ]
 dev = [
     "coverage",
+    "playwright",
     "pytest",
     "pytest-cov",
     "myst-nb>=0.17.1",
