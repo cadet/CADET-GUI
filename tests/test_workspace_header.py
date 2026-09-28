@@ -162,6 +162,29 @@ def test_workbench_simulation_follows_the_shared_headers_store_dir(tmp_path):
     assert wb.solution.history.store_dir == expected
 
 
+def test_characterization_workbench_places_the_same_header_above_the_sidebar():
+    from cadetgui.widgets.composite import CharacterizationWorkbenchWidget
+
+    wb = CharacterizationWorkbenchWidget()
+    header = wb.configuration.workspace_header
+    assert wb.root.children[2] is header.root
+    assert wb.root.children[3] is wb._shell.body
+    assert not contains(wb.configuration.root, header.root)
+    wb.configuration.config_name = "Char config"
+    assert wb.configuration.persist_to_store().exists()
+    assert header.counts == (1, 0)
+
+
+def test_characterization_workbench_with_configuration_given_keeps_its_own_header():
+    from cadetgui.widgets.composite import CharacterizationWorkbenchWidget
+
+    iw = InstrumentWidget()
+    config = ConfigurationWidget(instrument=iw)
+    wb = CharacterizationWorkbenchWidget(instrument=iw, configuration=config)
+    assert contains(config.root, config.workspace_header.root)
+    assert len(wb.root.children) == 3
+
+
 def test_header_is_a_single_compact_row_with_the_persistence_widgets():
     config = ConfigurationWidget(instrument=InstrumentWidget())
     header = config.workspace_header
