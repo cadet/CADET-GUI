@@ -25,12 +25,8 @@ cd CADET-GUI
 pip install -e .
 ```
 
-Run the test suite with:
-
-```bash
-pip install -e ".[dev]"
-pytest
-```
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for running the test suite, linting
+and versioning.
 
 ---
 
@@ -95,13 +91,6 @@ standalone page with no visible code cells.
 
 ---
 
-## Development
+## Contributing
 
-Linting and formatting use [Ruff](https://docs.astral.sh/ruff/):
-
-```bash
-ruff check
-ruff format
-```
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for details.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md).

@@ -36,6 +36,9 @@ dependencies = [
 [tool.setuptools.packages.find]
 include = ["cadetgui*"]
 
+[tool.setuptools.dynamic]
+version = { attr = "cadetgui.__version__" }
+
 [tool.setuptools.package-data]
 cadetgui = [
     "assets/pid/*.svg",
