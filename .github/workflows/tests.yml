@@ -1,0 +1,40 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Conda environment
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          use-mamba: true
+          activate-environment: CADET-GUI
+          environment-file: environment.yml
+
+      # No CADET-Process release includes CADETProcess.instruments yet (the
+      # LC flow-sheet layer this GUI is built on); pin a dev-branch commit
+      # known to have it, rather than floating on the branch tip.
+      - name: Install CADET-Process
+        run: pip install "git+https://github.com/fau-advanced-separations/CADET-Process.git@a064f9c"
+
+      - name: Install CADET-GUI
+        run: pip install -e . --group dev
+
+      - name: Install headless Chromium
+        run: playwright install --with-deps chromium
+
+      - name: Run tests
+        run: pytest -v
