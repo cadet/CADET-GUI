@@ -1,0 +1,8 @@
+.cadetgui-field-error {
+  color: var(--cg-danger);
+  font-size: var(--cg-text-sm);
+}
+
+.cadetgui-field-error[hidden] {
+  display: none;
+}
