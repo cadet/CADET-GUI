@@ -7,10 +7,10 @@ from a real CADET-Process simulation, then reshaped to look like an Äkta/Unicor
 None of it is measured data; every number is invented for this synthetic instrument.
 
 The six CSVs and `manifest.json` exercise a two-step characterization chain end to end:
-`cadetgui.comparison.Comparison` reads each CSV, aligns it to its process's simulated clock via
-the `"Phase Elution"` run-log marker, and `cadetgui.characterization_stages`/
-`cadetgui.characterization_runner` fit each step's stage. `manifest.json`'s `initial_store` and
-each step's `truth` are a `cadetgui.parameter_store.ParameterStore` in `to_dict()` form, keyed by
+`cadetgui.characterization.comparison.Comparison` reads each CSV, aligns it to its process's simulated clock via
+the `"Phase Elution"` run-log marker, and `cadetgui.characterization.stages`/
+`cadetgui.characterization.runner` fit each step's stage. `manifest.json`'s `initial_store` and
+each step's `truth` are a `cadetgui.characterization.parameter_store.ParameterStore` in `to_dict()` form, keyed by
 CADET-Process parameter path.
 
 ## Step 1 — "Extra-column volume" (`stage="tubing"`, `tubing="tubing_pre_column"`)
@@ -75,7 +75,7 @@ and uses the default whole-trace fit.
 
 ## Verified end-to-end
 
-Every comparison's `cadetgui.comparison.Comparison.problems()` is empty (auto-detects as an
+Every comparison's `cadetgui.characterization.comparison.Comparison.problems()` is empty (auto-detects as an
 Äkta export, its channel and `"Phase Elution"` marker exist, its recipe builds, its solution
 path resolves), and evaluating each one at the store its own step's truth was generated from
 (`initial_store` plus step 1's truth, plus step 2's truth once carried forward) gives an NRMSE
@@ -85,7 +85,7 @@ normalization. `Small tracer pulse 1 (conductivity)` needs its explicit `baselin
 pre-injection dip), which is the point — this dataset is deliberately not clean everywhere.
 
 Also verified: rebuilding each process from its recipe, `initial_store` and the relevant step's
-`truth` (`cadetgui.process_builder.build_process` + `cadetgui.parameter_store.apply_store`)
+`truth` (`cadetgui.process_builder.build_process` + `cadetgui.characterization.parameter_store.apply_store`)
 reproduces this file's own generation exactly, since CADET-Core is deterministic for identical
 input; see `tests/test_characterization_chain_data.py`.
 

@@ -7,7 +7,7 @@ from typing import Any, Callable, List, Optional
 
 import ipywidgets as W
 
-from ... import run_store
+from ...io import run_store
 from .._chrome import style_tag
 from ..elements import SelectableTable, TextField
 

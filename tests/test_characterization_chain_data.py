@@ -2,8 +2,9 @@
 
 `examples/generate_characterization_chain_data.py` is loaded by path (it lives under
 `examples/`, not the `cadetgui` package) and exercised directly against
-`cadetgui.comparison.Comparison` and `cadetgui.characterization_runner.StepSetup`, the
-same way a real consumer of `examples/data/characterization_akta/` would use it.
+`cadetgui.characterization.comparison.Comparison` and
+`cadetgui.characterization.runner.StepSetup`, the same way a real consumer of
+`examples/data/characterization_akta/` would use it.
 """
 from __future__ import annotations
 
@@ -19,9 +20,12 @@ import pytest
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
-from cadetgui.characterization_runner import StepSetup, build  # noqa: E402
-from cadetgui.comparison import Comparison, recipe_from_dict  # noqa: E402
-from cadetgui.experimental_data import (  # noqa: E402
+from cadetgui.characterization.comparison import (  # noqa: E402
+    Comparison,
+    recipe_from_dict,
+)
+from cadetgui.characterization.runner import StepSetup, build  # noqa: E402
+from cadetgui.io.experimental_data import (  # noqa: E402
     is_akta_format,
     read_experimental_csv,
 )
@@ -122,7 +126,7 @@ def test_recipes_rebuild(manifest):
 def test_generator_stores_chain_matches_manifest(gen, manifest):
     """`gen.step1_store`/`gen.step2_store` are what the manifest's own truth/initial_store
     encode; a store built independently from the manifest's JSON must agree."""
-    from cadetgui.parameter_store import ParameterStore
+    from cadetgui.characterization.parameter_store import ParameterStore
 
     initial = ParameterStore.from_dict(manifest["initial_store"], gen.SPECS)
     for path, entry in gen.initial_store().entries.items():

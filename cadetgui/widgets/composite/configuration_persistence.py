@@ -6,7 +6,7 @@ from typing import Any, Callable, NamedTuple, Optional
 
 import ipywidgets as W
 
-from ...configuration_store import (
+from ...io.configuration_store import (
     ConfigurationState,
     compute_hash,
     load_from_store,

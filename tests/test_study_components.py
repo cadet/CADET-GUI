@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
-from cadetgui.characterization_guide import (
+from cadetgui.characterization.guide import (
     COMPONENT_ROLES,
     EXPERIMENT_TYPES,
     GLOSSARY,
@@ -14,9 +14,9 @@ from cadetgui.characterization_guide import (
     measurement_from_run,
     parameter_label,
 )
-from cadetgui.parameter_store import Provenance
-from cadetgui.step_checks import study_steps_status
-from cadetgui.study import Study, StudyComponent, derive_components
+from cadetgui.characterization.parameter_store import Provenance
+from cadetgui.characterization.step_checks import study_steps_status
+from cadetgui.characterization.study import Study, StudyComponent, derive_components
 
 MANIFEST = (
     Path(__file__).parent.parent / "examples" / "data" / "characterization_akta" / "manifest.json"

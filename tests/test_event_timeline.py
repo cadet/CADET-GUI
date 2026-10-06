@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import warnings
 
-import cadetgui.configuration_store as configuration_store
+import cadetgui.io.configuration_store as configuration_store
 import pytest
 from cadetgui.cadetprocessadapter import INSTRUMENT_TEMPLATES, PARAMS
 from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget

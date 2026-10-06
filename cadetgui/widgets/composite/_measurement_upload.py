@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import ipywidgets as W
 
-from ...experimental_data import (
+from ...io.experimental_data import (
     ExperimentalRun,
     detect_column_roles,
     is_akta_format,

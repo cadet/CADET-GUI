@@ -6,9 +6,9 @@ from types import SimpleNamespace
 
 import ipywidgets as W
 import pytest
-from cadetgui import configuration_store
 from cadetgui.cadetprocessadapter import PARAMS
-from cadetgui.study import Study
+from cadetgui.characterization.study import Study
+from cadetgui.io import configuration_store
 from cadetgui.widgets.composite import ComparisonsWidget
 
 MANIFEST = (
@@ -359,7 +359,7 @@ def test_a_trace_that_cannot_be_prepared_is_shown_raw_with_the_reason(widget, st
 
 
 def test_add_flow_opens_under_its_step_heading_and_follows_the_type(widget):
-    from cadetgui.characterization_guide import CHAIN_BY_ID
+    from cadetgui.characterization.guide import CHAIN_BY_ID
 
     def position(step_id):
         children = list(widget._list_box.children)

@@ -13,7 +13,11 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 from cadetgui.cadetprocessadapter import UNIT_LABELS  # noqa: E402
-from cadetgui.characterization_guide import (  # noqa: E402
+from cadetgui.characterization.comparison import (  # noqa: E402
+    Comparison,
+    recipe_from_dict,
+)
+from cadetgui.characterization.guide import (  # noqa: E402
     CHAIN_BY_ID,
     DEFAULT_CHAIN,
     EXPERIMENT_TYPES,
@@ -27,14 +31,7 @@ from cadetgui.characterization_guide import (  # noqa: E402
     new_step_setup,
     with_implied_values,
 )
-from cadetgui.characterization_stages import describe_stage  # noqa: E402
-from cadetgui.comparison import Comparison, recipe_from_dict  # noqa: E402
-from cadetgui.configuration_store import (  # noqa: E402
-    ConfigurationState,
-    InstrumentState,
-)
-from cadetgui.experimental_data import Channel, ExperimentalRun  # noqa: E402
-from cadetgui.parameter_store import (  # noqa: E402
+from cadetgui.characterization.parameter_store import (  # noqa: E402
     ChainError,
     ParameterStore,
     Provenance,
@@ -42,9 +39,15 @@ from cadetgui.parameter_store import (  # noqa: E402
     has_parameter,
     spec_for,
 )
+from cadetgui.characterization.stages import describe_stage  # noqa: E402
+from cadetgui.characterization.step_checks import study_steps_status  # noqa: E402
+from cadetgui.characterization.study import Study  # noqa: E402
+from cadetgui.io.configuration_store import (  # noqa: E402
+    ConfigurationState,
+    InstrumentState,
+)
+from cadetgui.io.experimental_data import Channel, ExperimentalRun  # noqa: E402
 from cadetgui.process_builder import build_process  # noqa: E402
-from cadetgui.step_checks import study_steps_status  # noqa: E402
-from cadetgui.study import Study  # noqa: E402
 
 DATA_DIR = Path(__file__).parents[1] / "examples" / "data" / "characterization_akta"
 
@@ -280,8 +283,8 @@ def test_study_steps_status_before_and_after_accepting_step_one():
 
 
 def test_every_step_type_has_one_line_of_help_and_no_stage_wording():
-    from cadetgui.characterization_guide import STEP_TYPE_HELP, step_type_help
-    from cadetgui.characterization_stages import STAGES
+    from cadetgui.characterization.guide import STEP_TYPE_HELP, step_type_help
+    from cadetgui.characterization.stages import STAGES
 
     assert set(STEP_TYPE_HELP) == set(STAGES)
     for stage_id in STAGES:
@@ -292,7 +295,7 @@ def test_every_step_type_has_one_line_of_help_and_no_stage_wording():
 
 
 def test_role_fix_offers_a_role_only_when_the_other_uses_accept_it():
-    from cadetgui.characterization_guide import role_fix
+    from cadetgui.characterization.guide import role_fix
 
     study = Study.load(DATA_DIR / "manifest.json")
     small = EXPERIMENT_TYPES["column_pulse_small_tracer"]

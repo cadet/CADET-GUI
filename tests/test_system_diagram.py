@@ -5,7 +5,7 @@ import warnings
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-import cadetgui.configuration_store as configuration_store
+import cadetgui.io.configuration_store as configuration_store
 import pytest
 from cadetgui.cadetprocessadapter import (
     BYPASSABLE_UNITS,
@@ -15,7 +15,7 @@ from cadetgui.cadetprocessadapter import (
     inlet_contents,
     signal_label,
 )
-from cadetgui.configuration_store import ConfigurationState, InstrumentState
+from cadetgui.io.configuration_store import ConfigurationState, InstrumentState
 from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
 from cadetgui.widgets.composite.system_diagram import (
     HARDWARE_ONLY_NOTE,

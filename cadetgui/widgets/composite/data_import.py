@@ -4,7 +4,7 @@ from typing import Callable, List, Optional
 
 import ipywidgets as W
 
-from ...experimental_data import (
+from ...io.experimental_data import (
     ColumnRole,
     ExperimentalDataset,
     ExperimentalRun,

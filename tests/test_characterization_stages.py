@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from cadetgui.characterization_stages import (
+from cadetgui.characterization.stages import (
     STAGES,
     build_problem,
     describe_stage,

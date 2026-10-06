@@ -9,26 +9,26 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence,
 import ipywidgets as W
 import numpy as np
 
-from ... import configuration_store
 from ...cadetprocessadapter import (
     FieldSpec,
     parse_float_list,
 )
-from ...characterization_guide import (
+from ...characterization.comparison import Comparison
+from ...characterization.guide import (
     CHAIN_BY_ID,
     DEFAULT_CHAIN,
     EXPERIMENT_TYPES,
     map_species,
     role_fix,
 )
-from ...comparison import Comparison
-from ...configuration_store import ConfigurationState
-from ...experimental_data import (
+from ...characterization.study import Study
+from ...io import configuration_store
+from ...io.configuration_store import ConfigurationState
+from ...io.experimental_data import (
     ExperimentalRun,
     to_time,
 )
 from ...process_builder import check_recipe
-from ...study import Study
 from .._chrome import style_tag
 from .._help import info_box_html, term_html
 from .._status import status_html

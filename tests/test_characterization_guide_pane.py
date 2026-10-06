@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import html
 
-from cadetgui.characterization_guide import DEFAULT_CHAIN, EXPERIMENT_TYPES, GLOSSARY
+from cadetgui.characterization.guide import DEFAULT_CHAIN, EXPERIMENT_TYPES, GLOSSARY
 from cadetgui.widgets.composite.characterization_guide_pane import (
     CharacterizationGuideWidget,
     markdown_html,

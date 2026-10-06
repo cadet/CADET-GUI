@@ -24,7 +24,7 @@ from ...cadetprocessadapter import (
     step_elution_spec,
     template_required_units,
 )
-from ...configuration_store import ConfigurationState
+from ...io.configuration_store import ConfigurationState
 from ...starting_values import with_starting_values
 from .._chrome import style_tag
 from .._settings_popover import SettingsPopover

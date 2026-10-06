@@ -20,8 +20,8 @@ from .cadetprocessadapter import (
     build_parameter_config_spec,
     measurable_signal_options,
 )
-from .configuration_store import ConfigurationState
-from .parameter_store import has_parameter
+from .characterization.parameter_store import has_parameter
+from .io.configuration_store import ConfigurationState
 
 __all__ = [
     "build_process",

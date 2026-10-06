@@ -8,23 +8,23 @@ from typing import Any, Callable, Dict, List, Optional
 import ipywidgets as W
 import numpy as np
 
-from ... import characterization_runner
-from ...characterization_guide import ChainStepGuide, guide_for_step, starting_values
-from ...characterization_runner import (
+from ...characterization import runner
+from ...characterization.guide import ChainStepGuide, guide_for_step, starting_values
+from ...characterization.parameter_store import (
+    ParameterStore,
+    Step,
+    missing_requirements,
+    transfer_species,
+)
+from ...characterization.runner import (
     AVERAGE_TAG,
     Candidate,
     StepResult,
     StepSetup,
     fitted_variables,
 )
-from ...characterization_stages import STAGES, describe_stage
-from ...parameter_store import (
-    ParameterStore,
-    Step,
-    missing_requirements,
-    transfer_species,
-)
-from ...step_checks import (
+from ...characterization.stages import STAGES, describe_stage
+from ...characterization.step_checks import (
     CONFIRM_KNOWN,
     CONFIRMED_DEFAULT,
     KNOWN_HARDWARE,
@@ -37,7 +37,7 @@ from ...step_checks import (
     record_assumptions,
     step_checks,
 )
-from ...study import Study
+from ...characterization.study import Study
 from .._chrome import style_tag
 from .._help import (
     determines_table_html,
@@ -499,7 +499,7 @@ class CharacterizationStepWidget(_StepRun):
         """Gaps left once the experiment types' assumed values are recorded."""
         prior = self._prior()
         try:
-            gaps = characterization_runner.species_gaps(setup, record_assumptions(setup, prior))
+            gaps = runner.species_gaps(setup, record_assumptions(setup, prior))
         except Exception:  # noqa: BLE001 -- an unbuildable recipe is reported by problems()
             return {}
         return {path: names for path, names in gaps.items() if path in prior}
@@ -702,7 +702,7 @@ class CharacterizationStepWidget(_StepRun):
         return self._accept(candidate)
 
     def _accept(self, candidate: Candidate) -> ParameterStore:
-        store = characterization_runner.posterior(
+        store = runner.posterior(
             self._run_setup, self.result.built, self._run_prior, candidate
         )
         self.accepted = True

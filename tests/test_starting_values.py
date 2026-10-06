@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import warnings
 
-from cadetgui.characterization_guide import EXPERIMENT_TYPES
-from cadetgui.configuration_store import ConfigurationState
+from cadetgui.characterization.guide import EXPERIMENT_TYPES
+from cadetgui.io.configuration_store import ConfigurationState
 from cadetgui.starting_values import (
     binding_starting_values,
     starting_values,
@@ -102,7 +102,7 @@ def test_binding_experiment_types_get_starting_values():
 
 
 def test_configuration_fills_starting_values_into_a_fresh_sma_setup(tmp_path, monkeypatch):
-    import cadetgui.configuration_store as configuration_store
+    import cadetgui.io.configuration_store as configuration_store
     from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
 
     monkeypatch.setattr(configuration_store, "default_store_dir", lambda: tmp_path)

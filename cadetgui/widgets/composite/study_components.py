@@ -4,8 +4,8 @@ from typing import Any, Callable, Dict, List, Tuple
 
 import ipywidgets as W
 
-from ...characterization_guide import COMPONENT_ROLES, SALT, SALT_ROLE
-from ...study import Study
+from ...characterization.guide import COMPONENT_ROLES, SALT, SALT_ROLE
+from ...characterization.study import Study
 from .._chrome import style_tag
 from .._help import info_box_html, term_html
 from .._status import status_html

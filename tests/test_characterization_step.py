@@ -11,9 +11,9 @@ from types import SimpleNamespace
 import ipywidgets as W
 import numpy as np
 import pytest
-from cadetgui.characterization_runner import AVERAGE_TAG, StepResult, build
-from cadetgui.parameter_store import Provenance
-from cadetgui.study import Study
+from cadetgui.characterization.parameter_store import Provenance
+from cadetgui.characterization.runner import AVERAGE_TAG, StepResult, build
+from cadetgui.characterization.study import Study
 from cadetgui.widgets.composite import CharacterizationStepWidget, ParameterStoreWidget
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -361,7 +361,7 @@ def test_runs_accepts_and_the_store_view_shows_the_provenance(study):
 
 class TestHeader:
     def test_describes_the_chain_step_open_until_accepted(self, periphery, study):
-        from cadetgui.characterization_guide import CHAIN_BY_ID
+        from cadetgui.characterization.guide import CHAIN_BY_ID
 
         guide = CHAIN_BY_ID["system_periphery"]
         header = periphery.header.value
@@ -381,7 +381,7 @@ class TestHeader:
         assert periphery.header.value.startswith("<details class='cadetgui-info'>")
 
     def test_hidden_for_a_step_outside_the_chain(self, study):
-        from cadetgui.characterization_runner import StepSetup
+        from cadetgui.characterization.runner import StepSetup
 
         study.upsert_step(
             StepSetup(name="mine", stage="tubing", options={"tubing": "tubing_detectors"})
@@ -395,7 +395,7 @@ class TestHeader:
     def test_labels_carry_glossary_tips(self, periphery):
         import html
 
-        from cadetgui.characterization_guide import GLOSSARY
+        from cadetgui.characterization.guide import GLOSSARY
 
         texts = " ".join(
             w.value for w in _walk(periphery.root) if isinstance(getattr(w, "value", None), str)
@@ -405,7 +405,7 @@ class TestHeader:
             assert f'data-tip="{html.escape(GLOSSARY[term], quote=True)}"' in texts, term
 
     def test_old_frozen_term_resolves_to_the_fixed_entry(self):
-        from cadetgui.characterization_guide import GLOSSARY
+        from cadetgui.characterization.guide import GLOSSARY
         from cadetgui.widgets._help import term_html
 
         assert term_html("frozen variable") == term_html("fixed variable", "frozen variable")
@@ -447,7 +447,7 @@ class TestGuidedSetup:
         assert form.stage in list(_walk(form.advanced))
 
     def test_step_type_is_labelled_and_explained_without_stage_wording(self, periphery):
-        from cadetgui.characterization_guide import STEP_TYPE_HELP
+        from cadetgui.characterization.guide import STEP_TYPE_HELP
 
         form = periphery.form
         assert form.stage.label == "Step type:"
@@ -481,7 +481,7 @@ class TestGuidedSetup:
         assert "stands in for the whole extra-column volume" in help_text
 
     def test_custom_step_shows_the_controls_with_labels_and_help(self, study):
-        from cadetgui.characterization_runner import StepSetup
+        from cadetgui.characterization.runner import StepSetup
 
         study.upsert_step(StepSetup(name="my own fit", stage="bed"))
         form = CharacterizationStepWidget(study, "my own fit").form
@@ -512,7 +512,7 @@ class TestCurrentValues:
         assert "m<sup>2</sup><sub>IV</sub>/s" in cells["tubing_pre_column_axial_dispersion"].value
 
     def test_a_later_step_starts_from_the_accepted_value(self, study):
-        from cadetgui.characterization_runner import StepSetup
+        from cadetgui.characterization.runner import StepSetup
 
         pulses = [c for c in study.comparisons if c.experiment_type == "system_pulse"]
         study.upsert_step(StepSetup(
@@ -530,14 +530,14 @@ class TestCurrentValues:
         assert dispersion.startswith("4.5e-07 ")
 
     def test_species_values_are_shown_per_component_with_their_source(self, study):
-        from cadetgui.characterization_guide import (
+        from cadetgui.characterization.guide import (
             ASSUMED_BY_TYPE,
             EXPERIMENT_TYPES,
             STARTING_VALUE,
             starting_values,
             with_implied_values,
         )
-        from cadetgui.characterization_runner import StepSetup
+        from cadetgui.characterization.runner import StepSetup
 
         tracers = study.steps[1].comparisons
         setup = StepSetup(
@@ -651,7 +651,7 @@ class TestMeasurementSelection:
         assert study.steps[0].objective_names == ["System pulse 1 (UV)", "System pulse 2 (UV)"]
 
     def test_a_custom_step_lists_every_measurement_and_includes_none_automatically(self, study):
-        from cadetgui.characterization_runner import StepSetup
+        from cadetgui.characterization.runner import StepSetup
 
         study.upsert_step(
             StepSetup(name="mine", stage="bed", options={"include_particle_porosity": False})
@@ -682,7 +682,7 @@ class TestMeasurementSelection:
         assert "Large tracer pulse 1 (UV)" not in widget.form._comparison_boxes
 
     def test_no_fitting_measurement_offers_to_add_one(self, study):
-        from cadetgui.characterization_guide import CHAIN_BY_ID, new_step_setup
+        from cadetgui.characterization.guide import CHAIN_BY_ID, new_step_setup
 
         study.upsert_step(new_step_setup(CHAIN_BY_ID["particle_transport"], []))
         navigate = Navigation()
@@ -780,7 +780,7 @@ class TestLiveChecks:
         assert study.prior_for("Column packing").value(DISPERSION)["LargeTracer"] == 4.5e-7
 
     def test_a_missing_assumption_is_recorded_explicitly(self, study):
-        from cadetgui.step_checks import study_steps_status
+        from cadetgui.characterization.step_checks import study_steps_status
 
         film = "flow_sheet.column.film_diffusion"
         entry = study.initial_store.entries[film]
@@ -810,7 +810,7 @@ class TestLiveChecks:
 
     @staticmethod
     def _without_pre_column_diameter(study):
-        from cadetgui.parameter_store import ParameterStore
+        from cadetgui.characterization.parameter_store import ParameterStore
 
         store = study.initial_store
         study.initial_store = ParameterStore(
@@ -888,7 +888,7 @@ class TestLiveChecks:
         assert check.status == "ok" and "0.75 mm" in check.text
 
     def test_advice_moves_into_the_help(self, periphery):
-        from cadetgui.characterization_guide import CHAIN_BY_ID
+        from cadetgui.characterization.guide import CHAIN_BY_ID
 
         header = periphery.header.value
         assert "Also check" not in header and "are in the Guide" in header
@@ -921,7 +921,7 @@ class FakeOptimizer:
 
 
 def fake_run(widget, generations, delay):
-    """Return a stand-in for `characterization_runner.run` that yields `generations`."""
+    """Return a stand-in for `runner.run` that yields `generations`."""
     result = fake_result(widget)
 
     def run(setup, store, *, on_optimizer_ready, cancel_event, **_kwargs):
@@ -948,8 +948,8 @@ class TestLiveFitPlot:
 
     @pytest.fixture
     def spied(self, monkeypatch, periphery):
-        from cadetgui import characterization_runner
-        from cadetgui.comparison import Comparison
+        from cadetgui.characterization import runner as characterization_runner
+        from cadetgui.characterization.comparison import Comparison
 
         run, result = fake_run(periphery, self.GENERATIONS, delay=0.15)
         monkeypatch.setattr(characterization_runner, "run", run)
@@ -1010,7 +1010,7 @@ class TestLiveFitPlot:
         assert 1 <= len(widget.live_update_seconds) < len(self.GENERATIONS)
 
     def test_a_busy_update_is_skipped(self, periphery):
-        from cadetgui.characterization_runner import Candidate
+        from cadetgui.characterization.runner import Candidate
 
         candidate = Candidate(index=0, x=(0.42, 4.5e-7), f=(0.05, 0.06), tags=("best average",))
         periphery._run_setup = periphery.get_value()
@@ -1046,8 +1046,8 @@ class TestLiveFitPlot:
         assert "<td>System pulse 1 (UV)</td><td>0.05</td>" in table
 
     def test_variable_names_match_the_problem(self, study):
-        from cadetgui.characterization_runner import fitted_variables
-        from cadetgui.characterization_stages import describe_stage
+        from cadetgui.characterization.runner import fitted_variables
+        from cadetgui.characterization.stages import describe_stage
 
         for setup in study.steps:
             built = build(setup, study.initial_store.updated(
@@ -1060,7 +1060,7 @@ class TestLiveFitPlot:
 
 
 def test_posterior_reads_each_probe_from_its_own_process(study):
-    from cadetgui.characterization_runner import Candidate, posterior
+    from cadetgui.characterization.runner import Candidate, posterior
 
     prior = periphery_posterior(study).updated(
         {DISPERSION: {"SmallTracer": 4.5e-7, "LargeTracer": 4.5e-7}}, Provenance(step="t")
@@ -1077,7 +1077,7 @@ def test_posterior_reads_each_probe_from_its_own_process(study):
 
 
 def test_hardware_values_read_in_lab_units():
-    from cadetgui.step_checks import known_value_label, quantity_text
+    from cadetgui.characterization.step_checks import known_value_label, quantity_text
 
     assert quantity_text(0.5e-3, r"\mathrm{m}") == ("0.5 mm", 1e-3, "mm")
     assert quantity_text(5e-6, r"\mathrm{m}")[0] == "5 µm"

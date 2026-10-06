@@ -4,8 +4,8 @@ from typing import Any, Callable, Optional
 
 import ipywidgets as W
 
-from ... import configuration_store, run_store
 from ...cadetprocessadapter import classify_signal_ports, measurable_signal_options
+from ...io import configuration_store, run_store
 from ...simulation import run_process as _default_runner
 from .._chrome import style_tag
 from .._series import solution_series

@@ -29,7 +29,7 @@ from ...cadetprocessadapter import (
     build_parameter_config_spec,
     require_finite_above,
 )
-from ...configuration_store import InstrumentState
+from ...io.configuration_store import InstrumentState
 from .._chrome import style_tag
 from .._settings_popover import toggle_box
 from .._status import status_html
@@ -38,7 +38,7 @@ from ..forms import FormRenderer
 from .system_diagram import SystemDiagram
 
 if TYPE_CHECKING:
-    from ...study import Study
+    from ...characterization.study import Study
     from .study_components import StudyComponentsWidget
 
 __all__ = ["InstrumentWidget"]

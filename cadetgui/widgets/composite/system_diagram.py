@@ -7,7 +7,7 @@ from typing import Collection, List, Mapping, Optional, Sequence, Tuple
 import ipywidgets as W
 
 from ...cadetprocessadapter import BYPASSABLE_UNITS, UNIT_LABELS
-from ...configuration_store import ConfigurationState, InstrumentState
+from ...io.configuration_store import ConfigurationState, InstrumentState
 from ._pid_symbols import FG, MUTED, MUTED_STROKE, SURFACE, load_symbol
 
 __all__ = ["SystemDiagram", "render_system_svg", "recipe_diagram_svg", "HARDWARE_ONLY_NOTE"]

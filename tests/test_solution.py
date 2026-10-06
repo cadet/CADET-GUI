@@ -7,7 +7,7 @@ import pytest
 
 matplotlib.use("Agg")  # headless test environment, no display needed
 
-import cadetgui.configuration_store as configuration_store
+import cadetgui.io.configuration_store as configuration_store
 from cadetgui.cadetprocessadapter import INSTRUMENT_TEMPLATES, classify_signal_ports
 from cadetgui.simulation import run_process as _default_runner
 from cadetgui.widgets.composite import (
@@ -520,7 +520,7 @@ def test_solutionwidget_run_without_a_store_dir_reserves_no_run_id():
 
 
 def test_solutionwidget_run_with_a_store_dir_persists_the_run(tmp_path):
-    import cadetgui.run_store as run_store
+    import cadetgui.io.run_store as run_store
 
     sw = SolutionWidget(process=built_process())
     sw.history.store_dir = tmp_path
@@ -639,7 +639,7 @@ def test_solutionwidget_delete_button_follows_the_selection(tmp_path):
 
 
 def test_solutionwidget_delete_needs_a_second_click_to_confirm(tmp_path):
-    import cadetgui.run_store as run_store
+    import cadetgui.io.run_store as run_store
 
     sw = _persisted_run_dir(tmp_path, n=1)
 
@@ -672,7 +672,7 @@ def test_solutionwidget_delete_confirmation_reverts_when_another_button_is_click
 
 
 def test_solutionwidget_confirmed_delete_removes_run_files_and_clears_the_view(tmp_path):
-    import cadetgui.run_store as run_store
+    import cadetgui.io.run_store as run_store
 
     sw = _persisted_run_dir(tmp_path)
     keep, drop = sw.history.runs
@@ -699,7 +699,7 @@ def test_solutionwidget_confirmed_delete_removes_run_files_and_clears_the_view(t
 
 
 def test_solutionwidget_delete_a_failed_run_removes_its_manifest(tmp_path):
-    import cadetgui.run_store as run_store
+    import cadetgui.io.run_store as run_store
 
     def boom(process, **_kwargs):
         raise RuntimeError("nope")

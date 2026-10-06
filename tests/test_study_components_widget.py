@@ -3,9 +3,9 @@ from __future__ import annotations
 import warnings
 from pathlib import Path
 
-import cadetgui.configuration_store as configuration_store
+import cadetgui.io.configuration_store as configuration_store
 import pytest
-from cadetgui.study import Study, StudyComponent
+from cadetgui.characterization.study import Study, StudyComponent
 from cadetgui.widgets.composite import (
     CharacterizationWorkbenchWidget,
     ComparisonsWidget,

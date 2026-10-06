@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from cadetgui.experimental_data import (
+from cadetgui.io.experimental_data import (
     Channel,
     ExperimentalRun,
     detect_column_roles,

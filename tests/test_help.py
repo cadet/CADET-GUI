@@ -1,4 +1,4 @@
-from cadetgui.characterization_guide import GLOSSARY
+from cadetgui.characterization.guide import GLOSSARY
 from cadetgui.widgets._help import checklist_html, info_box_html, term_html
 
 
@@ -22,7 +22,7 @@ def test_info_box_and_checklist_escape_text():
 
 
 def test_determines_table_has_one_row_per_parameter():
-    from cadetgui.characterization_guide import CHAIN_BY_ID
+    from cadetgui.characterization.guide import CHAIN_BY_ID
     from cadetgui.widgets._help import determines_table_html
 
     guide = CHAIN_BY_ID["column_packing"]
@@ -32,7 +32,7 @@ def test_determines_table_has_one_row_per_parameter():
 
 
 def test_experiments_table_lists_attached_measurements_or_none_yet():
-    from cadetgui.characterization_guide import CHAIN_BY_ID
+    from cadetgui.characterization.guide import CHAIN_BY_ID
     from cadetgui.widgets._help import experiments_table_html
 
     types = CHAIN_BY_ID["column_packing"].experiment_types

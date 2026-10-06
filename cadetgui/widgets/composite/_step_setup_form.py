@@ -12,7 +12,8 @@ import ipywidgets as W
 
 from ... import process_builder
 from ...cadetprocessadapter import UNIT_LABELS
-from ...characterization_guide import (
+from ...characterization.comparison import Comparison
+from ...characterization.guide import (
     CHAIN_BY_ID,
     EXPERIMENT_TYPES,
     ChainStepGuide,
@@ -24,7 +25,7 @@ from ...characterization_guide import (
     step_summary,
     step_type_help,
 )
-from ...characterization_runner import (
+from ...characterization.runner import (
     DEFAULT_OPTIMIZER,
     StepSetup,
     default_optimizer,
@@ -32,10 +33,9 @@ from ...characterization_runner import (
     estimated_simulations,
     fitted_variables,
 )
-from ...characterization_stages import STAGES, VariableDef, describe_stage
-from ...comparison import Comparison
+from ...characterization.stages import STAGES, VariableDef, describe_stage
+from ...characterization.study import Study
 from ...optimizer_runner import OPTIMIZERS
-from ...study import Study
 from .._help import term_html
 from .._status import status_html
 from ..elements import BoolField, ChoiceField

@@ -4,7 +4,7 @@ import warnings
 
 import pytest
 from cadet import H5
-from cadetgui.configuration_store import (
+from cadetgui.io.configuration_store import (
     ConfigurationState,
     InstrumentState,
     compute_hash,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import cadetgui.run_store as run_store
+import cadetgui.io.run_store as run_store
 from cadetgui.widgets.composite import RunHistoryWidget
 
 

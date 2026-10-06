@@ -20,12 +20,12 @@ from CADETProcess.processModel import ComponentSystem, Process
 from CADETProcess.reference import ReferenceIO
 from CADETProcess.solution import slice_solution
 
-from . import process_builder
-from .cadetprocessadapter import process_phase_spans, sample_injection_times
-from .configuration_store import ConfigurationState, InstrumentState
-from .experimental_data import ExperimentalRun, read_experimental_csv, to_time
+from .. import process_builder
+from ..cadetprocessadapter import process_phase_spans, sample_injection_times
+from ..io.configuration_store import ConfigurationState, InstrumentState
+from ..io.experimental_data import ExperimentalRun, read_experimental_csv, to_time
+from ..simulation import run_process
 from .parameter_store import ParameterStore, apply_store
-from .simulation import run_process
 
 __all__ = ["Comparison", "ComparisonPreview", "recipe_from_dict"]
 
@@ -64,7 +64,7 @@ class Comparison:
     `run` is the loaded `ExperimentalRun`; it is attached at runtime and never
     serialized. `baseline_window` and `measured_injection` are in the run's own
     x unit (mL or s); `window` is in seconds on the simulated clock.
-    `experiment_type` is an id from `characterization_guide.EXPERIMENT_TYPES`, or `None`.
+    `experiment_type` is an id from `guide.EXPERIMENT_TYPES`, or `None`.
     """
 
     name: str
