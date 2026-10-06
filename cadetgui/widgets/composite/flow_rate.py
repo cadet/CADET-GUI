@@ -7,7 +7,7 @@ from typing import Optional
 import ipywidgets as W
 
 from ..elements import TextField
-from ._measurement_common import _ML_PER_MIN
+from ._measurement_common import ML_PER_MIN
 from .configuration import ConfigurationWidget
 
 __all__ = ["FlowRateSection"]
@@ -45,17 +45,17 @@ class FlowRateSection:
         current = self.field.value.strip()
         try:
             same = value is not None and bool(current) and math.isclose(
-                float(current) * _ML_PER_MIN, value, rel_tol=1e-9
+                float(current) * ML_PER_MIN, value, rel_tol=1e-9
             )
         except ValueError:
             return
         if not same:
-            self.field.value = f"{value / _ML_PER_MIN:.6g}" if value is not None else ""
+            self.field.value = f"{value / ML_PER_MIN:.6g}" if value is not None else ""
 
     def _on_edit(self) -> None:
         if _check_flow_rate(self.field.value) is not None:
             return
-        value = float(self.field.value) * _ML_PER_MIN
+        value = float(self.field.value) * ML_PER_MIN
         current = self.configuration.flow_rate
         if current is None or not math.isclose(current, value, rel_tol=1e-9):
             self.configuration.set_flow_rate(value)

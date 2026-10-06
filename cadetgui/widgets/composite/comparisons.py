@@ -40,7 +40,7 @@ from ..elements import (
     TextField,
 )
 from ._measurement_common import (
-    _ML_PER_MIN,
+    ML_PER_MIN,
     _check_float,
     _check_float_list,
     _format,
@@ -63,7 +63,6 @@ from .system_diagram import recipe_diagram_svg
 
 if TYPE_CHECKING:
     from .configuration import ConfigurationWidget
-    from .data_import import DataImportWidget
 
 from .add_measurement import AddMeasurementFlow
 
@@ -123,19 +122,17 @@ class ComparisonsWidget:
     written through `study.replace_comparison`, so steps holding it see the new object.
     A component whose role does not fit the experiment type is listed as such, with an
     explicit "Make <name> a <role>" action when no other measurement needs its role.
-    `data` offers its imported runs as data sources; `configuration` supplies the base
-    recipe of new measurements and can load or supply a measurement's recipe.
+    `configuration` supplies the base recipe of new measurements and can load or
+    supply a measurement's recipe.
     """
 
     def __init__(
         self,
         study: Study,
         *,
-        data: Optional["DataImportWidget"] = None,
         configuration: Optional["ConfigurationWidget"] = None,
     ) -> None:
         self.study = study
-        self.data = data
         self.configuration = configuration
         self._loading = False
         self._committing = False
@@ -342,8 +339,6 @@ class ComparisonsWidget:
         self.root.add_class("cadetgui-panel")
 
         study.add_listener(self._on_study_change)
-        if data is not None:
-            data.add_listener(self._refresh_runs)
         self._refresh_table()
         self._refresh_recipe_sources()
         self._load_editor()
@@ -522,10 +517,6 @@ class ComparisonsWidget:
             if runs.get(c.data_file) is None:
                 runs[c.data_file] = c.run
         known = {id(r) for r in runs.values() if r is not None}
-        for dataset in self.data.datasets if self.data is not None else ():
-            if dataset.run is not None and id(dataset.run) not in known:
-                known.add(id(dataset.run))
-                runs.setdefault(f"{dataset.run.label}.csv", dataset.run)
         for key, run in self._flow.uploaded.items():
             if id(run) not in known:
                 known.add(id(run))
@@ -693,7 +684,7 @@ class ComparisonsWidget:
             self._refresh_runs()
             self._run.value = comparison.data_file
             self._flow_rate.value = (
-                _format(comparison.flow_rate / _ML_PER_MIN)
+                _format(comparison.flow_rate / ML_PER_MIN)
                 if comparison.flow_rate is not None else ""
             )
             baseline = comparison.baseline_window or (None, None)
@@ -776,7 +767,7 @@ class ComparisonsWidget:
         self._template.value = recipe.template_key
         recipe_flow = recipe.model_values.get("flow_rate")
         self._flow_rate_note.value = (
-            f"volume → time; blank = recipe ({recipe_flow / _ML_PER_MIN:g} mL/min)"
+            f"volume → time; blank = recipe ({recipe_flow / ML_PER_MIN:g} mL/min)"
             if recipe_flow is not None else "volume → time; blank = recipe (none set)"
         )
 
@@ -851,7 +842,7 @@ class ComparisonsWidget:
             check = check_recipe(comparison.recipe, comparison.overrides)
             if check.error is not None:
                 raise ValueError(check.error)
-            reference = comparison.build_reference(check._process)
+            reference = comparison.build_reference(check.process)
             time = np.asarray(reference.time)
             values = np.asarray(reference.solution)[:, 0]
             problem = None
@@ -971,7 +962,7 @@ class ComparisonsWidget:
             data_file=self._run.value or "",
             run=self._runs.get(self._run.value),
             channel=self._channel.value or "",
-            flow_rate=flow_rate * _ML_PER_MIN if flow_rate is not None else None,
+            flow_rate=flow_rate * ML_PER_MIN if flow_rate is not None else None,
             recipe=recipe,
             overrides=self._read_overrides(),
             injection_marker=self._marker.value,

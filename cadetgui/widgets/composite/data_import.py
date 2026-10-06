@@ -18,16 +18,9 @@ from ...experimental_data import (
 from .._chrome import style_tag
 from .._status import status_html
 from ..elements import ChoiceField
+from ._measurement_common import COLUMN_ROLE_OPTIONS
 
 __all__ = ["DataImportWidget", "ExperimentalDataset"]
-
-_ROLE_OPTIONS = [
-    ("Time [s]", "time_s"),
-    ("Time [min]", "time_min"),
-    ("Volume [mL]", "volume_ml"),
-    ("Signal channel", "signal"),
-    ("Skip", "skip"),
-]
 
 
 class DataImportWidget:
@@ -147,7 +140,7 @@ class DataImportWidget:
         else:
             default_roles = detect_column_roles(headers or [])
             role_dropdowns = [
-                W.Dropdown(options=_ROLE_OPTIONS, value=role, description=header)
+                W.Dropdown(options=COLUMN_ROLE_OPTIONS, value=role, description=header)
                 for header, role in zip(headers or [], default_roles)
             ]
 

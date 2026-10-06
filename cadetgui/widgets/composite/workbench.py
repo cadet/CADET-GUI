@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from .._sidebar_shell import (
+from ..shell import (
     SYSTEM_GROUP,
     SidebarShell,
     collect_panes,
@@ -10,7 +10,7 @@ from .._sidebar_shell import (
     system_pane_label,
     validate_steps,
 )
-from ._bench import bench_root
+from .bench import bench_root
 from .configuration import ConfigurationWidget
 from .instrument import InstrumentWidget
 from .parameter_estimation import ParameterEstimationWidget

@@ -5,7 +5,7 @@ from typing import Any, Optional
 import ipywidgets as W
 
 from .._chrome import logo_data_uri, style_tag
-from .._sidebar_shell import SidebarShell
+from ..shell import SidebarShell
 from .workspace_header import hoisted_header_rows
 
 __all__ = ["bench_root"]

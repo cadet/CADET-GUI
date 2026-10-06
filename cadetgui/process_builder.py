@@ -207,17 +207,18 @@ class RecipeCheck:
     """Read-only facts about the process a recipe builds, or why it cannot be built.
 
     `error` is set (and everything else empty) when `build_process` raised.
+    `process` is the cached built process; read it, never mutate it.
     """
 
     error: Optional[str]
     units: Tuple[str, ...] = ()
     species: Tuple[str, ...] = ()
     signal_options: Tuple[Tuple[str, Tuple[str, str]], ...] = ()
-    _process: Optional[Process] = field(default=None, repr=False, compare=False)
+    process: Optional[Process] = field(default=None, repr=False, compare=False)
 
     def has_parameter(self, path: str) -> bool:
         """Return whether the built process carries the parameter at `path`."""
-        return self._process is not None and has_parameter(self._process, path)
+        return self.process is not None and has_parameter(self.process, path)
 
 
 _CHECK_CACHE_SIZE = 64
@@ -234,7 +235,7 @@ def check_recipe(
 ) -> RecipeCheck:
     """Return `RecipeCheck` for `build_process(state, overrides=overrides)`, memoized by content.
 
-    The built process stays private to the check, so it is never mutated after caching.
+    The check is cached and shared, so callers must not mutate `check.process`.
     """
     key = recipe_key(state, overrides)
     check = _check_cache.get(key)
@@ -253,7 +254,7 @@ def check_recipe(
             signal_options=tuple(
                 (label, tuple(target)) for label, target in measurable_signal_options(process)
             ),
-            _process=process,
+            process=process,
         )
     _check_cache[key] = check
     while len(_check_cache) > _CHECK_CACHE_SIZE:

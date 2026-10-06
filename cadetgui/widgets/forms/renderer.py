@@ -69,7 +69,7 @@ class FormRenderer:
 
         self._elements: Dict[str, Element] = {f.name: element_for_field(f) for f in spec.fields}
         for element in self._elements.values():
-            element.observe(self._on_field_changed, names=element._value_trait_name)
+            element.observe(self._on_field_changed, names=element.value_trait_name)
 
         self._btn_reset = W.Button(description="Reset")
         self._btn_reset.on_click(self._on_reset)

@@ -286,6 +286,10 @@ class CharacterizationStepWidget(_StepRun):
         """Call `fn()` after a setup edit, a finished run or an accept."""
         self._listeners.append(fn)
 
+    def close(self) -> None:
+        """Stop following the study; call when the widget is discarded."""
+        self.study.remove_listener(self._on_study_change)
+
     def _notify(self) -> None:
         for fn in list(self._listeners):
             fn()

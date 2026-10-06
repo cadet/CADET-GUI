@@ -37,7 +37,7 @@ from ..elements import (
     TextField,
 )
 from ._measurement_common import (
-    _ML_PER_MIN,
+    ML_PER_MIN,
     _check_float,
     _detector_hint,
     _format,
@@ -682,7 +682,7 @@ class AddMeasurementFlow(_RunUpload):
                 )
                 flow_rate = _recipe_flow_rate(recipe)
             self._flow_rate.value = _format(
-                flow_rate / _ML_PER_MIN if flow_rate is not None else None
+                flow_rate / ML_PER_MIN if flow_rate is not None else None
             )
             self._fill_markers(experiment_type)
         self._new_component._run_validate()
@@ -715,7 +715,7 @@ class AddMeasurementFlow(_RunUpload):
         channel = self._channel.value or ""
         marker = self._marker.value
         flow_rate = _optional_float(self._flow_rate.value)
-        flow_rate = flow_rate * _ML_PER_MIN if flow_rate is not None else None
+        flow_rate = flow_rate * ML_PER_MIN if flow_rate is not None else None
         experiment_type = self.experiment_type
         if experiment_type is None:
             recipe = copy.deepcopy(base)

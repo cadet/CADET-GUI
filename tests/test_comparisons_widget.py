@@ -8,9 +8,8 @@ import ipywidgets as W
 import pytest
 from cadetgui import configuration_store
 from cadetgui.cadetprocessadapter import PARAMS
-from cadetgui.experimental_data import read_experimental_csv
 from cadetgui.study import Study
-from cadetgui.widgets.composite import ComparisonsWidget, DataImportWidget
+from cadetgui.widgets.composite import ComparisonsWidget
 
 MANIFEST = (
     Path(__file__).parent.parent / "examples" / "data" / "characterization_akta" / "manifest.json"
@@ -209,21 +208,6 @@ def test_recipe_from_configuration_and_store(study, tmp_path):
     widget._recipe_source.selected_index = 2
     widget._on_use_recipe(None)
     assert study.comparison("System pulse 1 (UV)").recipe == recipe
-
-
-def test_runs_from_the_data_import_widget_are_offered(study):
-    data = DataImportWidget()
-    run = read_experimental_csv(
-        (MANIFEST.parent / "system_pulse_2_uv.csv").read_bytes(), "imported",
-    )
-    data._add_dataset_from_channel(run, next(iter(run.channels)), 1e-8)
-    data._finish_import()
-    widget = ComparisonsWidget(study, data=data)
-    assert "imported.csv" in [value for _, value in widget._run._options]
-
-    widget._run.value = "imported.csv"
-    edited = study.comparison("System pulse 1 (UV)")
-    assert edited.run is run and edited.data_file == "imported.csv"
 
 
 def test_add_measurement_from_akta_bytes(widget, study):
