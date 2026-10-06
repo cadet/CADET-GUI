@@ -6,7 +6,7 @@ from typing import List
 
 import ipywidgets as W
 
-from ...characterization_guide import (
+from ...characterization.guide import (
     CHAIN_BY_ID,
     DEFAULT_CHAIN,
     EXPERIMENT_TYPES,

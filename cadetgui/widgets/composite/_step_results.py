@@ -11,9 +11,9 @@ from typing import Any, Callable, Dict, List, Optional
 import ipywidgets as W
 import numpy as np
 
-from ... import characterization_runner
-from ...characterization_runner import Candidate, StepResult, StepSetup
-from ...parameter_store import ParameterStore
+from ...characterization import runner
+from ...characterization.parameter_store import ParameterStore
+from ...characterization.runner import Candidate, StepResult, StepSetup
 from .._help import term_html
 from .._series import decimate_minmax, reference_series
 from .._status import status_html
@@ -78,7 +78,7 @@ class _CandidateResults:
     def show(self, result: StepResult, setup: StepSetup, prior: ParameterStore) -> None:
         """List `result`'s candidates and preview the best-average one."""
         self.result, self._setup, self._prior = result, setup, prior
-        self.candidates = characterization_runner.pareto_candidates(result)
+        self.candidates = runner.pareto_candidates(result)
         self._previews = {}
         self.table.columns = [
             "Tags", *result.variable_names,
@@ -116,7 +116,7 @@ class _CandidateResults:
     def preview_store(self, candidate: Candidate) -> ParameterStore:
         """Return the store `candidate` would be accepted as, computed on copied processes."""
         built = copy.deepcopy(self.result.built)
-        return characterization_runner.posterior(self._setup, built, self._prior, candidate)
+        return runner.posterior(self._setup, built, self._prior, candidate)
 
     def _on_pick(self, _change: Any) -> None:
         candidate = self.selected

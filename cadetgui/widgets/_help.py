@@ -3,7 +3,7 @@ from __future__ import annotations
 import html
 from typing import Mapping, Optional, Sequence
 
-from ..characterization_guide import (
+from ..characterization.guide import (
     EXPERIMENT_TYPES,
     GLOSSARY,
     GLOSSARY_ALIASES,

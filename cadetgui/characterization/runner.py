@@ -15,15 +15,11 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 import numpy as np
 from CADETProcess.optimization import OptimizationProblem
 
-from .cadetprocessadapter import COLUMN_MODELS
-from .characterization_stages import (
-    VariableDef,
-    build_problem,
-    describe_stage,
-    write_targets,
-)
+from ..cadetprocessadapter import COLUMN_MODELS
+from ..optimizer_runner import OPTIMIZERS, pareto_front, run_optimization
+from ..process_builder import check_recipe
+from ..simulation import Simulator
 from .comparison import Comparison
-from .optimizer_runner import OPTIMIZERS, pareto_front, run_optimization
 from .parameter_store import (
     ParameterStore,
     Provenance,
@@ -34,8 +30,12 @@ from .parameter_store import (
 from .parameter_store import (
     missing_requirements as _missing_requirements,
 )
-from .process_builder import check_recipe
-from .simulation import Simulator
+from .stages import (
+    VariableDef,
+    build_problem,
+    describe_stage,
+    write_targets,
+)
 
 __all__ = [
     "StepSetup",

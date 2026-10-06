@@ -8,10 +8,14 @@ from dataclasses import asdict, replace
 
 import numpy as np
 import pytest
-from cadetgui.comparison import Comparison, recipe_from_dict
-from cadetgui.configuration_store import ConfigurationState, InstrumentState
-from cadetgui.experimental_data import Channel, ExperimentalRun
-from cadetgui.parameter_store import ParameterSpec, ParameterStore, Provenance
+from cadetgui.characterization.comparison import Comparison, recipe_from_dict
+from cadetgui.characterization.parameter_store import (
+    ParameterSpec,
+    ParameterStore,
+    Provenance,
+)
+from cadetgui.io.configuration_store import ConfigurationState, InstrumentState
+from cadetgui.io.experimental_data import Channel, ExperimentalRun
 from cadetgui.simulation import run_process
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)

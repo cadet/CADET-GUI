@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import warnings
 
-import cadetgui.configuration_store as configuration_store
+import cadetgui.io.configuration_store as configuration_store
 import pytest
 from cadetgui.cadetprocessadapter import (
     BINDING_MODELS,

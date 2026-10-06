@@ -19,8 +19,10 @@ from collections import OrderedDict
 from dataclasses import dataclass, field, replace
 from typing import Any, Collection, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from .cadetprocessadapter import UNIT_LABELS
-from .characterization_guide import (
+from ..cadetprocessadapter import UNIT_LABELS
+from ..process_builder import build_process, check_recipe, recipe_key
+from .comparison import Comparison
+from .guide import (
     EXPERIMENT_TYPES,
     ChainStepGuide,
     guide_for_step,
@@ -30,8 +32,6 @@ from .characterization_guide import (
     record_assumptions,
     species_gap_messages,
 )
-from .characterization_runner import StepSetup, species_gaps
-from .comparison import Comparison
 from .parameter_store import (
     ParameterSpec,
     ParameterStore,
@@ -41,7 +41,7 @@ from .parameter_store import (
     read_process,
     spec_for,
 )
-from .process_builder import build_process, check_recipe, recipe_key
+from .runner import StepSetup, species_gaps
 
 __all__ = [
     "TRANSFER",

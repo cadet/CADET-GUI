@@ -3,7 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import pytest
-from cadetgui._record_store import delete_record, list_records, load_record, save_record
+from cadetgui.io._record_store import (
+    delete_record,
+    list_records,
+    load_record,
+    save_record,
+)
 
 
 @dataclass

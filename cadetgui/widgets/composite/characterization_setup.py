@@ -7,7 +7,8 @@ from typing import Any, Callable, Collection, Dict, List, Optional, Sequence, Un
 import ipywidgets as W
 
 from ...cadetprocessadapter import BYPASSABLE_UNITS
-from ...characterization_guide import (
+from ...characterization.comparison import Comparison
+from ...characterization.guide import (
     DEFAULT_CHAIN,
     EXPERIMENT_TYPES,
     ChainStepGuide,
@@ -16,12 +17,11 @@ from ...characterization_guide import (
     new_step_setup,
     step_type_help,
 )
-from ...characterization_runner import StepSetup
-from ...characterization_stages import STAGES
-from ...comparison import Comparison
-from ...configuration_store import ConfigurationState, InstrumentState
-from ...step_checks import StepStatus, study_steps_status
-from ...study import Study
+from ...characterization.runner import StepSetup
+from ...characterization.stages import STAGES
+from ...characterization.step_checks import StepStatus, study_steps_status
+from ...characterization.study import Study
+from ...io.configuration_store import ConfigurationState, InstrumentState
 from .._chrome import style_tag
 from .._help import determines_table_html, experiments_table_html, term_html
 from .._status import status_html

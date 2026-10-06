@@ -6,10 +6,10 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import ipywidgets as W
 
-from ...characterization_guide import guide_for_step
-from ...configuration_store import ConfigurationState
-from ...step_checks import study_steps_status
-from ...study import Study
+from ...characterization.guide import guide_for_step
+from ...characterization.step_checks import study_steps_status
+from ...characterization.study import Study
+from ...io.configuration_store import ConfigurationState
 from ..shell import (
     SYSTEM_GROUP,
     SidebarShell,

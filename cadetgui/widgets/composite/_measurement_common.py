@@ -21,14 +21,14 @@ from ...cadetprocessadapter import (
     signal_label,
     template_required_units,
 )
-from ...characterization_guide import (
+from ...characterization.comparison import Comparison
+from ...characterization.guide import (
     CHAIN_BY_ID,
     EXPERIMENT_TYPES,
     SALT_ROLE,
 )
-from ...comparison import Comparison
-from ...configuration_store import ConfigurationState
-from ...study import Study
+from ...characterization.study import Study
+from ...io.configuration_store import ConfigurationState
 from .._help import term_html
 from .._status import status_html
 

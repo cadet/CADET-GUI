@@ -27,21 +27,21 @@ import numpy as np
 
 warnings.filterwarnings("ignore")
 
-from cadetgui.characterization_guide import (  # noqa: E402
+from cadetgui.characterization.guide import (  # noqa: E402
     CHAIN_BY_ID,
     LARGE_TRACER,
     SMALL_TRACER,
     SYSTEM_TRACER,
 )
-from cadetgui.configuration_store import (  # noqa: E402
-    ConfigurationState,
-    InstrumentState,
-)
-from cadetgui.parameter_store import (  # noqa: E402
+from cadetgui.characterization.parameter_store import (  # noqa: E402
     ParameterSpec,
     ParameterStore,
     Provenance,
     apply_store,
+)
+from cadetgui.io.configuration_store import (  # noqa: E402
+    ConfigurationState,
+    InstrumentState,
 )
 from cadetgui.process_builder import build_process  # noqa: E402
 from CADETProcess.simulator import Cadet  # noqa: E402
@@ -259,9 +259,10 @@ def simulate_clean(
 
     `solution_path` is `"<unit>.outlet"`; the process carries exactly one species, so
     only its own (sole) component is returned. Discretization is left at its default
-    (not coarsened): `cadetgui.comparison.Comparison.build_process` simulates the same
-    recipe at the default resolution, and the two must agree for a fit against this data
-    to recover the truth rather than a numerical-dispersion artifact.
+    (not coarsened): `cadetgui.characterization.comparison.Comparison.build_process`
+    simulates the same recipe at the default resolution, and the two must agree for a
+    fit against this data to recover the truth rather than a numerical-dispersion
+    artifact.
     """
     process = build_process(recipe)
     apply_store(process, store)
@@ -348,7 +349,7 @@ COND_BASELINE, COND_RESPONSE, COND_NOISE = 42.0, 0.15, 0.004  # mS/cm, mS/cm / (
 UV_DT, COND_DT = 0.5, 0.2  # s -- channels sampled at different rates
 
 
-# `cadetgui.characterization_guide.EXPERIMENT_TYPES` ids, per `RunSpec.tracer`.
+# `cadetgui.characterization.guide.EXPERIMENT_TYPES` ids, per `RunSpec.tracer`.
 EXPERIMENT_TYPE_IDS = {
     "system": "system_pulse",
     "small": "column_pulse_small_tracer",

@@ -16,7 +16,9 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
-from .characterization_guide import (
+from ..io.experimental_data import write_experimental_csv
+from .comparison import Comparison
+from .guide import (
     COMPONENT_ROLES,
     EXPERIMENT_TYPES,
     PROTEIN,
@@ -24,10 +26,8 @@ from .characterization_guide import (
     SALT_ROLE,
     parameter_label,
 )
-from .characterization_runner import StepSetup
-from .comparison import Comparison
-from .experimental_data import write_experimental_csv
 from .parameter_store import ParameterStore
+from .runner import StepSetup
 
 __all__ = ["Study", "StudyComponent", "derive_components"]
 

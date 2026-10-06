@@ -5,7 +5,7 @@ from typing import Any
 
 import ipywidgets as W
 
-from ... import configuration_store
+from ...io import configuration_store
 from .backend_versions import BackendVersionsWidget
 from .configuration_persistence import ConfigurationPersistence
 

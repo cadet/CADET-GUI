@@ -10,9 +10,9 @@ from typing import Any, Dict, List, Optional
 import ipywidgets as W
 import numpy as np
 
-from ... import characterization_runner
-from ...characterization_runner import Candidate, StepSetup, current_best_average
-from ...parameter_store import ParameterStore
+from ...characterization import runner
+from ...characterization.parameter_store import ParameterStore
+from ...characterization.runner import Candidate, StepSetup, current_best_average
 from .._status import status_html
 from ..elements import ChromatogramChart, LineChart
 from ._step_results import _preview_series, _preview_title
@@ -109,7 +109,7 @@ class _StepRun:
 
     def _work(self, setup: StepSetup, prior: ParameterStore, name: str, kwargs: dict) -> None:
         try:
-            self._progress["result"] = characterization_runner.run(
+            self._progress["result"] = runner.run(
                 setup, prior, optimizer_name=name, optimizer_kwargs=kwargs,
                 cancel_event=self._cancel_event,
                 on_optimizer_ready=lambda opt: self._progress.update(optimizer=opt),
@@ -169,8 +169,8 @@ class _StepRun:
             began = time.monotonic()
             setup, prior = self._run_setup, self._run_prior
             if self._live_built is None:
-                self._live_built = characterization_runner.build(setup, prior)
-            store = characterization_runner.posterior(setup, self._live_built, prior, candidate)
+                self._live_built = runner.build(setup, prior)
+            store = runner.posterior(setup, self._live_built, prior, candidate)
             previews = [c.evaluate(store) for c in setup.comparisons]
             seconds = time.monotonic() - began
             self.live_update_seconds.append(seconds)

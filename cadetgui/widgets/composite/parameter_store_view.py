@@ -8,15 +8,15 @@ from typing import Any, Callable, List, Optional
 import ipywidgets as W
 
 from ...cadetprocessadapter import UNIT_LABELS
-from ...characterization_guide import EXPERIMENT_TYPES
-from ...parameter_store import (
+from ...characterization.guide import EXPERIMENT_TYPES
+from ...characterization.parameter_store import (
     ChainError,
     ParameterSpec,
     ParameterStore,
     check_chain,
     missing_requirements,
 )
-from ...study import Study
+from ...characterization.study import Study
 from .._chrome import style_tag
 from .._help import term_html
 from .._status import status_html

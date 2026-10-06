@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import warnings
 
-import cadetgui.configuration_store as configuration_store
+import cadetgui.io.configuration_store as configuration_store
 import numpy as np
 import pytest
 from cadetgui.cadetprocessadapter import INSTRUMENT_TEMPLATES
-from cadetgui.characterization_guide import EXPERIMENT_TYPES, with_implied_values
-from cadetgui.parameter_store import ParameterStore, apply_store
+from cadetgui.characterization.guide import EXPERIMENT_TYPES, with_implied_values
+from cadetgui.characterization.parameter_store import ParameterStore, apply_store
 from cadetgui.process_builder import build_process
 from cadetgui.simulation import run_process
 from cadetgui.widgets.composite import (

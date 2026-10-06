@@ -44,6 +44,8 @@ keep using its Python attributes from other cells.
 | `cadetgui.widgets.composite` | task widgets (configuration, simulation, measurements, steps, ...) |
 | `cadetgui.widgets.elements` | atomic input controls and charts |
 | `cadetgui.widgets` | the bench kit (`SidebarShell`, `bench_root`, `resolve_step`, `validate_steps`, `collect_panes`, `system_pane_label`, `SYSTEM_GROUP`) and HTML helpers (`status_html`, `term_html`, `info_box_html`, `checklist_html`, `style_tag`) |
+| `cadetgui.characterization` | headless characterization core: `Study`, `Comparison`, `ParameterStore`, step setups and fits |
+| `cadetgui.io` | file I/O: measured data, saved configurations, simulation runs |
 
 ### The workbench
 

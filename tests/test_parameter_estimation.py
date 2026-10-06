@@ -4,7 +4,7 @@ import datetime as dt
 import threading
 import warnings
 
-import cadetgui.configuration_store as configuration_store
+import cadetgui.io.configuration_store as configuration_store
 import cadetgui.widgets.composite._optimizer_runner_panel as runner_panel
 import pytest
 from cadetgui.optimizer_runner import OptimizerRunResult

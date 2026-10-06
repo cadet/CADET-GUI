@@ -3,13 +3,13 @@ from __future__ import annotations
 import warnings
 from pathlib import Path
 
-import cadetgui.configuration_store as configuration_store
+import cadetgui.io.configuration_store as configuration_store
 import ipywidgets as W
 import pytest
 from cadetgui import process_builder
-from cadetgui.characterization_guide import guide_for_step
-from cadetgui.parameter_store import Provenance
-from cadetgui.study import Study
+from cadetgui.characterization.guide import guide_for_step
+from cadetgui.characterization.parameter_store import Provenance
+from cadetgui.characterization.study import Study
 from cadetgui.widgets.composite import (
     CharacterizationStepWidget,
     CharacterizationWorkbenchWidget,

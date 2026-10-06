@@ -7,7 +7,7 @@ import pytest
 
 matplotlib.use("Agg")
 
-import cadetgui.configuration_store as configuration_store
+import cadetgui.io.configuration_store as configuration_store
 from cadetgui.widgets.composite import (
     ConfigurationWidget,
     InstrumentWidget,

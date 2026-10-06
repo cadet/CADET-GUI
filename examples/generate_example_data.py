@@ -18,7 +18,7 @@ import numpy as np
 
 warnings.filterwarnings("ignore")
 
-from cadetgui.configuration_store import ConfigurationState  # noqa: E402
+from cadetgui.io.configuration_store import ConfigurationState  # noqa: E402
 from cadetgui.process_builder import build_process  # noqa: E402
 from cadetgui.simulation import run_process  # noqa: E402
 from cadetgui.widgets.composite import (  # noqa: E402

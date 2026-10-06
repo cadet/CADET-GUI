@@ -15,17 +15,18 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from CADETProcess.processModel import ComponentSystem
 
-from .cadetprocessadapter import (
+from ..cadetprocessadapter import (
     BYPASSABLE_UNITS,
     INSTRUMENT_TEMPLATES,
     PARAMS,
     UNIT_LABELS,
 )
-from .characterization_runner import StepSetup
-from .characterization_stages import STAGES, VariableDef, describe_stage
+from ..io.configuration_store import ConfigurationState, InstrumentState
+from ..io.experimental_data import ExperimentalRun
+from ..parameters import get_parameters
+from ..process_builder import check_recipe
+from ..starting_values import with_starting_values
 from .comparison import Comparison
-from .configuration_store import ConfigurationState, InstrumentState
-from .experimental_data import ExperimentalRun
 from .parameter_store import (
     Entry,
     ParameterSpec,
@@ -35,9 +36,8 @@ from .parameter_store import (
     read_process,
     spec_for,
 )
-from .parameters import get_parameters
-from .process_builder import check_recipe
-from .starting_values import with_starting_values
+from .runner import StepSetup
+from .stages import STAGES, VariableDef, describe_stage
 
 __all__ = [
     "parameter_unit",
@@ -1006,7 +1006,7 @@ STEP_TYPE_HELP: Dict[str, str] = {
     "adsorption": "Steric mass action binding of one component (characteristic charge and "
     "equilibrium constant), from gradient elutions of different slopes.",
 }
-"""One line per step type (`characterization_stages.STAGES` id) saying what it fits."""
+"""One line per step type (`stages.STAGES` id) saying what it fits."""
 
 
 def step_type_help(stage: str) -> str:

@@ -15,7 +15,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
 
-from .configuration_store import ConfigurationState
+from .io.configuration_store import ConfigurationState
 
 __all__ = [
     "starting_values",

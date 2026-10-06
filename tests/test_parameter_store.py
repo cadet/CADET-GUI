@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from cadetgui.parameter_store import (
+from cadetgui.characterization.parameter_store import (
     ChainError,
     Entry,
     ParameterSpec,

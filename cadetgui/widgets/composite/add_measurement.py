@@ -10,7 +10,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import ipywidgets as W
 
-from ...characterization_guide import (
+from ...characterization.comparison import Comparison
+from ...characterization.guide import (
     CHAIN_BY_ID,
     COMPONENT_ROLES,
     DEFAULT_CHAIN,
@@ -23,11 +24,10 @@ from ...characterization_guide import (
     role_fix,
     with_implied_values,
 )
-from ...comparison import Comparison
-from ...configuration_store import ConfigurationState
-from ...experimental_data import ExperimentalRun
+from ...characterization.study import Study
+from ...io.configuration_store import ConfigurationState
+from ...io.experimental_data import ExperimentalRun
 from ...process_builder import check_recipe
-from ...study import Study
 from .._help import term_html
 from .._status import status_html
 from ..elements import (

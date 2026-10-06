@@ -5,7 +5,7 @@ from typing import Any, Optional, Sequence, Union
 
 import ipywidgets as W
 
-from ... import configuration_store
+from ...io import configuration_store
 from ...optimizer_runner import OptimizerRunResult, RunSpec
 from ...parameter_estimation import (
     EstimationResult,

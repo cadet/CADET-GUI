@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import warnings
 
-import cadetgui.run_store as run_store
+import cadetgui.io.run_store as run_store
 import pytest
 from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
 

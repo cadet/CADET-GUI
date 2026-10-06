@@ -4,10 +4,14 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from cadetgui.characterization_runner import default_optimizer
-from cadetgui.experimental_data import Channel, ExperimentalRun
-from cadetgui.parameter_store import ParameterSpec, ParameterStore, Provenance
-from cadetgui.study import Study
+from cadetgui.characterization.parameter_store import (
+    ParameterSpec,
+    ParameterStore,
+    Provenance,
+)
+from cadetgui.characterization.runner import default_optimizer
+from cadetgui.characterization.study import Study
+from cadetgui.io.experimental_data import Channel, ExperimentalRun
 
 MANIFEST = (
     Path(__file__).parent.parent / "examples" / "data" / "characterization_akta" / "manifest.json"
@@ -121,8 +125,8 @@ def test_replace_comparison_rejects_a_name_clash(study):
 
 
 def test_species_gaps_and_explicit_transfer(study):
-    from cadetgui.characterization_runner import species_gaps
-    from cadetgui.parameter_store import transfer_species
+    from cadetgui.characterization.parameter_store import transfer_species
+    from cadetgui.characterization.runner import species_gaps
 
     dispersion = "flow_sheet.tubing_pre_column.axial_dispersion"
     periphery = study.initial_store.updated(

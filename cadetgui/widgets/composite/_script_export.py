@@ -6,7 +6,7 @@ from CADETProcess.instruments import LCFlowSheet
 from CADETProcess.processModel import ComponentSystem
 
 from ...cadetprocessadapter import BYPASSABLE_UNITS
-from ...configuration_store import InstrumentState
+from ...io.configuration_store import InstrumentState
 
 
 def _import_line(obj: Any) -> str:

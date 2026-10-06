@@ -5,7 +5,7 @@ from typing import Any, Sequence
 
 import numpy as np
 
-from ... import configuration_store
+from ...io import configuration_store
 
 
 def save_signal_outputs(

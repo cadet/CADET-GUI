@@ -6,7 +6,13 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from cadetgui.characterization_runner import (
+from cadetgui.characterization.parameter_store import (
+    ParameterSpec,
+    ParameterStore,
+    Provenance,
+    check_chain,
+)
+from cadetgui.characterization.runner import (
     AVERAGE_TAG,
     Candidate,
     StepResult,
@@ -20,12 +26,6 @@ from cadetgui.characterization_runner import (
     pareto_candidates,
     posterior,
     run,
-)
-from cadetgui.parameter_store import (
-    ParameterSpec,
-    ParameterStore,
-    Provenance,
-    check_chain,
 )
 
 from test_comparison import (
