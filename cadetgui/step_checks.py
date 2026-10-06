@@ -372,7 +372,7 @@ def _scalar(value: Any) -> Any:
 def _process_value(comparison: Comparison, path: str) -> Tuple[Optional[float], str]:
     """Return the value `comparison`'s built process uses for `path` and its LaTeX unit."""
     check = check_recipe(comparison.recipe, comparison.overrides)
-    process = check._process
+    process = check.process
     try:
         reader = ParameterStore(specs={path: spec_for(process, path)})
         value = _scalar(read_process(process, [path], reader)[path])

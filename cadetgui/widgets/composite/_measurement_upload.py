@@ -17,8 +17,7 @@ from ...experimental_data import (
 )
 from .._status import status_html
 from ..elements import ChoiceField
-from ._measurement_common import _note, _row
-from .data_import import _ROLE_OPTIONS
+from ._measurement_common import COLUMN_ROLE_OPTIONS, _note, _row
 
 
 def _upload_items(value: Any) -> List[dict]:
@@ -99,7 +98,7 @@ class _RunUpload:
             return
         self._pending = (name, content)
         self._role_dropdowns = [
-            W.Dropdown(options=_ROLE_OPTIONS, value=role, description=header)
+            W.Dropdown(options=COLUMN_ROLE_OPTIONS, value=role, description=header)
             for header, role in zip(headers, detect_column_roles(headers))
         ]
         self._roles_box.children = (

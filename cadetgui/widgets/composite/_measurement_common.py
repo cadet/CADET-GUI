@@ -36,7 +36,16 @@ if TYPE_CHECKING:
     pass
 
 
-_ML_PER_MIN = 1e-6 / 60.0
+ML_PER_MIN = 1e-6 / 60.0
+
+# Column-mapping dropdown options: (label, ColumnRole value).
+COLUMN_ROLE_OPTIONS = [
+    ("Time [s]", "time_s"),
+    ("Time [min]", "time_min"),
+    ("Volume [mL]", "volume_ml"),
+    ("Signal channel", "signal"),
+    ("Skip", "skip"),
+]
 
 # Substring of a `Comparison.problems()` message -> what the user should do about it.
 _ADVICE: Tuple[Tuple[str, str], ...] = (
@@ -215,7 +224,7 @@ def recipe_summary_html(comparison: Comparison) -> str:
         flow_text = "not set"
     else:
         source = "this run" if comparison.flow_rate is not None else "from the recipe"
-        flow_text = f"{flow_rate / _ML_PER_MIN:.4g} mL/min ({source})"
+        flow_text = f"{flow_rate / ML_PER_MIN:.4g} mL/min ({source})"
     in_line, bypassed = _flow_path_units(recipe)
     labels = [UNIT_LABELS.get(u, u) for u in in_line]
     rows: List[Tuple[str, str]] = [
@@ -288,7 +297,7 @@ def system_summary_html(recipe: ConfigurationState) -> str:
         ))
     rows += [
         ("Flow rate", "not set" if flow_rate is None
-         else html.escape(f"{flow_rate / _ML_PER_MIN:.4g} mL/min")),
+         else html.escape(f"{flow_rate / ML_PER_MIN:.4g} mL/min")),
         ("Column model", html.escape(recipe.column_key)),
         ("Binding model", html.escape(recipe.binding_key)),
     ]

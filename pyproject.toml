@@ -83,7 +83,7 @@ dev = [
 ]
 
 [tool.ruff]
-src = ["CADET-GUI", "tests"]
+src = ["cadetgui", "tests"]
 exclude = []
 line-length = 88
 fix = true

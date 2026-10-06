@@ -19,7 +19,7 @@ class ChoiceField(Element):
     option_labels = T.List(T.Unicode()).tag(sync=True)
     selected_index = T.Int(allow_none=True, default_value=None).tag(sync=True)
 
-    _value_trait_name = "selected_index"
+    value_trait_name = "selected_index"
 
     _esm = field_esm("choice_field", units=False)
     _css = FIELD_CSS

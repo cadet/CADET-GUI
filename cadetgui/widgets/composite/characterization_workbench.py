@@ -10,7 +10,7 @@ from ...characterization_guide import guide_for_step
 from ...configuration_store import ConfigurationState
 from ...step_checks import study_steps_status
 from ...study import Study
-from .._sidebar_shell import (
+from ..shell import (
     SYSTEM_GROUP,
     SidebarShell,
     collect_panes,
@@ -18,7 +18,7 @@ from .._sidebar_shell import (
     system_pane_label,
     validate_steps,
 )
-from ._bench import bench_root
+from .bench import bench_root
 from .characterization_guide_pane import CharacterizationGuideWidget
 from .characterization_setup import CharacterizationSetupWidget, add_custom_step
 from .characterization_step import CharacterizationStepWidget
@@ -126,7 +126,7 @@ class CharacterizationWorkbenchWidget:
             return resolve_step(label, None, steps=self._include, factory=factory)
 
         self.comparisons = pane(MEASUREMENTS, lambda: ComparisonsWidget(
-            self.study, data=None, configuration=self.configuration
+            self.study, configuration=self.configuration
         ))
         self.parameters = pane(PARAMETERS, lambda: ParameterStoreWidget(self.study))
         self.guide = pane(GUIDE, CharacterizationGuideWidget)
@@ -264,7 +264,7 @@ class CharacterizationWorkbenchWidget:
                 widget.add_listener(self._refresh_status)
             widgets.append(widget)
         for stale in by_name.values():
-            self.study.remove_listener(stale._on_study_change)
+            stale.close()
         self._step_widgets = widgets
 
         panes = self._panes()

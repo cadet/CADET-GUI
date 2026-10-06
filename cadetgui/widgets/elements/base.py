@@ -14,7 +14,7 @@ class Element(anywidget.AnyWidget):
     """Base for atomic input widgets: label, units, validation and error state.
 
     Subclasses define `value`, either as a synced trait or, when the value is not
-    JSON-safe, as a property over another synced trait named by `_value_trait_name`.
+    JSON-safe, as a property over another synced trait named by `value_trait_name`.
     """
 
     label = T.Unicode("").tag(sync=True)
@@ -22,12 +22,12 @@ class Element(anywidget.AnyWidget):
     error = T.Unicode("").tag(sync=True)
     disabled = T.Bool(False).tag(sync=True)
 
-    _value_trait_name = "value"
+    value_trait_name = "value"
 
     def __init__(self, *, validate: Optional[Validator] = None, **kwargs: Any) -> None:
         self._validate_fn = validate
         super().__init__(**kwargs)
-        self.observe(self._run_validate, names=self._value_trait_name)
+        self.observe(self._run_validate, names=self.value_trait_name)
         self._run_validate()
 
     def _run_validate(self, change: Optional[dict] = None) -> None:

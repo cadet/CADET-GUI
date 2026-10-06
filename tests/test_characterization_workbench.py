@@ -81,7 +81,6 @@ def test_empty_study_builds_the_fixed_panes():
     ]
     assert wb._shell.current == "Setup"
     assert wb.steps == {}
-    assert wb.comparisons.data is None
     assert wb.comparisons.study is wb.study is wb.parameters.study is wb.setup.study
 
 

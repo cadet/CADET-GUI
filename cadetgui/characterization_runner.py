@@ -23,7 +23,7 @@ from .characterization_stages import (
     write_targets,
 )
 from .comparison import Comparison
-from .optimizer_runner import OPTIMIZERS, _front, run_optimization
+from .optimizer_runner import OPTIMIZERS, pareto_front, run_optimization
 from .parameter_store import (
     ParameterStore,
     Provenance,
@@ -368,7 +368,7 @@ def current_best_average(optimizer: Any) -> Optional[Candidate]:
 
     Reads `optimizer.results` only; None before the first generation has finished.
     """
-    front_x, front_f = _front(optimizer)
+    front_x, front_f = pareto_front(optimizer)
     if not front_x:
         return None
     index = int(np.argmin(np.asarray(front_f, dtype=float).mean(axis=1)))

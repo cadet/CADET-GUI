@@ -1181,7 +1181,7 @@ def starting_values(
     for comparison in setup.comparisons:
         check = check_recipe(comparison.recipe, comparison.overrides)
         if check.error is None:
-            processes.append(check._process)
+            processes.append(check.process)
 
     values: Dict[str, StartingValue] = {}
     for var in variables:
