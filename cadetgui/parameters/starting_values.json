@@ -1,0 +1,47 @@
+{
+  "description": "Standard starting values that make a freshly configured model simulate: synthetic, resin-independent guesses (lysozyme-like SMA values from the CADET tutorials), not measured values or bounds. Replace them with your own. Binding values only fill parameters that are missing or zero. 'methods' holds, per process template, the method concentrations that suit the binding model ('salt' for the first component, 'other' for every further one) and plain values; they replace the template's defaults, and the column then starts equilibrated with the method's starting salt. Times assume the lab-scale defaults (1 mL column, 1 mL/min).",
+  "binding": {
+    "Steric Mass Action (SMA)": {
+      "salt_first": true,
+      "scalar": {
+        "is_kinetic": false,
+        "capacity": 1200.0
+      },
+      "per_component": {
+        "adsorption_rate": 35.5,
+        "desorption_rate": 1000.0,
+        "characteristic_charge": 4.7,
+        "steric_factor": 11.83
+      },
+      "methods": {
+        "Load–Wash–Elute (LWE)": {
+          "note": "Load and wash at 50 mM salt, linear gradient to 1000 mM.",
+          "c_buffer_a": {"salt": 50.0, "other": 0.0},
+          "c_buffer_b": {"salt": 1000.0, "other": 0.0},
+          "c_sample": {"salt": 50.0, "other": 1.0}
+        },
+        "Step Elution": {
+          "note": "Load and wash at 50 mM salt, step to 1000 mM.",
+          "c_buffer_a": {"salt": 50.0, "other": 0.0},
+          "c_buffer_b": {"salt": 1000.0, "other": 0.0},
+          "c_sample": {"salt": 50.0, "other": 1.0}
+        },
+        "Pulse Injection": {
+          "note": "Isocratic at 400 mM salt, where the protein elutes after a few column volumes (at 50 mM it would stay bound).",
+          "c_buffer_a": {"salt": 400.0, "other": 0.0},
+          "c_sample": {"salt": 400.0, "other": 1.0}
+        },
+        "Step": {
+          "note": "Salt step from 50 to 1000 mM, no protein.",
+          "c_buffer_a": {"salt": 50.0, "other": 0.0},
+          "c_buffer_b": {"salt": 1000.0, "other": 0.0}
+        },
+        "Breakthrough": {
+          "note": "1 mol/m³ protein at 50 mM salt breaks through at about 15 column volumes; the run lasts about 30.",
+          "c_sample": {"salt": 50.0, "other": 1.0},
+          "cycle_time": 1800.0
+        }
+      }
+    }
+  }
+}
