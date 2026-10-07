@@ -8,14 +8,21 @@ from pathlib import Path
 import cadetgui.configuration_store as configuration_store
 import pytest
 from cadetgui.cadetprocessadapter import (
+    BYPASSABLE_UNITS,
     INSTRUMENT_TEMPLATES,
     active_inlets,
     friendly_signal_options,
     inlet_contents,
     signal_label,
 )
+from cadetgui.configuration_store import ConfigurationState, InstrumentState
 from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
-from cadetgui.widgets.composite.system_diagram import SystemDiagram, render_system_svg
+from cadetgui.widgets.composite.system_diagram import (
+    HARDWARE_ONLY_NOTE,
+    SystemDiagram,
+    recipe_diagram_svg,
+    render_system_svg,
+)
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -452,6 +459,18 @@ def test_system_dropdown_pick_builds_the_process_once():
     assert iw._template_picker.value == "Step"
 
 
+def test_characterization_workbench_shows_hardware_only_without_a_template_picker():
+    from cadetgui.widgets.composite import CharacterizationWorkbenchWidget
+
+    wb = CharacterizationWorkbenchWidget()
+    html = wb.instrument._diagram.root.value
+
+    assert wb.instrument.hardware_only and not wb.configuration.show_process_template
+    assert wb.instrument._template_picker.layout.display == "none"
+    assert "unused" not in html and HARDWARE_ONLY_NOTE in html
+    assert not wb.instrument._sample_loop_checkbox.disabled
+
+
 def _column_caption(html: str) -> list[str]:
     group = next(
         g for g in _root(html).iter(_SVG + "g") if g.get("data-unit") == "column"
@@ -506,3 +525,201 @@ def test_column_caption_stays_inside_the_canvas_and_clear_of_other_symbols():
         for x0, y0, x1, y1 in boxes:
             if (x0, x1) != (cx0, cx1):
                 assert x1 <= cx0 or x0 >= cx1 or y0 >= ty + 4 or y1 <= ty - 14
+
+
+def test_highlighted_units_carry_the_data_attribute_and_accent_halo():
+    html = render_system_svg(_ALL_UNITS, (), _ALL_INLETS, highlight=["column"])
+    root = _root(html)
+    column = next(g for g in root.iter(_SVG + "g") if g.get("data-unit") == "column")
+
+    assert column.get("data-highlight") == "true"
+    assert column.find(f".//{_SVG}rect[@rx='8']") is not None
+    other = next(g for g in root.iter(_SVG + "g") if g.get("data-unit") == "mixer")
+    assert other.get("data-highlight") is None
+    assert "Characterized here: Column" in html
+
+
+def test_observe_marker_is_drawn_at_the_units_outlet():
+    html = render_system_svg(_ALL_UNITS, (), _ALL_INLETS, observe="column")
+    root = _root(html)
+    markers = [g for g in root.iter(_SVG + "g") if g.get("data-observe")]
+
+    assert len(markers) == 1
+    assert markers[0].get("data-observe") == "column"
+    assert "measured here" in "".join(markers[0].itertext())
+
+
+def test_observe_on_a_unit_not_drawn_is_named_in_the_caption_not_silently_dropped():
+    units = _ALL_UNITS - {"column"}
+    html = render_system_svg(units, (), _ALL_INLETS, observe="column")
+
+    assert not any(g.get("data-observe") for g in _root(html).iter(_SVG + "g"))
+    assert "Measured here: Column" in html
+
+
+def test_compact_diagram_is_narrower_than_the_full_diagram_and_keeps_bypass_captions():
+    full = render_system_svg(_ALL_UNITS, ("tubing_pre_column",), _ALL_INLETS)
+    compact = render_system_svg(_ALL_UNITS, ("tubing_pre_column",), _ALL_INLETS, compact=True)
+
+    full_w = float(_root(full).get("viewBox").split()[2])
+    compact_w = float(_root(compact).get("viewBox").split()[2])
+
+    assert compact_w < full_w
+    assert "Not in the flow path" in compact
+    assert "Buffers via mixer" not in compact
+
+
+def test_compact_diagram_keeps_highlight_and_observe_captions():
+    html = render_system_svg(
+        _ALL_UNITS, (), _ALL_INLETS, highlight=["mixer"], observe="mixer", compact=True
+    )
+
+    assert "Characterized here: Mixer" in html
+    assert "measured here" in html
+    mixer = next(g for g in _root(html).iter(_SVG + "g") if g.get("data-unit") == "mixer")
+    assert mixer.get("data-highlight") == "true"
+
+
+def test_default_call_is_unaffected_by_the_new_keyword_only_arguments():
+    baseline = render_system_svg(_ALL_UNITS, (), _ALL_INLETS)
+    same = render_system_svg(_ALL_UNITS, (), _ALL_INLETS, None, (), None)
+
+    assert baseline == same
+    assert "data-highlight" not in baseline
+    assert "data-observe" not in baseline
+    assert "measured here" not in baseline
+
+
+def _recipe_state(*, bypass=(), include_sample_loop=False, instrument=True):
+    return ConfigurationState(
+        components=["A"],
+        column_key="Lumped Rate Model Without Pores (LRM)",
+        binding_key="Linear",
+        template_key="Breakthrough",
+        instrument=(
+            InstrumentState(bypass_units=list(bypass), include_sample_loop=include_sample_loop)
+            if instrument
+            else None
+        ),
+    )
+
+
+def test_recipe_diagram_svg_omits_a_bypassed_column():
+    html = recipe_diagram_svg(_recipe_state(bypass=["column"]))
+    states = _states(html)
+
+    assert "column" not in states
+    assert states["mixer"] == "active"
+
+
+def test_recipe_diagram_svg_shows_the_sample_loop_when_enabled():
+    without_loop = _states(recipe_diagram_svg(_recipe_state()))
+    with_loop = _states(recipe_diagram_svg(_recipe_state(include_sample_loop=True)))
+
+    assert "sample_loop" not in without_loop
+    assert with_loop["sample_loop"] == "active"
+
+
+def test_recipe_diagram_svg_without_an_instrument_is_a_minimal_column_diagram():
+    html = recipe_diagram_svg(_recipe_state(instrument=False))
+    states = _states(html)
+
+    assert states == {"column": "active"}
+
+
+def test_recipe_diagram_svg_is_compact_by_default_and_valid_xml():
+    default_html = recipe_diagram_svg(_recipe_state())
+    full_html = recipe_diagram_svg(_recipe_state(), compact=False)
+
+    default_w = float(_root(default_html).get("viewBox").split()[2])
+    full_w = float(_root(full_html).get("viewBox").split()[2])
+
+    assert default_w <= full_w
+
+
+def test_set_highlight_redraws_the_bound_diagram():
+    diagram = SystemDiagram()
+    iw = InstrumentWidget()
+    diagram.update(iw.flow_sheet, iw.bypass_units(), ["buffer_a"])
+
+    diagram.set_highlight(["column"], observe="column")
+
+    html = diagram.root.value
+    assert "Characterized here: Column" in html
+    column = next(g for g in _root(html).iter(_SVG + "g") if g.get("data-unit") == "column")
+    assert column.get("data-highlight") == "true"
+
+    diagram.set_highlight([])
+    assert "data-highlight" not in diagram.root.value
+
+
+@pytest.mark.parametrize("compact", [False, True])
+@pytest.mark.parametrize(
+    "observe, bypassed",
+    [
+        ("column", ["tubing_pre_injection", "tubing_post_column", "tubing_detectors"]),
+        ("tubing_detectors", ["tubing_pre_injection", "tubing_post_column"]),
+        ("tubing_pre_column", ["column", "tubing_pre_injection", "tubing_post_column",
+                               "tubing_detectors"]),
+    ],
+)
+def test_measured_here_label_sits_above_every_other_label(observe, bypassed, compact):
+    units = {
+        "buffer_a", "buffer_b", "buffer_c", "buffer_d", "feed_inlet", "mixer",
+        "sample_loop", "outlet", "waste", *BYPASSABLE_UNITS,
+    } - set(bypassed)
+    out = render_system_svg(
+        units, bypassed, observe=observe, highlight={"column"},
+        column_model="Lumped Rate Model With Pores", compact=compact,
+    )
+    root = ET.fromstring(out[out.index("<svg"):out.rindex("</svg>") + 6])
+    label_y, tops = None, []
+
+    def walk(el, in_marker=False):
+        nonlocal label_y
+        tag = el.tag.split("}")[-1]
+        in_marker = in_marker or el.get("data-observe") is not None
+        if tag == "svg" and el is not root:
+            tops.append(float(el.get("y", 0)))
+            return
+        if tag == "tspan":
+            if in_marker:
+                label_y = float(el.get("y"))
+            else:
+                tops.append(float(el.get("y")) - 14)
+        for child in el:
+            walk(child, in_marker)
+
+    walk(root)
+    assert label_y is not None
+    assert label_y < min(tops)
+
+
+def test_hardware_only_diagram_draws_every_inlet_plainly_with_the_method_note():
+    iw = InstrumentWidget(hardware_only=True)
+    cw = ConfigurationWidget(instrument=iw, show_process_template=False)
+    cw._model_picker.value = INSTRUMENT_TEMPLATES["Pulse Injection"]
+    html = iw._diagram.root.value
+
+    states = _states(html)
+    assert {states[u] for u in ("buffer_a", "buffer_b", "buffer_c", "buffer_d", "feed_inlet")} == {
+        "active"
+    }
+    assert "unused" not in html and "carries" not in html
+    assert HARDWARE_ONLY_NOTE in html
+    assert iw._template_picker.layout.display == "none"
+
+
+def test_default_diagram_still_marks_unused_inlets_from_the_template():
+    iw, _cw = _bound("Pulse Injection")
+    html = iw._diagram.root.value
+
+    assert "(unused)" in html and HARDWARE_ONLY_NOTE not in html
+    assert iw._template_picker.layout.display == ""
+
+
+def test_hardware_only_is_ignored_for_compact_diagrams():
+    units = {"buffer_a", "feed_inlet", "mixer", "column", "outlet"}
+    assert render_system_svg(units, compact=True, hardware_only=True) == render_system_svg(
+        units, compact=True
+    )

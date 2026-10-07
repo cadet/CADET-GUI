@@ -206,3 +206,34 @@ def test_group_validation():
         SidebarShell([("A", _pane())], groups={"G": ["A"], "H": ["A"]})
     shell = SidebarShell([("A", _pane())], groups={"G": ["Z"]})
     assert list(shell.nav.options) == ["A"]
+
+
+def test_set_panes_replaces_panes_and_keeps_warnings_of_remaining_labels():
+    a, b, c = _pane(), _pane(), _pane()
+    shell = SidebarShell([("A", a), ("B", b)])
+    shell.show("B")
+    shell.set_warning("A", "careful")
+    shell.set_warning("B", "gone")
+
+    shell.set_panes([("A", a), ("G: B2", b), ("G: C", c)], groups={"G": ["G: B2", "G: C"]})
+
+    assert list(shell.panes) == ["A", "G: B2", "G: C"]
+    assert shell.nav.value == "A"
+    assert (a.layout.display, b.layout.display) == ("", "none")
+    assert shell._content.children[1:] == (a, b, c)
+    assert shell.nav.tooltips == ("careful", "")
+
+    shell.set_panes([("A", a), ("B", b), ("C", c)], show="C")
+    assert c.layout.display == ""
+    assert shell.nav.tooltips == ("careful", "", "")
+
+
+def test_set_panes_keeps_the_current_pane_when_it_remains():
+    a, b = _pane(), _pane()
+    shell = SidebarShell([("A", a), ("B", b)])
+    shell.show("B")
+
+    shell.set_panes([("B", b), ("A", a)])
+
+    assert shell.nav.value == "B"
+    assert b.layout.display == ""

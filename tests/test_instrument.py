@@ -248,3 +248,27 @@ def test_set_required_units_does_not_rebuild_when_nothing_changes():
 def test_set_required_units_rejects_unknown_units():
     with pytest.raises(ValueError):
         InstrumentWidget().set_required_units({"mixer"})
+
+
+def test_components_section_sits_above_the_hardware_and_drives_the_flow_sheet():
+    iw = InstrumentWidget()
+    children = list(iw.root.children)
+
+    assert children.index(iw._components_section) < children.index(iw._flow_path_section)
+    assert iw._components_field.value == ["Component 1"]
+
+    iw._components_field.value = ["Salt", "Protein"]
+    assert iw.components == ["Salt", "Protein"]
+    assert iw.flow_sheet.component_system.names == ["Salt", "Protein"]
+
+    iw.components = ["A"]
+    assert iw._components_field.value == ["A"]
+
+
+def test_min_components_note_shows_only_when_needed():
+    iw = InstrumentWidget()
+    iw.set_min_components(2, "Needs two.")
+    assert iw._components_field.min_components == 2
+    assert iw._components_note.layout.display == ""
+    iw.set_min_components(1)
+    assert iw._components_note.layout.display == "none"

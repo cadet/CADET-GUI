@@ -347,11 +347,12 @@
 
 .cadetgui-panel input[type="number"],
 .cadetgui-panel input[type="text"],
-.cadetgui-panel select {
+.cadetgui-panel select,
+.cadetgui-select select {
   min-height: 30px;
   border: 1px solid var(--cg-border-strong);
   border-radius: var(--cg-radius-sm);
-  background: var(--cg-bg);
+  background-color: var(--cg-bg);
   color: var(--cg-fg);
   font: inherit;
   font-variant-numeric: tabular-nums;
@@ -359,9 +360,39 @@
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
+/* Single-choice dropdowns get a chevron and a hover outline like the element
+   dropdowns (.cadetgui-field-select). ipywidgets draws its arrow as a background
+   image, so the chevron is drawn here as two gradients in the theme's muted colour. */
+.cadetgui-panel select:not([multiple]):not([size]),
+.cadetgui-select select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 28px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--cg-muted) 50%),
+    linear-gradient(135deg, var(--cg-muted) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.cadetgui-panel select:hover:not(:disabled),
+.cadetgui-select select:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--cg-fg) 30%, var(--cg-border-strong));
+  background-color: color-mix(in srgb, var(--cg-fg) 4%, var(--cg-bg));
+}
+
+.cadetgui-panel select:disabled,
+.cadetgui-select select:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .cadetgui-panel input[type="number"]:focus,
 .cadetgui-panel input[type="text"]:focus,
-.cadetgui-panel select:focus {
+.cadetgui-panel select:focus,
+.cadetgui-select select:focus {
   outline: none;
   border-color: var(--cg-focus);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-focus) 30%, transparent);
@@ -495,4 +526,115 @@
   align-self: stretch;
   padding: var(--cg-space-4);
   background: var(--cg-page);
+}
+
+.cadetgui-term {
+  position: relative;
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.cadetgui-term:hover::after,
+.cadetgui-term:focus::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  width: max-content;
+  max-width: 320px;
+  padding: 6px 8px;
+  border-radius: var(--cg-radius-sm);
+  background: var(--cg-fg);
+  color: var(--cg-bg);
+  font-size: var(--cg-text-sm);
+  font-style: normal;
+  font-weight: 400;
+  line-height: var(--cg-leading);
+  white-space: normal;
+  box-shadow: var(--cg-shadow-pop);
+}
+
+.cadetgui-info {
+  margin: 4px 0 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--cg-border);
+  border-left: 3px solid var(--cg-primary);
+  border-radius: var(--cg-radius-sm);
+  background: var(--cg-surface);
+}
+
+.cadetgui-info > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.cadetgui-info-body {
+  margin-top: 6px;
+  color: var(--cg-fg);
+}
+
+.cadetgui-checklist {
+  margin: 4px 0;
+  padding-left: 1.2em;
+}
+
+.cadetgui-recipe-summary {
+  border-collapse: collapse;
+  margin: 4px 0 8px;
+  font-size: var(--cg-text-sm);
+}
+
+.cadetgui-recipe-summary th,
+.cadetgui-recipe-summary td {
+  padding: 3px 12px 3px 0;
+  border-bottom: 1px solid var(--cg-border);
+  vertical-align: top;
+  text-align: left;
+}
+
+.cadetgui-recipe-summary th {
+  color: var(--cg-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cadetgui-info-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 4px 0 10px;
+  font-size: var(--cg-text-sm);
+}
+
+.cadetgui-info-table th {
+  padding: 4px 10px 4px 0;
+  border-bottom: 1px solid var(--cg-border-strong);
+  color: var(--cg-muted);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cadetgui-info-table td {
+  padding: 5px 10px 5px 0;
+  border-bottom: 1px solid var(--cg-border);
+  vertical-align: top;
+}
+
+.cadetgui-info-table tr:last-child td {
+  border-bottom: none;
+}
+
+.cadetgui-info-table small {
+  color: var(--cg-muted);
+}
+
+.cadetgui-info-unit {
+  font-family: var(--cg-font-mono);
+  white-space: nowrap;
+}
+
+.cadetgui-info-missing {
+  color: var(--cg-warn);
 }

@@ -92,6 +92,25 @@
 /* Dropdowns hold full names ("General Rate Model (GRM)"), so they are wider than inputs. */
 .cadetgui-field-select {
   min-width: 260px;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 28px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--cg-muted) 50%),
+    linear-gradient(135deg, var(--cg-muted) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.cadetgui-field-select:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--cg-fg) 30%, var(--cg-border-strong));
+  background-color: color-mix(in srgb, var(--cg-fg) 4%, var(--cg-bg));
+}
+
+.cadetgui-field-select:disabled {
+  cursor: not-allowed;
 }
 
 /* Puts the error on its own line instead of widening the row. Not for list

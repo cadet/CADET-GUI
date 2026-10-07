@@ -80,8 +80,9 @@ files.
 
 ### Running as a web app
 
-[`examples/webapp/`](examples/webapp/) deploys `WorkbenchWidget` as a
-standalone page via [Voilà](https://voila.readthedocs.io/):
+[`examples/webapp/`](examples/webapp/) deploys the instrument, configuration,
+simulation and parameter-estimation widgets as a standalone tabbed page via
+[Voilà](https://voila.readthedocs.io/):
 
 ```bash
 pip install voila

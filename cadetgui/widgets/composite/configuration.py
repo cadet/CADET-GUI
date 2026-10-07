@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 from typing import Any, Callable, List, Mapping, Optional
 
@@ -24,6 +25,7 @@ from ...cadetprocessadapter import (
     template_required_units,
 )
 from ...configuration_store import ConfigurationState
+from ...starting_values import with_starting_values
 from .._chrome import style_tag
 from .._settings_popover import SettingsPopover
 from .._status import status_html
@@ -43,11 +45,22 @@ from .workspace_header import WorkspaceHeader
 __all__ = ["ConfigurationWidget"]
 
 _CYCLE_TIME_SLIDER_MAX_SECONDS = 300.0 * 60.0
-_DEFAULT_CONFIG_NAME = "New Experiment"
+_DEFAULT_CONFIG_NAME = "New Project"
 _BYPASS_NOTE = "Column is bypassed in the System configuration -- these settings are not used."
 
 # Gradient templates are meaningless with a single component.
 _TEMPLATES_REQUIRING_MULTIPLE_COMPONENTS = frozenset({lwe_spec, step_elution_spec})
+
+
+def _push_to_slider(slider: W.FloatSlider, value: Any) -> None:
+    """Show a typed value on `slider`, widening its range instead of clamping the value."""
+    try:
+        value = _round_10sf(float(value))
+    except (TypeError, ValueError):
+        return
+    if value > slider.max:
+        slider.max = value * 2
+    slider.value = max(value, slider.min)
 
 
 def _round_10sf(v: float) -> float:
@@ -100,6 +113,15 @@ class ConfigurationWidget:
     `.workspace_header` (name, Save, saved-version/run counts, backend versions) is embedded
     at the top of this panel by default; pass `workspace_header=False` when a shell places
     `workspace_header.root` elsewhere.
+
+    Bound to an instrument, the component names are edited in the instrument's Components
+    section; this widget's own "Component System" section is hidden and follows it.
+
+    `show_process_template=False` hides the process-template picker and the template's
+    method fields; the template stays selected internally so `snapshot()` still
+    returns a complete recipe, and a bound instrument's sample loop is not locked by it.
+    `intro` is HTML shown under the panel title. `set_flow_rate()` sets the flow rate every
+    snapshot carries, whatever the method form holds.
     """
 
     def __init__(
@@ -107,7 +129,11 @@ class ConfigurationWidget:
         *,
         instrument: Optional[InstrumentWidget] = None,
         workspace_header: bool = True,
+        show_process_template: bool = True,
+        intro: str = "",
     ) -> None:
+        self.show_process_template = show_process_template
+        self._flow_rate: Optional[float] = None
         self._column_cache: dict[Any, Any] = {}
         self._binding_cache: dict[Any, Any] = {}
         self._instrument: Optional[InstrumentWidget] = None
@@ -116,6 +142,8 @@ class ConfigurationWidget:
         self._column_form: Optional[FormRenderer] = None
         self._binding_form: Optional[FormRenderer] = None
         self._forms_key: Optional[tuple] = None
+        self._model_key: Optional[tuple] = None
+        self._restoring = False
         self._model_form: Optional[FormRenderer] = None
         self._event_sliders: dict[str, W.FloatSlider] = {}
         self._cycle_time_minutes_element: Optional[FloatField] = None
@@ -187,7 +215,7 @@ class ConfigurationWidget:
 
         self.persistence = ConfigurationPersistence(
             default_name=_DEFAULT_CONFIG_NAME,
-            snapshot=self._snapshot_state,
+            snapshot=self.snapshot,
             apply_state=self._apply_state,
             get_process=lambda: self.process,
             on_name_change=lambda _name: self._notify(),
@@ -202,6 +230,8 @@ class ConfigurationWidget:
                 self._component_note,
             ]
         )
+        self._components_section = components_section
+        self._pulling_components = False
         column_section = _section(
             [
                 _titled_header("Column Model", self._column_settings),
@@ -239,11 +269,18 @@ class ConfigurationWidget:
                 process_columns,
             ]
         )
+        self._process_section = process_section
+        if not show_process_template:
+            process_section.layout.display = "none"
+        intro_html = W.HTML(intro)
+        intro_html.add_class("cadetgui-note")
+        intro_html.layout.display = "" if intro else "none"
 
         self.root = W.VBox(
             [
                 W.HTML(style_tag()),
                 W.HTML("<div class='cadetgui-panel-title'>Configuration</div>"),
+                intro_html,
                 *([self.workspace_header.root] if workspace_header else []),
                 components_section,
                 column_binding_row,
@@ -269,6 +306,7 @@ class ConfigurationWidget:
     def bind_to_instrument(self, instrument: InstrumentWidget) -> None:
         """Attach the LC-system topology layer and switch to the `INSTRUMENT_TEMPLATES` registry."""
         self._instrument = instrument
+        self._components_section.layout.display = "none"
         instrument.add_listener(self._on_instrument_changed)
         self._column_cache.clear()
         self._binding_cache.clear()
@@ -313,7 +351,7 @@ class ConfigurationWidget:
         )
 
     def _sync_template_dropdown(self) -> None:
-        if self._instrument is None:
+        if self._instrument is None or not self.show_process_template:
             return
         registry = self._active_registry()
         self._instrument.set_template_options(
@@ -325,6 +363,38 @@ class ConfigurationWidget:
         template = self._active_registry().get(label)
         if template is not None:
             self._model_picker.value = template
+
+    def select_models(
+        self,
+        *,
+        template: Optional[str] = None,
+        column: Optional[str] = None,
+        binding: Optional[str] = None,
+    ) -> None:
+        """Pick the process template, column and binding model by their registry keys."""
+        if template is not None:
+            self._model_picker.value = self._active_registry()[template]
+        if column is not None:
+            self._column_picker.value = COLUMN_MODELS[column]
+        if binding is not None:
+            self._binding_picker.value = BINDING_MODELS[binding]
+
+    @property
+    def flow_rate(self) -> Optional[float]:
+        """The flow rate (m³/s) snapshots carry: the one set, else the method form's."""
+        if self._flow_rate is not None:
+            return self._flow_rate
+        if self._model_form is None:
+            return None
+        values = self._model_form.collect_values()
+        value = values.get("flow_rate", values.get("flow_rate_wash"))
+        return float(value) if value is not None else None
+
+    def set_flow_rate(self, value: Optional[float]) -> None:
+        """Make every snapshot carry flow rate `value` (m³/s); `None` uses the method form."""
+        self._flow_rate = None if value is None else float(value)
+        self.persistence.refresh_hash_display()
+        self._notify()
 
     @property
     def flow_sheet(self) -> Optional[LCFlowSheet]:
@@ -421,6 +491,15 @@ class ConfigurationWidget:
     def _on_instrument_changed(self, flow_sheet: Any) -> None:
         if self._suspend_rebuild:
             return
+        names = self._instrument.components
+        if names != list(self._components.value):
+            self._column_cache.clear()
+            self._binding_cache.clear()
+            self._pulling_components = True
+            try:
+                self._components.value = names
+            finally:
+                self._pulling_components = False
         if flow_sheet is None:
             self.process = None
             self._sync_column_bypass()
@@ -434,6 +513,8 @@ class ConfigurationWidget:
         self._apply_template_constraints()
 
     def _on_components_change(self, _change: dict) -> None:
+        if self._pulling_components:
+            return
         self._column_cache.clear()
         self._binding_cache.clear()
         if self._instrument is not None:
@@ -451,7 +532,7 @@ class ConfigurationWidget:
 
     def _sync_instrument_requirements(self) -> None:
         """Tell a bound instrument which units the selected template can't be built without."""
-        if self._instrument is None:
+        if self._instrument is None or not self.show_process_template:
             return
         model_fn = self._model_picker.value
         was_suspended = self._suspend_rebuild
@@ -479,13 +560,14 @@ class ConfigurationWidget:
         """Enforce the template's component floor, then rebuild the forms."""
         required = self._required_min_components()
         self._components.min_components = required
-        if required > 1:
-            self._component_note.value = (
-                f"The process template you selected does not allow less than {required} components."
-            )
-            self._component_note.layout.display = ""
-        else:
-            self._component_note.layout.display = "none"
+        note = (
+            f"The process template you selected does not allow less than {required} components."
+            if required > 1 else ""
+        )
+        self._component_note.value = note
+        self._component_note.layout.display = "" if note else "none"
+        if self._instrument is not None:
+            self._instrument.set_min_components(required, note)
 
         names = self._components.value
         if len(names) < required:
@@ -519,7 +601,7 @@ class ConfigurationWidget:
         self._notify()
         self.status.value = "<em>Process built.</em>"
 
-    def _snapshot_state(self) -> ConfigurationState:
+    def snapshot(self) -> ConfigurationState:
         """Capture the current selection and field values as the hashed save/import payload."""
         if self._model_form is None:
             raise RuntimeError("Nothing built yet -- pick a column and a process template first.")
@@ -528,6 +610,11 @@ class ConfigurationWidget:
         template_key = _key_for_value(self._active_registry(), self._model_picker.value)
         if column_key is None or binding_key is None or template_key is None:
             raise RuntimeError("Current selection isn't in a known registry -- can't snapshot it.")
+        model_values = self._model_form.collect_values()
+        if self._flow_rate is not None:
+            keys = [k for k in ("flow_rate", "flow_rate_wash") if k in model_values]
+            for key in keys or ["flow_rate"]:
+                model_values[key] = self._flow_rate
         return ConfigurationState(
             components=list(self._components.value),
             column_key=column_key,
@@ -539,7 +626,7 @@ class ConfigurationWidget:
             show_optional_binding=bool(self._show_optional_binding_checkbox.value),
             column_values=self._column_form.collect_values() if self._column_form else {},
             binding_values=self._binding_form.collect_values() if self._binding_form else {},
-            model_values=self._model_form.collect_values(),
+            model_values=model_values,
         )
 
     @property
@@ -570,9 +657,16 @@ class ConfigurationWidget:
 
     def _apply_state(self, name: str, state: ConfigurationState) -> None:
         """Reconstruct pickers/forms (and a bound instrument, if any) from a saved state."""
+        self._restoring = True
+        try:
+            self._restore_state(name, state)
+        finally:
+            self._restoring = False
+
+    def _restore_state(self, name: str, state: ConfigurationState) -> None:
         column_cls = COLUMN_MODELS.get(state.column_key)
         binding_cls = BINDING_MODELS.get(state.binding_key)
-        if column_cls is None or binding_cls is None:
+        if column_cls is None or state.binding_key not in BINDING_MODELS:
             raise ValueError(
                 "Saved configuration references a column or binding model"
                 " that isn't registered here anymore."
@@ -652,17 +746,28 @@ class ConfigurationWidget:
             self._binding_form.collect_values() if carry and self._binding_form else None
         )
         self._forms_key = form_key
+        # The template is rebuilt from scratch every time, so its method values are
+        # carried over until the template, binding model or components change.
+        model_key = (model_fn, self._binding_picker.value, tuple(self._components.value))
+        previous_model = (
+            self._model_form.collect_values()
+            if self._model_form is not None and model_key == self._model_key else None
+        )
+        self._model_key = model_key
 
         self._rebuild_column_form(column, previous_column)
         self._rebuild_binding_form(column, binding_model, previous_binding)
         self._sync_column_bypass()
 
         self._model_form = FormRenderer(model_fn(model_arg), on_built=self._on_process_built)
+        if previous_model is not None:
+            self._model_form.set_values(previous_model)
         self._model_form_box.children = (self._model_form.root,)
         self._rebuild_event_sliders()
         # The model form's `on_built` fires inside its constructor, before `_model_form` is
         # assigned, so the hash must be refreshed again here.
         self.persistence.refresh_hash_display()
+        self._apply_starting_values(method=previous_model is None)
 
         self.status.value = (
             "<em>Fields apply automatically as you edit them"
@@ -712,6 +817,23 @@ class ConfigurationWidget:
         if previous is not None:
             self._binding_form.set_values(previous)
 
+    def _apply_starting_values(self, *, method: bool) -> None:
+        """Fill the shared starting values into freshly built forms (see `starting_values`).
+
+        Method values are only used while the process template is shown and with `method`.
+        """
+        if self._restoring:
+            return
+        state = self.snapshot()
+        shown = self.show_process_template
+        seeded = with_starting_values(state, method=shown and method, equilibrate=shown)
+        known = getattr(COLUMN_MODELS.get(state.column_key), "_parameters", ())
+        seeded = dataclasses.replace(seeded, column_values={
+            k: v for k, v in seeded.column_values.items() if k in known
+        })
+        if seeded != state:
+            self._apply_state(self.config_name, seeded)
+
     def _clear_event_section(self) -> None:
         self._event_sliders = {}
         self._cycle_time_minutes_element = None
@@ -750,7 +872,7 @@ class ConfigurationWidget:
             )
             # dlink + rounding rather than link: slider drags report float noise.
             W.dlink((slider, "value"), (el, "value"), transform=_round_10sf)
-            W.dlink((el, "value"), (slider, "value"), transform=_round_10sf)
+            el.observe(lambda change, s=slider: _push_to_slider(s, change["new"]), names="value")
             slider.observe(lambda _change: self._redraw_event_plot(), names="value")
             self._event_sliders[f.name] = slider
 
