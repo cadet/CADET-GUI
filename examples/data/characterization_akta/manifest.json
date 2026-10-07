@@ -1,0 +1,554 @@
+{
+  "description": "Synthetic two-step characterization chain (extra-column volume, then column packing), shaped like \u00c4kta/Unicorn exports. Every number is invented for this synthetic instrument.",
+  "initial_store": {
+    "step": "initial",
+    "prior": null,
+    "specs": {
+      "flow_sheet.column.axial_dispersion": {
+        "species_indexed": true
+      },
+      "flow_sheet.column.bed_porosity": {
+        "species_indexed": false
+      },
+      "flow_sheet.column.film_diffusion": {
+        "species_indexed": true
+      },
+      "flow_sheet.column.particle_porosity": {
+        "species_indexed": false
+      },
+      "flow_sheet.column.particle_radius": {
+        "species_indexed": false
+      },
+      "flow_sheet.tubing_detectors.axial_dispersion": {
+        "species_indexed": true
+      },
+      "flow_sheet.tubing_detectors.diameter": {
+        "species_indexed": false
+      },
+      "flow_sheet.tubing_detectors.length": {
+        "species_indexed": false
+      },
+      "flow_sheet.tubing_pre_column.axial_dispersion": {
+        "species_indexed": true
+      },
+      "flow_sheet.tubing_pre_column.diameter": {
+        "species_indexed": false
+      },
+      "flow_sheet.tubing_pre_column.length": {
+        "species_indexed": false
+      }
+    },
+    "entries": {
+      "flow_sheet.column.film_diffusion": {
+        "value": {
+          "SmallTracer": 8e-05,
+          "LargeTracer": 0.0
+        },
+        "provenance": {
+          "step": "initial",
+          "note": "known hardware, not determined by either step"
+        }
+      },
+      "flow_sheet.column.particle_radius": {
+        "value": 3e-05,
+        "provenance": {
+          "step": "initial",
+          "note": "known hardware, not determined by either step"
+        }
+      },
+      "flow_sheet.tubing_detectors.diameter": {
+        "value": 0.0005,
+        "provenance": {
+          "step": "initial",
+          "note": "known hardware, not determined by either step"
+        }
+      },
+      "flow_sheet.tubing_detectors.length": {
+        "value": 0.05,
+        "provenance": {
+          "step": "initial",
+          "note": "known hardware, not determined by either step"
+        }
+      },
+      "flow_sheet.tubing_pre_column.diameter": {
+        "value": 0.0008,
+        "provenance": {
+          "step": "initial",
+          "note": "known hardware, not determined by either step"
+        }
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "Extra-column volume",
+      "stage": "tubing",
+      "options": {
+        "tubing": "tubing_pre_column"
+      },
+      "comparisons": [
+        "System pulse 1 (UV)",
+        "System pulse 2 (UV)"
+      ],
+      "bounds": {
+        "tubing_pre_column_length": [
+          0.1,
+          1.0
+        ],
+        "tubing_pre_column_axial_dispersion": [
+          1e-08,
+          1e-05
+        ]
+      },
+      "frozen": [],
+      "truth": {
+        "flow_sheet.tubing_pre_column.length": 0.42,
+        "flow_sheet.tubing_pre_column.axial_dispersion": 4.5e-07
+      }
+    },
+    {
+      "name": "Column packing",
+      "stage": "bed",
+      "options": {
+        "include_particle_porosity": true
+      },
+      "comparisons": [
+        "Small tracer pulse 1 (conductivity)",
+        "Small tracer pulse 2 (conductivity)",
+        "Large tracer pulse 1 (UV)",
+        "Large tracer pulse 2 (UV)"
+      ],
+      "bounds": {
+        "bed_porosity": [
+          0.25,
+          0.5
+        ],
+        "particle_porosity": [
+          0.55,
+          0.85
+        ],
+        "axial_dispersion": [
+          1e-09,
+          1e-06
+        ]
+      },
+      "frozen": [],
+      "truth": {
+        "flow_sheet.column.bed_porosity": 0.36,
+        "flow_sheet.column.particle_porosity": 0.68,
+        "flow_sheet.column.axial_dispersion": 5.5e-08
+      }
+    }
+  ],
+  "comparisons": [
+    {
+      "name": "System pulse 1 (UV)",
+      "data_file": "system_pulse_1_uv.csv",
+      "channel": "UV 1_280",
+      "flow_rate": null,
+      "recipe": {
+        "components": [
+          "SystemTracer"
+        ],
+        "column_key": "Lumped Rate Model With Pores (LRMP)",
+        "binding_key": "None",
+        "template_key": "Pulse Injection",
+        "instrument": {
+          "include_sample_loop": true,
+          "sample_loop_volume": 2e-08,
+          "sample_loop_diameter_auto": false,
+          "sample_loop_diameter": 0.00075,
+          "bypass_units": [
+            "tubing_pre_injection",
+            "column",
+            "tubing_post_column",
+            "tubing_detectors"
+          ],
+          "unit_values": {}
+        },
+        "multiplex_state": {},
+        "show_optional_column": false,
+        "show_optional_binding": false,
+        "column_values": {},
+        "binding_values": {},
+        "model_values": {
+          "c_buffer_a": [
+            0.0
+          ],
+          "c_sample": [
+            50.0
+          ],
+          "cycle_time": 150.0,
+          "flow_rate": 8.3e-09
+        }
+      },
+      "overrides": {},
+      "injection_marker": "Phase Elution",
+      "measured_injection": null,
+      "baseline_window": null,
+      "normalization": {
+        "kind": "area",
+        "target_area": 1e-06
+      },
+      "solution_path": "tubing_pre_column.outlet",
+      "components": [
+        "SystemTracer"
+      ],
+      "metric": "NRMSE",
+      "window": [
+        null,
+        null
+      ],
+      "probe": "SystemTracer",
+      "experiment_type": "system_pulse"
+    },
+    {
+      "name": "System pulse 2 (UV)",
+      "data_file": "system_pulse_2_uv.csv",
+      "channel": "UV 1_280",
+      "flow_rate": null,
+      "recipe": {
+        "components": [
+          "SystemTracer"
+        ],
+        "column_key": "Lumped Rate Model With Pores (LRMP)",
+        "binding_key": "None",
+        "template_key": "Pulse Injection",
+        "instrument": {
+          "include_sample_loop": true,
+          "sample_loop_volume": 2e-08,
+          "sample_loop_diameter_auto": false,
+          "sample_loop_diameter": 0.00075,
+          "bypass_units": [
+            "tubing_pre_injection",
+            "column",
+            "tubing_post_column",
+            "tubing_detectors"
+          ],
+          "unit_values": {}
+        },
+        "multiplex_state": {},
+        "show_optional_column": false,
+        "show_optional_binding": false,
+        "column_values": {},
+        "binding_values": {},
+        "model_values": {
+          "c_buffer_a": [
+            0.0
+          ],
+          "c_sample": [
+            50.0
+          ],
+          "cycle_time": 150.0,
+          "flow_rate": 8.3e-09
+        }
+      },
+      "overrides": {},
+      "injection_marker": "Phase Elution",
+      "measured_injection": null,
+      "baseline_window": null,
+      "normalization": {
+        "kind": "area",
+        "target_area": 1e-06
+      },
+      "solution_path": "tubing_pre_column.outlet",
+      "components": [
+        "SystemTracer"
+      ],
+      "metric": "NRMSE",
+      "window": [
+        null,
+        null
+      ],
+      "probe": "SystemTracer",
+      "experiment_type": "system_pulse"
+    },
+    {
+      "name": "Small tracer pulse 1 (conductivity)",
+      "data_file": "small_tracer_pulse_1_conductivity.csv",
+      "channel": "Cond",
+      "flow_rate": null,
+      "recipe": {
+        "components": [
+          "SmallTracer"
+        ],
+        "column_key": "Lumped Rate Model With Pores (LRMP)",
+        "binding_key": "None",
+        "template_key": "Pulse Injection",
+        "instrument": {
+          "include_sample_loop": true,
+          "sample_loop_volume": 2e-08,
+          "sample_loop_diameter_auto": false,
+          "sample_loop_diameter": 0.00075,
+          "bypass_units": [
+            "tubing_pre_injection",
+            "tubing_post_column"
+          ],
+          "unit_values": {}
+        },
+        "multiplex_state": {},
+        "show_optional_column": false,
+        "show_optional_binding": false,
+        "column_values": {
+          "diameter": 0.005,
+          "length": 0.02,
+          "particle_radius": 1e-05,
+          "bed_porosity": 0.5,
+          "particle_porosity": 0.5,
+          "axial_dispersion": 1e-08,
+          "film_diffusion": 0.0001
+        },
+        "binding_values": {},
+        "model_values": {
+          "c_buffer_a": [
+            0.0
+          ],
+          "c_sample": [
+            50.0
+          ],
+          "cycle_time": 300.0,
+          "flow_rate": 8.3e-09
+        }
+      },
+      "overrides": {},
+      "injection_marker": "Phase Elution",
+      "measured_injection": null,
+      "baseline_window": [
+        1.3695,
+        2.8634999999999997
+      ],
+      "normalization": {
+        "kind": "area",
+        "target_area": 1e-06
+      },
+      "solution_path": "tubing_detectors.outlet",
+      "components": [
+        "SmallTracer"
+      ],
+      "metric": "NRMSE",
+      "window": [
+        null,
+        null
+      ],
+      "probe": "SmallTracer",
+      "experiment_type": "column_pulse_small_tracer"
+    },
+    {
+      "name": "Small tracer pulse 2 (conductivity)",
+      "data_file": "small_tracer_pulse_2_conductivity.csv",
+      "channel": "Cond",
+      "flow_rate": null,
+      "recipe": {
+        "components": [
+          "SmallTracer"
+        ],
+        "column_key": "Lumped Rate Model With Pores (LRMP)",
+        "binding_key": "None",
+        "template_key": "Pulse Injection",
+        "instrument": {
+          "include_sample_loop": true,
+          "sample_loop_volume": 2e-08,
+          "sample_loop_diameter_auto": false,
+          "sample_loop_diameter": 0.00075,
+          "bypass_units": [
+            "tubing_pre_injection",
+            "tubing_post_column"
+          ],
+          "unit_values": {}
+        },
+        "multiplex_state": {},
+        "show_optional_column": false,
+        "show_optional_binding": false,
+        "column_values": {
+          "diameter": 0.005,
+          "length": 0.02,
+          "particle_radius": 1e-05,
+          "bed_porosity": 0.5,
+          "particle_porosity": 0.5,
+          "axial_dispersion": 1e-08,
+          "film_diffusion": 0.0001
+        },
+        "binding_values": {},
+        "model_values": {
+          "c_buffer_a": [
+            0.0
+          ],
+          "c_sample": [
+            50.0
+          ],
+          "cycle_time": 300.0,
+          "flow_rate": 8.3e-09
+        }
+      },
+      "overrides": {},
+      "injection_marker": "Phase Elution",
+      "measured_injection": null,
+      "baseline_window": null,
+      "normalization": {
+        "kind": "area",
+        "target_area": 1e-06
+      },
+      "solution_path": "tubing_detectors.outlet",
+      "components": [
+        "SmallTracer"
+      ],
+      "metric": "NRMSE",
+      "window": [
+        null,
+        null
+      ],
+      "probe": "SmallTracer",
+      "experiment_type": "column_pulse_small_tracer"
+    },
+    {
+      "name": "Large tracer pulse 1 (UV)",
+      "data_file": "large_tracer_pulse_1_uv.csv",
+      "channel": "UV 1_280",
+      "flow_rate": null,
+      "recipe": {
+        "components": [
+          "LargeTracer"
+        ],
+        "column_key": "Lumped Rate Model With Pores (LRMP)",
+        "binding_key": "None",
+        "template_key": "Pulse Injection",
+        "instrument": {
+          "include_sample_loop": true,
+          "sample_loop_volume": 2e-08,
+          "sample_loop_diameter_auto": false,
+          "sample_loop_diameter": 0.00075,
+          "bypass_units": [
+            "tubing_pre_injection",
+            "tubing_post_column",
+            "tubing_detectors"
+          ],
+          "unit_values": {}
+        },
+        "multiplex_state": {},
+        "show_optional_column": false,
+        "show_optional_binding": false,
+        "column_values": {
+          "diameter": 0.005,
+          "length": 0.02,
+          "particle_radius": 1e-05,
+          "bed_porosity": 0.5,
+          "particle_porosity": 0.5,
+          "axial_dispersion": 1e-08,
+          "film_diffusion": 0.0001
+        },
+        "binding_values": {},
+        "model_values": {
+          "c_buffer_a": [
+            0.0
+          ],
+          "c_sample": [
+            50.0
+          ],
+          "cycle_time": 300.0,
+          "flow_rate": 8.3e-09
+        }
+      },
+      "overrides": {},
+      "injection_marker": "Phase Elution",
+      "measured_injection": null,
+      "baseline_window": null,
+      "normalization": {
+        "kind": "area",
+        "target_area": 1e-06
+      },
+      "solution_path": "column.outlet",
+      "components": [
+        "LargeTracer"
+      ],
+      "metric": "NRMSE",
+      "window": [
+        null,
+        null
+      ],
+      "probe": "LargeTracer",
+      "experiment_type": "column_pulse_large_tracer"
+    },
+    {
+      "name": "Large tracer pulse 2 (UV)",
+      "data_file": "large_tracer_pulse_2_uv.csv",
+      "channel": "UV 1_280",
+      "flow_rate": null,
+      "recipe": {
+        "components": [
+          "LargeTracer"
+        ],
+        "column_key": "Lumped Rate Model With Pores (LRMP)",
+        "binding_key": "None",
+        "template_key": "Pulse Injection",
+        "instrument": {
+          "include_sample_loop": true,
+          "sample_loop_volume": 2e-08,
+          "sample_loop_diameter_auto": false,
+          "sample_loop_diameter": 0.00075,
+          "bypass_units": [
+            "tubing_pre_injection",
+            "tubing_post_column",
+            "tubing_detectors"
+          ],
+          "unit_values": {}
+        },
+        "multiplex_state": {},
+        "show_optional_column": false,
+        "show_optional_binding": false,
+        "column_values": {
+          "diameter": 0.005,
+          "length": 0.02,
+          "particle_radius": 1e-05,
+          "bed_porosity": 0.5,
+          "particle_porosity": 0.5,
+          "axial_dispersion": 1e-08,
+          "film_diffusion": 0.0001
+        },
+        "binding_values": {},
+        "model_values": {
+          "c_buffer_a": [
+            0.0
+          ],
+          "c_sample": [
+            50.0
+          ],
+          "cycle_time": 300.0,
+          "flow_rate": 8.3e-09
+        }
+      },
+      "overrides": {},
+      "injection_marker": "Phase Elution",
+      "measured_injection": null,
+      "baseline_window": null,
+      "normalization": {
+        "kind": "area",
+        "target_area": 1e-06
+      },
+      "solution_path": "column.outlet",
+      "components": [
+        "LargeTracer"
+      ],
+      "metric": "NRMSE",
+      "window": [
+        null,
+        null
+      ],
+      "probe": "LargeTracer",
+      "experiment_type": "column_pulse_large_tracer"
+    }
+  ],
+  "components": [
+    {
+      "name": "SystemTracer",
+      "role": "system tracer"
+    },
+    {
+      "name": "SmallTracer",
+      "role": "small tracer"
+    },
+    {
+      "name": "LargeTracer",
+      "role": "large tracer"
+    }
+  ]
+}
