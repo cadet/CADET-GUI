@@ -4,14 +4,18 @@ import warnings
 
 import cadetgui.configuration_store as configuration_store
 import pytest
-from cadetgui.cadetprocessadapter import INSTRUMENT_TEMPLATES
+from cadetgui.cadetprocessadapter import INSTRUMENT_TEMPLATES, PARAMS
 from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
 LWE = INSTRUMENT_TEMPLATES["Load–Wash–Elute (LWE)"]
 ML_MIN_LABEL = r"Flow rate / \frac{\mathrm{mL}}{\mathrm{min}}"
-DEFAULT_FLOW_ML_MIN = 60.0  # 1e-6 m^3/s
+DEFAULT_FLOW_ML_MIN = PARAMS["flow_rate_wash"].default / (1e-6 / 60.0)
+WASH_MIN = PARAMS["delta_t_wash"].default / 60.0
+ELUTE_MIN = PARAMS["delta_t_elute"].default / 60.0
+FINAL_WASH_MIN = PARAMS["delta_t_final_wash"].default / 60.0
+GRADIENT_END_MIN = WASH_MIN + ELUTE_MIN
 
 
 @pytest.fixture(autouse=True)
@@ -47,42 +51,50 @@ def test_lwe_flow_rates_step_and_ramp_between_phases_in_ml_per_min(lwe_widget):
     series = _series(lwe_widget._event_chart)
     a, b = series["Buffer a"], series["Buffer b"]
 
-    assert _value_at(a, 5.0) == pytest.approx(DEFAULT_FLOW_ML_MIN)
-    assert _value_at(b, 5.0) == pytest.approx(0.0, abs=1e-9)
-    assert 0.0 < _value_at(a, 20.0) < DEFAULT_FLOW_ML_MIN
-    assert _value_at(a, 20.0) + _value_at(b, 20.0) == pytest.approx(DEFAULT_FLOW_ML_MIN)
-    assert _value_at(a, 35.0) == pytest.approx(0.0, abs=1e-9)
-    assert _value_at(b, 35.0) == pytest.approx(DEFAULT_FLOW_ML_MIN)
+    wash, gradient = WASH_MIN / 2, WASH_MIN + ELUTE_MIN / 2
+    final_wash = GRADIENT_END_MIN + FINAL_WASH_MIN / 2
+    assert _value_at(a, wash) == pytest.approx(DEFAULT_FLOW_ML_MIN)
+    assert _value_at(b, wash) == pytest.approx(0.0, abs=1e-9)
+    assert 0.0 < _value_at(a, gradient) < DEFAULT_FLOW_ML_MIN
+    assert _value_at(a, gradient) + _value_at(b, gradient) == pytest.approx(DEFAULT_FLOW_ML_MIN)
+    assert _value_at(a, final_wash) == pytest.approx(0.0, abs=1e-9)
+    assert _value_at(b, final_wash) == pytest.approx(DEFAULT_FLOW_ML_MIN)
 
 
 def test_lwe_phases_and_sample_injection_marker(lwe_widget):
     chart = lwe_widget._event_chart
 
+    end = GRADIENT_END_MIN + FINAL_WASH_MIN
     assert chart.phases == [
-        {"name": "Wash", "start": 0.0, "end": 10.0},
-        {"name": "Elute (gradient)", "start": 10.0, "end": 30.0},
-        {"name": "Final wash", "start": 30.0, "end": 40.0},
+        {"name": "Wash", "start": 0.0, "end": pytest.approx(WASH_MIN)},
+        {"name": "Elute (gradient)", "start": pytest.approx(WASH_MIN),
+         "end": pytest.approx(GRADIENT_END_MIN)},
+        {"name": "Final wash", "start": pytest.approx(GRADIENT_END_MIN), "end": pytest.approx(end)},
     ]
     assert chart.markers == [{"name": "Sample injection", "time": 0.0}]
-    assert chart.series[0]["times"][-1] == pytest.approx(40.0)
+    assert chart.series[0]["times"][-1] == pytest.approx(end)
 
 
 def test_changing_a_duration_moves_the_phase_boundaries(lwe_widget):
     chart = lwe_widget._event_chart
 
-    lwe_widget._model_form.element("delta_t_wash").value = 300.0
+    wash = WASH_MIN / 2
+    lwe_widget._model_form.element("delta_t_wash").value = wash * 60.0
 
-    assert [(p["start"], p["end"]) for p in chart.phases] == [(0.0, 5.0), (5.0, 25.0), (25.0, 35.0)]
+    gradient_end = wash + ELUTE_MIN
+    assert [(p["start"], p["end"]) for p in chart.phases] == pytest.approx(
+        [(0.0, wash), (wash, gradient_end), (gradient_end, gradient_end + FINAL_WASH_MIN)]
+    )
     a = _series(chart)["Buffer a"]
-    assert _value_at(a, 4.0) == pytest.approx(DEFAULT_FLOW_ML_MIN)
-    assert _value_at(a, 6.0) < DEFAULT_FLOW_ML_MIN
+    assert _value_at(a, wash - 0.5) == pytest.approx(DEFAULT_FLOW_ML_MIN)
+    assert _value_at(a, wash + 0.5) < DEFAULT_FLOW_ML_MIN
 
 
 def test_changing_the_flow_rate_changes_the_step_heights(lwe_widget):
-    lwe_widget._model_form.element("flow_rate_wash").value = 2.0e-6
+    lwe_widget._model_form.element("flow_rate_wash").value = 2 * PARAMS["flow_rate_wash"].default
 
     a = _series(lwe_widget._event_chart)["Buffer a"]
-    assert _value_at(a, 5.0) == pytest.approx(2 * DEFAULT_FLOW_ML_MIN)
+    assert _value_at(a, WASH_MIN / 2) == pytest.approx(2 * DEFAULT_FLOW_ML_MIN)
 
 
 @pytest.mark.parametrize(

@@ -433,7 +433,7 @@ def test_solutionwidget_run_auto_saves_config_to_store():
     sw._on_run(None)
 
     name, state = configuration_store.load_from_store(cw.config_hash)
-    assert state == cw._snapshot_state()
+    assert state == cw.snapshot()
 
 
 def test_solutionwidget_run_without_bound_config_leaves_history_untagged():
@@ -468,7 +468,7 @@ def test_solutionwidget_process_label_shows_the_configuration_name_not_the_proce
     cw = built_configuration()
     sw = SolutionWidget()
     sw.bind_to_config(cw)
-    assert "New Experiment" in sw._process_label.value  # the default name, not "pulse_injection"
+    assert "New Project" in sw._process_label.value  # the default name, not "pulse_injection"
     assert "pulse_injection" not in sw._process_label.value
 
     cw.persistence._name_field.value = "My Named Config"

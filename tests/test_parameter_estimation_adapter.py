@@ -270,6 +270,7 @@ def test_run_estimation_with_a_component_name_ignores_other_components():
 def test_run_estimation_stops_early_when_cancelled(optimizer_name, optimizer_kwargs, max_elapsed):
     process, column, params, porosity_idx = porosity_fit(built_widget())
     reference = total_signal_reference(process)
+    original_porosity = column.total_porosity
 
     cancel_event = threading.Event()
 
@@ -292,7 +293,7 @@ def test_run_estimation_stops_early_when_cancelled(optimizer_name, optimizer_kwa
     assert not result.success
     assert "cancelled" in result.message.lower()
     assert elapsed < max_elapsed  # stopped promptly, not after the full run
-    assert column.total_porosity == 0.72  # the live object is still untouched
+    assert column.total_porosity == original_porosity  # the live object is still untouched
 
 
 def test_list_signal_ports_matches_the_simulated_classification_without_simulating():

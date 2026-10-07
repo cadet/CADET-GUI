@@ -15,9 +15,23 @@ from typing import (
 
 import ipywidgets as W
 
-__all__ = ["SidebarShell", "validate_steps", "resolve_step", "collect_panes"]
+__all__ = [
+    "SidebarShell",
+    "validate_steps",
+    "resolve_step",
+    "collect_panes",
+    "SYSTEM_GROUP",
+    "system_pane_label",
+]
 
 _T = TypeVar("_T")
+
+SYSTEM_GROUP = "System"
+
+
+def system_pane_label(name: str) -> str:
+    """Label of a pane nested under the workbenches' "System" sidebar group."""
+    return f"{SYSTEM_GROUP}: {name}"
 
 
 class SidebarShell:
@@ -27,7 +41,8 @@ class SidebarShell:
     nested under it: a group is one collapsible nav entry placed where its first
     child sits, and expanded children are indented without the `"<group>: "` prefix.
     With groups `nav.options` holds `(display, key)` pairs and `nav.value` is `None`
-    while the selected pane sits in a collapsed group.
+    while the selected pane sits in a collapsed group. `set_panes` replaces the panes
+    after construction.
     """
 
     _instances = itertools.count()
@@ -37,34 +52,13 @@ class SidebarShell:
         panes: Sequence[Tuple[str, W.Widget]],
         groups: Optional[Mapping[str, Sequence[str]]] = None,
     ) -> None:
-        if not panes:
-            raise ValueError("SidebarShell needs at least one pane")
-        labels = [label for label, _ in panes]
-        if len(set(labels)) != len(labels):
-            raise ValueError(f"Pane labels must be unique, got {labels!r}")
-
-        self._order: List[str] = labels
-        self.panes: Dict[str, W.Widget] = dict(panes)
-        self._groups: Dict[str, List[str]] = {}
-        self._group_of: Dict[str, str] = {}
-        for group, children in (groups or {}).items():
-            if group in self.panes:
-                raise ValueError(f"Group label {group!r} clashes with a pane label")
-            present = [label for label in labels if label in children]
-            for child in present:
-                if child in self._group_of:
-                    raise ValueError(f"Pane {child!r} is in more than one group")
-                self._group_of[child] = group
-            if present:
-                self._groups[group] = present
-        for widget in self.panes.values():
-            widget.layout.display = "none"
-
         self._warnings: Dict[str, str] = {}
         self._expanded: Set[str] = set()
-        self._current: str = self._order[0]
         self._entries: List[Tuple[str, str]] = []
         self._syncing = False
+        self._show_listeners: List[Callable[[str], None]] = []
+        self._configure(panes, groups)
+        self._current: str = self._order[0]
 
         self._nav_class = f"cadetgui-sidebar-nav-{next(self._instances)}"
         self.nav = W.ToggleButtons(options=self._order)
@@ -73,13 +67,73 @@ class SidebarShell:
         self.nav.observe(self._on_nav_change, names="index")
         self._nav_style = W.HTML()
 
-        content = W.VBox([self._nav_style, *self.panes.values()])
-        content.add_class("cadetgui-workbench-content")
+        self._content = W.VBox([self._nav_style, *self.panes.values()])
+        self._content.add_class("cadetgui-workbench-content")
 
-        self.body = W.HBox([self.nav, content])
+        self.body = W.HBox([self.nav, self._content])
         self.body.add_class("cadetgui-workbench-body")
 
         self.show(self._order[0])
+
+    def _configure(
+        self,
+        panes: Sequence[Tuple[str, W.Widget]],
+        groups: Optional[Mapping[str, Sequence[str]]],
+    ) -> None:
+        if not panes:
+            raise ValueError("SidebarShell needs at least one pane")
+        labels = [label for label, _ in panes]
+        if len(set(labels)) != len(labels):
+            raise ValueError(f"Pane labels must be unique, got {labels!r}")
+
+        group_map: Dict[str, List[str]] = {}
+        group_of: Dict[str, str] = {}
+        for group, children in (groups or {}).items():
+            if group in labels:
+                raise ValueError(f"Group label {group!r} clashes with a pane label")
+            present = [label for label in labels if label in children]
+            for child in present:
+                if child in group_of:
+                    raise ValueError(f"Pane {child!r} is in more than one group")
+                group_of[child] = group
+            if present:
+                group_map[group] = present
+
+        self._order: List[str] = labels
+        self.panes: Dict[str, W.Widget] = dict(panes)
+        self._groups: Dict[str, List[str]] = group_map
+        self._group_of: Dict[str, str] = group_of
+        for widget in self.panes.values():
+            widget.layout.display = "none"
+        self._warnings = {k: v for k, v in self._warnings.items() if k in self.panes}
+        self._expanded &= set(self._groups)
+
+    @property
+    def current(self) -> str:
+        """Label of the shown pane."""
+        return self._current
+
+    @property
+    def order(self) -> List[str]:
+        """Pane labels in sidebar order."""
+        return list(self._order)
+
+    def set_panes(
+        self,
+        panes: Sequence[Tuple[str, W.Widget]],
+        groups: Optional[Mapping[str, Sequence[str]]] = None,
+        *,
+        show: Optional[str] = None,
+    ) -> None:
+        """Replace the panes and groups, keeping warnings and the selection where labels remain.
+
+        Shows `show` if given, else the current pane if it is still there, else the first.
+        """
+        self._configure(panes, groups)
+        self._content.children = (self._nav_style, *self.panes.values())
+        if show is None:
+            show = self._current if self._current in self.panes else self._order[0]
+        self.show(show)
 
     def show(self, label: str) -> None:
         """Switch to the pane registered under `label`, expanding its group."""
@@ -91,6 +145,12 @@ class SidebarShell:
         for name, widget in self.panes.items():
             widget.layout.display = "" if name == label else "none"
         self._sync_nav()
+        for fn in list(self._show_listeners):
+            fn(label)
+
+    def add_show_listener(self, fn: Callable[[str], None]) -> None:
+        """Call `fn(label)` whenever a pane is shown."""
+        self._show_listeners.append(fn)
 
     def set_warning(self, label: str, message: Optional[str]) -> None:
         """Mark a step with a warning icon and hover text, or clear it with `None`.

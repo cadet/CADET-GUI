@@ -1,7 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Collection,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+)
 
 import ipywidgets as W
 from CADETProcess.instruments import LCFlowSheet
@@ -11,7 +22,9 @@ from ...cadetprocessadapter import (
     BINDING_MODELS,
     BYPASSABLE_UNITS,
     COLUMN_MODELS,
+    CONFIGURABLE_UNITS,
     UNIT_LABELS,
+    UNIT_SEED_DEFAULTS,
     ModelSpec,
     build_parameter_config_spec,
     require_finite_above,
@@ -20,29 +33,20 @@ from ...configuration_store import InstrumentState
 from .._chrome import style_tag
 from .._settings_popover import toggle_box
 from .._status import status_html
-from ..elements import ChoiceField, FloatField
+from ..elements import ChoiceField, ComponentListField, FloatField
 from ..forms import FormRenderer
 from .system_diagram import SystemDiagram
+
+if TYPE_CHECKING:
+    from ...study import Study
+    from .study_components import StudyComponentsWidget
 
 __all__ = ["InstrumentWidget"]
 
 
 # The column's own form belongs to ConfigurationWidget; this widget only toggles it.
-_CONFIGURABLE_UNITS = (
-    "mixer", "tubing_pre_injection", "tubing_pre_column", "tubing_post_column", "tubing_detectors",
-)
-
-# Non-degenerate starting values; CADET-Core has no canonical default for these.
-_TUBING_SEED_DEFAULTS: Dict[str, float] = {
-    "diameter": 0.5e-3, "length": 0.1, "axial_dispersion": 1e-7,
-}
-_UNIT_SEED_DEFAULTS: Dict[str, Dict[str, float]] = {
-    "mixer": {"init_liquid_volume": 1e-6},
-    "tubing_pre_injection": _TUBING_SEED_DEFAULTS,
-    "tubing_pre_column": _TUBING_SEED_DEFAULTS,
-    "tubing_post_column": _TUBING_SEED_DEFAULTS,
-    "tubing_detectors": _TUBING_SEED_DEFAULTS,
-}
+_CONFIGURABLE_UNITS = CONFIGURABLE_UNITS
+_UNIT_SEED_DEFAULTS = UNIT_SEED_DEFAULTS
 
 _ZERO_ALLOWED_PARAMS = frozenset({"axial_dispersion"})
 
@@ -79,9 +83,11 @@ class InstrumentWidget:
 
     Optional layer on top of `ConfigurationWidget`: adds a sample loop and the choice of
     which units (mixer, tubing, the column itself) are in the flow path, each with its own
-    parameter form. Component names and the column/binding types are driven from outside
-    via `.components` and `set_column_and_binding()`; both default to something sane so the
-    widget also builds a flow sheet on its own.
+    parameter form. The "Components" section above the hardware edits the component names
+    (also settable via `.components`); the column/binding types are driven from outside via
+    `set_column_and_binding()`. Both default to something sane so the widget also builds a
+    flow sheet on its own. `bind_study(study)` turns the Components section into an editor
+    of `study.components` (name and role) that the component names follow.
 
     Builds `.flow_sheet`, auto-committing on every valid change; `add_listener` fires with
     it on every build. While any input is invalid the offending field shows the error,
@@ -91,11 +97,15 @@ class InstrumentWidget:
     it (`set_required_units`) while the selected template can't be built without one.
 
     The unit toggles, sample-loop controls and per-unit forms live in a collapsible
-    "Hardware in the flow path" section (`hardware_expanded` sets its initial state).
+    "Hardware" section (`hardware_expanded` sets its initial state).
     Collapsing only hides the controls; a one-line summary stays visible.
+
+    With `hardware_only`, the diagram shows the installed hardware without the inlet use of
+    a process and no process-template picker is shown (see `SystemDiagram`).
     """
 
-    def __init__(self, *, hardware_expanded: bool = False) -> None:
+    def __init__(self, *, hardware_expanded: bool = False, hardware_only: bool = False) -> None:
+        self.hardware_only = hardware_only
         self._listeners: List[Callable[[Any], None]] = []
         self._built_sheet: Optional[LCFlowSheet] = None
         self._problems: Dict[str, str] = {}
@@ -103,6 +113,21 @@ class InstrumentWidget:
         self._suspend_rebuild = False
 
         self._component_names: List[str] = ["Component 1"]
+        self._syncing_components = False
+        self._study: Optional["Study"] = None
+        self._study_names: List[str] = []
+        self.study_components: Optional["StudyComponentsWidget"] = None
+        self._components_field = ComponentListField(
+            label="Components:", value=self._component_names
+        )
+        self._components_note = W.HTML("", layout=W.Layout(display="none"))
+        self._components_section = W.VBox([
+            W.HTML("<div class='cadetgui-section-title'>Components</div>"),
+            self._components_field,
+            self._components_note,
+        ])
+        self._components_section.add_class("cadetgui-section")
+        self._components_field.observe(self._on_components_edit, names="value")
         self._column_cls: Optional[type] = COLUMN_MODELS.get(
             "Lumped Rate Model Without Pores (LRM)"
         )
@@ -144,7 +169,7 @@ class InstrumentWidget:
         self._carries: Optional[Mapping[str, Sequence[str]]] = None
         self._equilibration: Sequence[str] = ()
         self._column_label: Optional[str] = None
-        self._diagram = SystemDiagram()
+        self._diagram = SystemDiagram(hardware_only=hardware_only)
         self._on_template_select: Optional[Callable[[str], None]] = None
         self._syncing_template = False
         self._template_picker = ChoiceField(label="Process template:")
@@ -185,7 +210,7 @@ class InstrumentWidget:
         )
         self._hardware_body = W.VBox([self._flow_path_note, *unit_subsections])
         self._hardware_toggle = W.Button(
-            description="Hardware in the flow path", icon="chevron-right",
+            description="Hardware", icon="chevron-right",
             tooltip="Show or hide the units in the flow path",
         )
         self._hardware_summary = W.HTML("", layout=W.Layout(margin="0 0 0 10px"))
@@ -207,6 +232,7 @@ class InstrumentWidget:
                 W.HTML(style_tag()),
                 W.HTML("<div class='cadetgui-panel-title'>System</div>"),
                 self._template_picker,
+                self._components_section,
                 self._diagram.root,
                 self._flow_path_section,
                 self.status,
@@ -228,13 +254,17 @@ class InstrumentWidget:
 
     @property
     def hardware_expanded(self) -> bool:
-        """Whether the "Hardware in the flow path" controls are currently shown."""
+        """Whether the "Hardware" controls are currently shown."""
         return self._hardware_body.layout.display != "none"
 
     def set_hardware_expanded(self, expanded: bool) -> None:
         """Show or hide the hardware controls; the summary line stays visible either way."""
         self._hardware_body.layout.display = "" if expanded else "none"
         self._hardware_toggle.icon = "chevron-down" if expanded else "chevron-right"
+
+    def set_highlight(self, units: Collection[str], observe: Optional[str] = None) -> None:
+        """Highlight `units` and the observed outlet `observe` on the diagram."""
+        self._diagram.set_highlight(units, observe)
 
     def _on_hardware_toggle(self, _btn: Any) -> None:
         self.set_hardware_expanded(toggle_box(self._hardware_body))
@@ -286,8 +316,46 @@ class InstrumentWidget:
     @components.setter
     def components(self, names: List[str]) -> None:
         self._component_names = list(names)
+        if list(self._components_field.value) != self._component_names:
+            self._syncing_components = True
+            try:
+                self._components_field.value = list(self._component_names)
+            finally:
+                self._syncing_components = False
         if not self._suspend_rebuild:
             self._rebuild()
+
+    def _on_components_edit(self, change: dict) -> None:
+        if not self._syncing_components:
+            self.components = list(change["new"])
+
+    def set_min_components(self, count: int, note: str = "") -> None:
+        """Keep at least `count` component names; `note` explains why (hidden when empty)."""
+        self._components_field.min_components = count
+        self._components_note.value = f"<em>{note}</em>" if note else ""
+        self._components_note.layout.display = "" if note else "none"
+
+    def bind_study(self, study: "Study") -> None:
+        """Edit `study.components` (name and role) in the Components section.
+
+        The component names follow the study's list (salt first) whenever it changes.
+        """
+        from .study_components import StudyComponentsWidget
+
+        self._study = study
+        self.study_components = StudyComponentsWidget(study)
+        self.study_components.root.remove_class("cadetgui-section")
+        self._components_section.children = (
+            self.study_components.root, self._components_note,
+        )
+        study.add_listener(self._sync_from_study)
+        self._sync_from_study()
+
+    def _sync_from_study(self) -> None:
+        names = [c.name for c in self._study.components]
+        if names and names != self._study_names:
+            self._study_names = names
+            self.components = names
 
     def set_column_and_binding(
         self,
@@ -301,6 +369,16 @@ class InstrumentWidget:
         self._binding_cls = binding_cls
         if not self._suspend_rebuild:
             self._rebuild()
+
+    def add_section(self, section: W.Widget, *, after_components: bool = False) -> None:
+        """Show `section` below the hardware (or right after Components), above the status."""
+        children = list(self.root.children)
+        index = (
+            children.index(self._components_section) + 1 if after_components
+            else children.index(self.status)
+        )
+        children.insert(index, section)
+        self.root.children = tuple(children)
 
     def set_active_inlets(
         self,
@@ -332,7 +410,9 @@ class InstrumentWidget:
             self._template_picker.value = selected
         finally:
             self._syncing_template = False
-        self._template_picker.layout.display = "" if labels else "none"
+        self._template_picker.layout.display = (
+            "" if labels and not self.hardware_only else "none"
+        )
 
     def select_template(self, label: Optional[str]) -> None:
         """Show `label` as the selected template without firing the selection callback."""

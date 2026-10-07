@@ -6,10 +6,18 @@ from typing import Collection, List, Mapping, Optional, Sequence, Tuple
 
 import ipywidgets as W
 
-from ...cadetprocessadapter import UNIT_LABELS
+from ...cadetprocessadapter import BYPASSABLE_UNITS, UNIT_LABELS
+from ...configuration_store import ConfigurationState, InstrumentState
 from ._pid_symbols import FG, MUTED, MUTED_STROKE, SURFACE, load_symbol
 
-__all__ = ["SystemDiagram", "render_system_svg"]
+__all__ = ["SystemDiagram", "render_system_svg", "recipe_diagram_svg", "HARDWARE_ONLY_NOTE"]
+
+HARDWARE_ONLY_NOTE = (
+    "How each run uses this hardware (which inlets pump, when the loop injects, which "
+    "units are bypassed) is set by its experiment type — see the measurement."
+)
+
+ACCENT = "var(--cg-primary, #005b82)"
 
 _MAIN_PATH = (
     "mixer",
@@ -61,6 +69,10 @@ _INLET_GAP = 40
 _ROW_DROP = 40
 _CAPTION_FONT = 14
 _CAPTION_LEAD = 16
+_HALO_PAD = 5
+_OBSERVE_STEM = 14
+_OBSERVE_GAP = 6
+_COMPACT_MAX_WIDTH = 560
 
 
 def _num(value: float) -> str:
@@ -223,8 +235,47 @@ def _draw_item(it: _Item, my: float, note: str, sub: str = "") -> str:
     return "".join(parts)
 
 
-def _unit_group(unit: str, state: str, content: str) -> str:
-    return f'<g data-unit="{unit}" data-state="{state}">{content}</g>'
+def _unit_group(unit: str, state: str, content: str, *, highlighted: bool = False) -> str:
+    flag = ' data-highlight="true"' if highlighted else ""
+    return f'<g data-unit="{unit}" data-state="{state}"{flag}>{content}</g>'
+
+
+def _halo_box(it: _Item, my: float) -> Tuple[float, float, float, float]:
+    """Bounding box (x, y, width, height) an accent halo wraps around `it`."""
+    pad = _HALO_PAD
+    if it.symbol is not None:
+        sym = load_symbol(it.symbol)
+        sy = my - _PORTS[it.symbol][2]
+        return it.x - pad, sy - pad, sym.width + 2 * pad, sym.height + 2 * pad
+    if it.unit == "tubing_detectors":
+        top = my - it.up
+        return it.x - pad, top - pad, it.width + 2 * pad, it.up + 2 * pad
+    return it.x - pad, my - 6 - pad, it.width + 2 * pad, 12 + 2 * pad
+
+
+def _halo(it: _Item, my: float) -> str:
+    x, y, w, h = _halo_box(it, my)
+    return (
+        f'<rect x="{_num(x)}" y="{_num(y)}" width="{_num(w)}" height="{_num(h)}" rx="8" '
+        f'fill="none" style="stroke: {ACCENT}" stroke-width="3"/>'
+    )
+
+
+def _observe_extent() -> float:
+    """Height of the lane above the drawing that holds the "measured here" label."""
+    return _OBSERVE_GAP + _CAPTION_FONT + 8
+
+
+def _observe_marker(x: float, y: float, tip: float, label_x: float) -> str:
+    """Pin from the outlet at (`x`, `y`) up to `tip`, labelled in the lane above it."""
+    dot = (
+        f'<circle cx="{_num(x)}" cy="{_num(tip)}" r="4.5" '
+        f'style="fill: {ACCENT}; stroke: {SURFACE}" stroke-width="1.5"/>'
+    )
+    return (
+        f'<path d="M{_num(x)} {_num(y)} V{_num(tip)}" style="stroke: {ACCENT}" stroke-width="2"/>'
+        f"{dot}" + _caption(["measured here"], label_x, tip - _OBSERVE_GAP - 2, italic=True)
+    )
 
 
 def _dim(content: str, on: bool) -> str:
@@ -330,6 +381,11 @@ def render_system_svg(
     carries: Optional[Mapping[str, Sequence[str]]] = None,
     equilibration: Collection[str] = (),
     column_model: Optional[str] = None,
+    *,
+    highlight: Collection[str] = (),
+    observe: Optional[str] = None,
+    compact: bool = False,
+    hardware_only: bool = False,
 ) -> str:
     """Render the LC flow path from the P&ID symbols as an HTML fragment holding one SVG.
 
@@ -341,16 +397,31 @@ def render_system_svg(
     `carries` maps an inlet (and `"sample_loop"`) to the component names it delivers and adds
     them to the labels and to a plain-language caption under the drawing. `column_model`
     is captioned under the column symbol.
+
+    `highlight` marks units an accent halo and `data-highlight="true"`, and lists their
+    labels in a "Characterized here" caption. `observe` draws a "measured here" marker at
+    that unit's outlet (`data-observe`); if the unit isn't drawn, a caption says so instead.
+    `compact` drops the inlet stack and general captions (highlight/observe captions stay)
+    and scales the drawing down for use in a small card.
+
+    `hardware_only` draws every installed inlet plainly (`inlets`, `carries` and
+    `equilibration` are ignored) and replaces the usage captions by `HARDWARE_ONLY_NOTE`.
     """
     units = set(units)
+    if hardware_only and not compact:
+        inlets = [u for u in (*_BUFFERS, "feed_inlet") if u in units]
+        carries, equilibration = None, ()
     bypassed = set(bypassed)
+    highlight = set(highlight)
     path = [u for u in _MAIN_PATH if u in units]
     has_loop = "sample_loop" in path
-    known = inlets is not None
+    known = inlets is not None and not compact
     active = set(inlets or ())
     if known:
         buffers = [b for b in _BUFFERS if b in units or b in active]
         active_buffers = [b for b in buffers if b in active]
+    elif compact:
+        buffers = active_buffers = []
     else:
         buffers = active_buffers = ["inlet"]
     feed_shown = known and ("feed_inlet" in units or "feed_inlet" in active)
@@ -392,7 +463,8 @@ def render_system_svg(
         sub = (column_model or "") if it.unit == "column" else ""
         up, down = _extent(it, "bypassed" if it.state == "bypassed" else "", sub)
         up_max, item_down = max(up_max, up), max(item_down, down)
-    my = _MARGIN + up_max
+    observe_lane = _observe_extent() if any(it.unit == observe for it in items) else 0.0
+    my = _MARGIN + observe_lane + up_max
 
     junction = next((it for it in reversed(items) if it.unit in _JUNCTIONS), None)
     target = next((it for it in items if it.unit not in _JUNCTIONS), None)
@@ -456,12 +528,24 @@ def render_system_svg(
             d = f"M{_num(x1)} {_num(my)} H{_num(b.x + b.in_x)}"
         parts.append(_wire(d, arrow=b.symbol is not None))
 
+    observe_drawn = False
     for it in items:
         note = "bypassed" if it.state == "bypassed" else ""
         sub = (column_model or "") if it.unit == "column" else ""
-        parts.append(_unit_group(it.unit, it.state, _draw_item(it, my, note, sub)))
+        is_highlighted = it.unit in highlight
+        content = _draw_item(it, my, note, sub)
+        if is_highlighted:
+            content += _halo(it, my)
+        parts.append(_unit_group(it.unit, it.state, content, highlighted=is_highlighted))
+        if observe is not None and it.unit == observe:
+            ox = it.x + it.out_x
+            half = _text_width(["measured here"]) / 2
+            label_x = min(max(ox, _MARGIN + half), right + _MARGIN - half)
+            marker = _observe_marker(ox, my, my - up_max - 4, label_x)
+            parts.append(f'<g data-observe="{escape(observe)}">{marker}</g>')
+            observe_drawn = True
 
-    if "waste" in units and junction is not None:
+    if "waste" in units and junction is not None and not compact:
         cx = junction.x + junction.width / 2
         start = my + junction.down
         wx = cx - inlet_sym.width / 2
@@ -509,7 +593,9 @@ def render_system_svg(
 
     width = right + _MARGIN
     bottom = max(my + item_down, my + stack_h / 2 + 24 + (_CAPTION_LEAD if known else 0))
-    if ("waste" in units and junction is not None) or (feed_shown and not has_loop):
+    if ("waste" in units and junction is not None and not compact) or (
+        feed_shown and not has_loop
+    ):
         below = row2_y + inlet_sym.height + 24 + (feed_extra if feed_shown and not has_loop else 0)
         bottom = max(bottom, below)
     height = bottom + _MARGIN
@@ -517,30 +603,110 @@ def render_system_svg(
     shown = set(buffers) | ({"feed_inlet"} if feed_shown else set())
     notes = (
         _usage_notes(active, carries, shown, path, "mixer" not in bypassed, equilibration)
-        if known
+        if known and not hardware_only
         else []
     )
     off = [UNIT_LABELS[u] for u in _MAIN_PATH if u in bypassed and u in UNIT_LABELS]
     if off:
         notes.append(f"Not in the flow path: {', '.join(off)}")
+
+    lead_notes: List[str] = []
+    if highlight:
+        ordered = [u for u in _MAIN_PATH if u in highlight]
+        ordered += [u for u in dict.fromkeys(highlight) if u not in _MAIN_PATH]
+        labels = [UNIT_LABELS.get(u, u) for u in ordered]
+        lead_notes.append(f"Characterized here: {', '.join(labels)}")
+    if observe is not None and not observe_drawn:
+        label = UNIT_LABELS.get(observe, observe)
+        lead_notes.append(f"Measured here: {label} (not shown in this diagram).")
+    notes = lead_notes + notes
+    if hardware_only and not compact:
+        notes.append(HARDWARE_ONLY_NOTE)
+
     caption = "".join(
         f'<div style="font-size:12px;color:{MUTED};margin-top:4px">{escape(n)}</div>'
         for n in notes
     )
+
+    inner = "".join(parts)
+    if compact and width > 0:
+        scale = min(1.0, _COMPACT_MAX_WIDTH / width)
+        if scale < 1.0:
+            inner = f'<g transform="scale({scale:.4g})">{inner}</g>'
+            width, height = width * scale, height * scale
+
     return (
         f'<div class="cadetgui-system-diagram">'
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width:.0f} {height:.0f}" '
         f'role="img" aria-label="Flow path of the LC system" '
         f'style="width:100%;max-width:{width:.0f}px;height:auto;display:block" '
         f'font-family="var(--cg-font, system-ui, sans-serif)">'
-        f"{''.join(parts)}</svg>{caption}</div>"
+        f"{inner}</svg>{caption}</div>"
+    )
+
+
+def _recipe_units(instrument: InstrumentState) -> set:
+    """Return the unit names an `InstrumentState` builds, mirroring `LCFlowSheet.__init__`.
+
+    Buffers A-D, the feed inlet, mixer, outlet and waste are always present; the
+    bypassable tubing/column units are present unless in `bypass_units`, and the
+    sample loop is present iff `include_sample_loop`.
+    """
+    bypass = set(instrument.bypass_units)
+    units = {
+        "buffer_a", "buffer_b", "buffer_c", "buffer_d",
+        "feed_inlet", "mixer", "outlet", "waste",
+    }  # fmt: skip
+    units.update(u for u in BYPASSABLE_UNITS if u != "mixer" and u not in bypass)
+    if instrument.include_sample_loop:
+        units.add("sample_loop")
+    return units
+
+
+def recipe_diagram_svg(
+    recipe: ConfigurationState,
+    *,
+    observe: Optional[str] = None,
+    highlight: Collection[str] = (),
+    compact: bool = True,
+) -> str:
+    """Render a saved recipe's flow path without building a process or any widget.
+
+    Derives the unit set from `recipe.instrument` the same way `InstrumentWidget` feeds
+    `SystemDiagram` (bypass list + sample-loop flag); `instrument is None` (a standalone,
+    column-only configuration) renders just the column.
+    """
+    instrument = recipe.instrument
+    if instrument is None:
+        return render_system_svg(
+            {"column"}, highlight=highlight, observe=observe, compact=compact
+        )
+    return render_system_svg(
+        _recipe_units(instrument),
+        set(instrument.bypass_units),
+        highlight=highlight,
+        observe=observe,
+        compact=compact,
     )
 
 
 class SystemDiagram:
-    """Read-only schematic of the current LC flow path."""
+    """Read-only schematic of the current LC flow path.
 
-    def __init__(self) -> None:
+    With `hardware_only`, the installed hardware is drawn without the inlet usage of the
+    current process (see `render_system_svg`).
+    """
+
+    def __init__(self, *, hardware_only: bool = False) -> None:
+        self.hardware_only = hardware_only
+        self._flow_sheet: object = None
+        self._bypassed: Collection[str] = ()
+        self._inlets: Optional[Sequence[str]] = None
+        self._carries: Optional[Mapping[str, Sequence[str]]] = None
+        self._equilibration: Collection[str] = ()
+        self._column_model: Optional[str] = None
+        self._highlight: Collection[str] = ()
+        self._observe: Optional[str] = None
         self.root = W.HTML("")
         self.update(None)
 
@@ -554,10 +720,33 @@ class SystemDiagram:
         column_model: Optional[str] = None,
     ) -> None:
         """Redraw for `flow_sheet` (a built LCFlowSheet, or `None` while inputs are invalid)."""
-        if flow_sheet is None:
+        self._flow_sheet = flow_sheet
+        self._bypassed = bypassed
+        self._inlets = inlets
+        self._carries = carries
+        self._equilibration = equilibration
+        self._column_model = column_model
+        self._render()
+
+    def set_highlight(self, units: Collection[str], observe: Optional[str] = None) -> None:
+        """Mark the units and outlet the currently selected characterization step covers."""
+        self._highlight = units
+        self._observe = observe
+        self._render()
+
+    def _render(self) -> None:
+        if self._flow_sheet is None:
             note = "No system to show while inputs are invalid."
             self.root.value = f'<em style="color:{MUTED}">{note}</em>'
             return
         self.root.value = render_system_svg(
-            flow_sheet.units_dict, bypassed, inlets, carries, equilibration, column_model
+            self._flow_sheet.units_dict,
+            self._bypassed,
+            self._inlets,
+            self._carries,
+            self._equilibration,
+            self._column_model,
+            highlight=self._highlight,
+            observe=self._observe,
+            hardware_only=self.hardware_only,
         )

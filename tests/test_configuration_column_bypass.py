@@ -79,7 +79,7 @@ def test_values_survive_a_bypass_round_trip():
     _column_off(instrument)
     assert cfg._column_form.collect_values() == column_before
     assert cfg._binding_form.collect_values() == binding_before
-    snap = cfg._snapshot_state()
+    snap = cfg.snapshot()
     assert snap.column_values == column_before
     assert snap.binding_values == binding_before
 
@@ -128,7 +128,7 @@ def test_loading_a_state_with_the_column_bypassed_comes_up_disabled():
     source, source_instrument = _bound()
     source._column_form.set_values({"length": 0.222})
     _column_off(source_instrument)
-    state = source._snapshot_state()
+    state = source.snapshot()
     assert "column" in state.instrument.bypass_units
 
     target, target_instrument = _bound()
@@ -148,7 +148,7 @@ def test_loading_a_state_with_the_column_bypassed_comes_up_disabled():
 
 def test_loading_a_column_state_re_enables_a_bypassed_widget():
     cfg, instrument = _bound()
-    with_column = cfg._snapshot_state()
+    with_column = cfg.snapshot()
     _column_off(instrument)
     assert _all_disabled(cfg)
     cfg._apply_state("loaded", with_column)

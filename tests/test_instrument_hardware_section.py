@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import warnings
 
-from cadetgui.widgets.composite import InstrumentWidget, WorkbenchWidget
+from cadetgui.widgets.composite import (
+    CharacterizationWorkbenchWidget,
+    InstrumentWidget,
+    WorkbenchWidget,
+)
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -137,8 +141,18 @@ def test_workbench_builds_its_instrument_collapsed_with_column_toggle():
     assert _column_toggle_shown(wb.instrument) is True
 
 
+def test_characterization_workbench_builds_its_instrument_expanded_with_column_toggle():
+    wb = CharacterizationWorkbenchWidget()
+    assert wb.instrument.hardware_expanded is True
+    assert _column_toggle_shown(wb.instrument) is True
+
+
 def test_passed_in_instrument_is_left_alone():
     iw = InstrumentWidget()
     wb = WorkbenchWidget(instrument=iw)
     assert wb.instrument is iw
     assert iw.hardware_expanded is False
+
+    iw2 = InstrumentWidget(hardware_expanded=True)
+    cw = CharacterizationWorkbenchWidget(instrument=iw2)
+    assert cw.instrument is iw2

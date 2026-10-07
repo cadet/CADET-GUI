@@ -91,31 +91,31 @@ DEFAULT_FLOW_RATE = 1.666666667e-8
 # by `_concentration_field` instead, since they depend on the component system.
 PARAMS: dict[str, FieldSpec] = {
     "flow_rate": FieldSpec(
-        "flow_rate", "float", "Flow rate", 1.0e-6,
+        "flow_rate", "float", "Flow rate", DEFAULT_FLOW_RATE,
         validate=require_positive, units=r"\frac{\mathrm{m}^{3}}{\mathrm{s}}",
     ),
     "flow_rate_wash": FieldSpec(
-        "flow_rate_wash", "float", "Flow rate", 1.0e-6,
+        "flow_rate_wash", "float", "Flow rate", DEFAULT_FLOW_RATE,
         validate=require_positive, units=r"\frac{\mathrm{m}^{3}}{\mathrm{s}}",
     ),
     "cycle_time": FieldSpec(
-        "cycle_time", "float", "Cycle time", 6000.0,
+        "cycle_time", "float", "Cycle time", 600.0,
         validate=require_positive, units=r"\mathrm{s}",
     ),
     "pulse_duration": FieldSpec(
-        "pulse_duration", "float", "Pulse duration", 60.0,
+        "pulse_duration", "float", "Pulse duration", 10.0,
         validate=require_positive, units=r"\mathrm{s}",
     ),
     "delta_t_wash": FieldSpec(
-        "delta_t_wash", "float", "Wash duration", 600.0,
+        "delta_t_wash", "float", "Wash duration", 300.0,
         validate=require_positive, units=r"\mathrm{s}",
     ),
     "delta_t_elute": FieldSpec(
-        "delta_t_elute", "float", "Elution duration", 1200.0,
+        "delta_t_elute", "float", "Elution duration", 900.0,
         validate=require_positive, units=r"\mathrm{s}",
     ),
     "delta_t_final_wash": FieldSpec(
-        "delta_t_final_wash", "float", "Final wash duration", 600.0,
+        "delta_t_final_wash", "float", "Final wash duration", 300.0,
         validate=require_positive, units=r"\mathrm{s}",
     ),
 }
@@ -534,15 +534,16 @@ def _infer_kind(x: Any) -> str:
 # Starting values so a blank form doesn't apply a degenerate column. A `None` model slot
 # is shared across column models; a model name overrides it.
 _GUI_SEED_DEFAULTS: dict[tuple[str, Optional[str], str], float] = {
-    ("column", None, "diameter"): 0.024,
-    ("column", None, "length"): 0.5,
+    ("column", None, "diameter"): 0.005,
+    ("column", None, "length"): 0.05,
     ("column", None, "axial_dispersion"): 1e-8,
-    ("column", None, "bed_porosity"): 0.72,
-    ("column", None, "total_porosity"): 0.72,
+    ("column", None, "bed_porosity"): 0.37,
+    ("column", None, "total_porosity"): 0.75,
     ("column", None, "particle_porosity"): 0.6,
     ("column", None, "particle_radius"): 5.0e-6,
     ("column", None, "film_diffusion"): 1e-3,
     ("column", None, "pore_diffusion"): 1e-10,
+    ("column", "Cstr", "init_liquid_volume"): 1e-6,
 }
 
 

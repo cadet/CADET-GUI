@@ -9,6 +9,7 @@ from cadetgui.cadetprocessadapter import (
     BINDING_MODELS,
     COLUMN_MODELS,
     INSTRUMENT_TEMPLATES,
+    PARAMS,
 )
 from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
 
@@ -529,7 +530,8 @@ def test_cycle_time_settings_gear_visible_only_when_cycle_time_exists():
 def test_cycle_time_minutes_toggle_swaps_visible_field_and_converts_value():
     _, cw = built()
     seconds_element = cw._model_form.element("cycle_time")
-    assert seconds_element.value == 6000.0
+    default_seconds = PARAMS["cycle_time"].default
+    assert seconds_element.value == default_seconds
     assert seconds_element.layout.display == ""
     assert cw._cycle_time_minutes_element.layout.display == "none"
 
@@ -537,7 +539,7 @@ def test_cycle_time_minutes_toggle_swaps_visible_field_and_converts_value():
 
     assert seconds_element.layout.display == "none"
     assert cw._cycle_time_minutes_element.layout.display == ""
-    assert cw._cycle_time_minutes_element.value == 100.0  # 6000s == 100min
+    assert cw._cycle_time_minutes_element.value == pytest.approx(default_seconds / 60.0)
 
 
 def test_editing_cycle_time_in_minutes_updates_the_real_seconds_field():
@@ -737,7 +739,7 @@ def test_optional_loop_templates_unlock_it_and_restore_the_users_choice(label):
 def test_locked_sample_loop_survives_a_state_round_trip():
     iw, cw = built()
     cw._model_picker.value = INSTRUMENT_TEMPLATES["Pulse Injection"]
-    state = cw._snapshot_state()
+    state = cw.snapshot()
     assert state.instrument.include_sample_loop is True
 
     iw2, cw2 = built()
@@ -752,7 +754,7 @@ def test_instrument_state_round_trips_through_snapshot_and_apply_state():
     iw, cw = built()
     iw._unit_checkboxes["mixer"].value = True
 
-    state = cw._snapshot_state()
+    state = cw.snapshot()
     iw2, cw2 = built()
     cw2._apply_state("Imported", state)
 
@@ -775,7 +777,7 @@ def test_snapshot_and_apply_state_round_trips_a_mutated_configuration():
     cw._column_form.element("length").value = 0.42
     cw._model_form.element("flow_rate").value = 4.4e-6
 
-    state = cw._snapshot_state()
+    state = cw.snapshot()
 
     _, cw2 = built()  # a different widget entirely
     cw2._apply_state("Imported", state)
@@ -791,7 +793,7 @@ def test_snapshot_and_apply_state_round_trips_a_mutated_configuration():
 
 def test_apply_state_rejects_an_unregistered_template_key():
     _, cw = built()
-    state = cw._snapshot_state()
+    state = cw.snapshot()
     bad_state = configuration_store.ConfigurationState(
         **{**state.__dict__, "template_key": "Some Removed Template"}
     )
@@ -801,7 +803,7 @@ def test_apply_state_rejects_an_unregistered_template_key():
 
 def test_apply_state_rejects_an_unregistered_column_key():
     _, cw = built()
-    state = cw._snapshot_state()
+    state = cw.snapshot()
     bad_state = configuration_store.ConfigurationState(
         **{**state.__dict__, "column_key": "Some Removed Column"}
     )
@@ -818,7 +820,7 @@ def test_save_button_writes_to_the_store_and_shows_the_path(tmp_path):
     assert str(tmp_path) in cw.persistence.save_status.value
     name, state = configuration_store.load_from_store(cw.config_hash)
     assert name == "Saved Config"
-    assert state == cw._snapshot_state()
+    assert state == cw.snapshot()
 
 
 def test_import_from_store_restores_a_previously_saved_configuration():
@@ -865,7 +867,7 @@ def test_file_upload_imports_an_exported_configuration():
 
     with tempfile.TemporaryDirectory() as d:
         path = Path(d) / "exported.h5"
-        state = cw._snapshot_state()
+        state = cw.snapshot()
         configuration_store.save_h5(state, "Uploaded Config", path, process=cw.process)
         content = memoryview(path.read_bytes())
 
@@ -989,3 +991,66 @@ def test_persist_to_store_saves_and_returns_the_path(tmp_path):
     expected_dir = configuration_store.config_dir("Persisted Config", store_dir=tmp_path)
     assert path == expected_dir / f"config_{cw.config_hash}.h5"
     assert path.exists()
+
+
+def test_a_typed_value_above_the_slider_range_is_kept_and_widens_the_slider():
+    _, cw = built()
+    slider = cw._event_sliders["flow_rate"]
+    typed = slider.max * 3
+
+    cw._model_form.element("flow_rate").value = typed
+
+    assert cw._model_form.element("flow_rate").value == pytest.approx(typed)
+    assert slider.value == pytest.approx(typed)
+    assert slider.max >= typed
+
+
+def _sma_pulse_with_edited_buffer():
+    iw, cw = built()
+    cw.components = ["Salt", "Protein"]
+    cw.select_models(template="Pulse Injection", binding="Steric Mass Action (SMA)")
+    cw._model_form.element("c_buffer_a").value = [123.0, 0.0]
+    return iw, cw
+
+
+def test_edited_method_values_survive_showing_optional_binding_parameters():
+    _, cw = _sma_pulse_with_edited_buffer()
+
+    cw._show_optional_binding_checkbox.value = True
+
+    state = cw.snapshot()
+    assert state.model_values["c_buffer_a"] == [123.0, 0.0]
+    assert state.column_values["c"] == [123.0, 0.0]
+    assert cw.process is not None
+
+
+def test_edited_method_values_survive_an_instrument_unit_change():
+    iw, cw = _sma_pulse_with_edited_buffer()
+
+    iw._unit_checkboxes["mixer"].value = not iw._unit_checkboxes["mixer"].value
+
+    assert cw.snapshot().model_values["c_buffer_a"] == [123.0, 0.0]
+
+
+def test_template_or_binding_change_starts_from_the_standard_method_values():
+    _, cw = _sma_pulse_with_edited_buffer()
+
+    cw.select_models(template="Load–Wash–Elute (LWE)")
+    assert cw.snapshot().model_values["c_buffer_a"] == [50.0, 0.0]
+
+    cw.select_models(binding="Linear")
+    default = cw.snapshot().model_values["c_buffer_a"]
+    assert default != [50.0, 0.0]
+
+    cw.select_models(binding="Steric Mass Action (SMA)")
+    assert cw.snapshot().model_values["c_buffer_a"] == [50.0, 0.0]
+
+
+def test_loading_a_state_restores_its_method_values_exactly():
+    _, cw = _sma_pulse_with_edited_buffer()
+    saved = cw.snapshot()
+    cw._model_form.element("c_buffer_a").value = [77.0, 0.0]
+
+    cw._apply_state("saved", saved)
+
+    assert cw.snapshot().model_values == saved.model_values
