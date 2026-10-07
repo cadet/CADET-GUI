@@ -84,6 +84,9 @@ def parse_float_list(v: Any) -> list[float]:
 
 CONCENTRATION_UNITS = r"\frac{\mathrm{mol}}{\mathrm{m}^{3}_{\mathrm{IV}}}"
 
+# 1 mL/min in m^3/s, written at the 10 significant figures the event sliders round to.
+DEFAULT_FLOW_RATE = 1.666666667e-8
+
 # Shared scalar process fields (m^3/s, s). Per-component concentration fields are built
 # by `_concentration_field` instead, since they depend on the component system.
 PARAMS: dict[str, FieldSpec] = {
@@ -405,6 +408,24 @@ BYPASSABLE_UNITS: tuple[str, ...] = (
     "mixer", "tubing_pre_injection", "tubing_pre_column",
     "column", "tubing_post_column", "tubing_detectors",
 )
+
+# Mixer/tubing units with their own parameter form and dead-volume seeding. The column's
+# own form belongs to ConfigurationWidget; this set only covers the instrument's hardware.
+CONFIGURABLE_UNITS: tuple[str, ...] = (
+    "mixer", "tubing_pre_injection", "tubing_pre_column", "tubing_post_column", "tubing_detectors",
+)
+
+# Non-degenerate starting values; CADET-Core has no canonical default for these.
+_TUBING_SEED_DEFAULTS: Dict[str, float] = {
+    "diameter": 0.5e-3, "length": 0.1, "axial_dispersion": 1e-7,
+}
+UNIT_SEED_DEFAULTS: Dict[str, Dict[str, float]] = {
+    "mixer": {"init_liquid_volume": 1e-6},
+    "tubing_pre_injection": _TUBING_SEED_DEFAULTS,
+    "tubing_pre_column": _TUBING_SEED_DEFAULTS,
+    "tubing_post_column": _TUBING_SEED_DEFAULTS,
+    "tubing_detectors": _TUBING_SEED_DEFAULTS,
+}
 
 # Plain names for every LCFlowSheet unit.
 UNIT_LABELS: dict[str, str] = {

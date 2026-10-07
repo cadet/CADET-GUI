@@ -88,6 +88,22 @@ class OptimizerRunResult:
     message: str
     cancelled: bool = False
     optimizer_name: str = ""
+    # Final front: independent-variable rows (`problem.independent_variable_names`) and
+    # their objective rows; after a cancel, the front as of the last full generation.
+    front_x: tuple[tuple[float, ...], ...] = ()
+    front_f: tuple[tuple[float, ...], ...] = ()
+
+
+def _front(optimizer: Any) -> tuple[tuple, tuple]:
+    """Return `(front_x, front_f)` from `optimizer.results`, empty if no front exists yet."""
+    results = getattr(optimizer, "results", None)
+    if results is None or not results.pareto_fronts:
+        return (), ()
+    front = results.meta_front
+    return (
+        tuple(tuple(float(v) for v in row) for row in front.x_independent),
+        tuple(tuple(float(v) for v in row) for row in front.f),
+    )
 
 
 def run_optimization(
@@ -116,20 +132,22 @@ def run_optimization(
     try:
         results = optimizer.optimize(problem, x0=list(x0), save_results=False)
     except OptimizationCancelled:
+        front_x, front_f = _front(optimizer)
         return OptimizerRunResult(
             {}, None, False, "Optimization cancelled by user.",
-            cancelled=True, optimizer_name=optimizer_name,
+            cancelled=True, optimizer_name=optimizer_name, front_x=front_x, front_f=front_f,
         )
     except Exception as exc:  # noqa: BLE001
         return OptimizerRunResult({}, None, False, str(exc), optimizer_name=optimizer_name)
 
-    # `results.x[0]` holds one value per `problem.variable_names`; problems with
-    # variable dependencies are not supported.
-    problem.set_variables(results.x[0])
+    # `results.x[0]` holds one value per `problem.variable_names` (dependent ones too);
+    # `set_variables` takes the independent ones only.
+    front_x, front_f = _front(optimizer)
+    problem.set_variables(front_x[0])
     x_best = dict(zip(problem.variable_names, (float(v) for v in results.x[0])))
     return OptimizerRunResult(
         x_best, float(results.f_best[0]), True, "Optimization finished.",
-        optimizer_name=optimizer_name,
+        optimizer_name=optimizer_name, front_x=front_x, front_f=front_f,
     )
 
 

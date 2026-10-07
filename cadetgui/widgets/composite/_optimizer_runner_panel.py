@@ -27,8 +27,8 @@ FIGSIZE = get_fig_size("1_col")
 class OptimizerRunnerPanel:
     """The optimizer run section: picker + knobs, Run/Cancel/Accept, live plot, analytics.
 
-    Shared by `ParameterEstimationWidget` and `CharacterizationWidget`. Runs the fit on a
-    background thread with an elapsed-time ticker.
+    Used by `ParameterEstimationWidget`. Runs the fit on a background thread with an
+    elapsed-time ticker.
 
     `build_run_spec` is called on every "Run" click and must return a
     `cadetgui.optimizer_runner.RunSpec`, or a validation-error string (shown in `.status`,

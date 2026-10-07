@@ -13,11 +13,10 @@ from CADETProcess.comparison.difference import SSE
 from CADETProcess.optimization import OptimizationProblem
 from CADETProcess.processModel import ComponentSystem
 from CADETProcess.reference import ReferenceIO
-from CADETProcess.simulator import Cadet
 
 from .cadetprocessadapter import FieldSpec
 from .optimizer_runner import run_optimization
-from .simulation import run_process
+from .simulation import Simulator, run_process
 
 __all__ = [
     "FittableParameter",
@@ -220,7 +219,7 @@ def build_estimation_problem(
     problem.add_evaluation_object(working_process)
     _register_variables(problem, working_process, working_column, params, selected_indices)
 
-    simulator = Cadet()
+    simulator = Simulator()
     problem.add_evaluator(simulator)
     problem.add_objective(comparator, n_objectives=comparator.n_metrics, requires=[simulator])
 

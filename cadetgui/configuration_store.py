@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import h5py
 from cadet import H5
 
 from . import __version__ as _cadetgui_version
@@ -135,9 +136,9 @@ def save_h5(
     h5 = H5()
     if process is not None:
         try:
-            from CADETProcess.simulator import Cadet
+            from .simulation import Simulator
 
-            h5.root.update(Cadet().get_process_config(process))
+            h5.root.update(Simulator().get_process_config(process))
         except Exception:  # noqa: BLE001
             pass
 
@@ -244,9 +245,17 @@ def list_store(*, store_dir: Optional[Path] = None) -> List[Tuple[str, str]]:
     paths = sorted(store_dir.glob("*/config_*.h5"), key=lambda p: p.stat().st_mtime, reverse=True)
     entries = []
     for path in paths:
-        try:
-            name, _ = load_h5(path)
-        except Exception:  # noqa: BLE001
-            continue
-        entries.append((name, path.stem.removeprefix("config_")))
+        name = _read_name(path)
+        if name is not None:
+            entries.append((name, path.stem.removeprefix("config_")))
     return entries
+
+
+def _read_name(path: Path) -> Optional[str]:
+    """Return the saved configuration name in `path`, or None if it isn't a saved configuration."""
+    try:
+        with h5py.File(path, "r") as handle:
+            value = handle["cadetgui/name"][()]
+    except Exception:  # noqa: BLE001
+        return None
+    return value.decode("utf-8") if isinstance(value, bytes) else str(value)
