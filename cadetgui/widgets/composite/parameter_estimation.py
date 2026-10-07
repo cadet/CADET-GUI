@@ -64,6 +64,9 @@ class ParameterEstimationWidget:
         # The result shown in the overlay: the raw preview, or the fitted run after a fit.
         self._display_result: Optional[Any] = None
         self._preview_process: Optional[Any] = None
+        # Off: configuration changes only mark the preview stale until `refresh_preview()`.
+        self.auto_preview = True
+        self._preview_stale = False
 
         self._saved_options: list[tuple[str, Any]] = []
         self._base_process_picker = ChoiceField(
@@ -289,7 +292,19 @@ class ParameterEstimationWidget:
         self._refresh_component_options()
         self._refresh_signal_options()
         self._refresh_active_label()
-        self._refresh_preview()
+        if self.auto_preview:
+            self._refresh_preview()
+        else:
+            self._preview_stale = True
+            self._preview_status.value = status_html(
+                "info", "Configuration changed; the preview updates when this pane is opened."
+            )
+
+    def refresh_preview(self) -> None:
+        """Simulate the preview now if the configuration changed since the last one."""
+        if self._preview_stale:
+            self._preview_stale = False
+            self._refresh_preview()
 
     def _refresh_signal_options(self) -> None:
         cw = self._config_widget
