@@ -139,13 +139,22 @@ def _pick(keys: Sequence[str]) -> list[FieldSpec]:
 
 
 def _concentration_field(
-    name: str, label: str, default_scalar: float, component_system: ComponentSystem
+    name: str,
+    label: str,
+    default_scalar: float,
+    component_system: ComponentSystem,
+    default_others: Optional[float] = None,
 ) -> FieldSpec:
-    """Return a per-component concentration field sized from `component_system`."""
+    """Return a per-component concentration field sized from `component_system`.
+
+    With `default_others`, the first component (the salt) defaults to `default_scalar`
+    and every further one to `default_others`.
+    """
     names = tuple(component_system.names)
     n_comp = len(names) or 1
+    others = default_scalar if default_others is None else default_others
     return FieldSpec(
-        name, "float_list", label, [default_scalar] * n_comp,
+        name, "float_list", label, [default_scalar] + [others] * (n_comp - 1),
         transform=parse_float_list, units=CONCENTRATION_UNITS, component_names=names,
     )
 
@@ -213,8 +222,9 @@ def _wash_elute_spec(
         )
 
     fields = [
-        _concentration_field("c_buffer_a", "Buffer A concentration", 20.0, cs),
-        _concentration_field("c_buffer_b", "Buffer B concentration", 1000.0, cs),
+        # The first component is the gradient's salt; the others are only in the sample.
+        _concentration_field("c_buffer_a", "Buffer A concentration", 20.0, cs, 0.0),
+        _concentration_field("c_buffer_b", "Buffer B concentration", 1000.0, cs, 0.0),
         _concentration_field("c_sample", "Sample concentration", 20.0, cs),
         *_pick(["delta_t_wash", "delta_t_elute", "delta_t_final_wash", "flow_rate_wash"]),
     ]

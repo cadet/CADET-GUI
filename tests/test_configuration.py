@@ -378,6 +378,19 @@ def test_concentration_fields_are_sized_and_named_from_component_system():
     assert by_name["c_sample"].component_names == ("Salt", "Protein", "Impurity")
 
 
+@pytest.mark.parametrize("template", ["Load–Wash–Elute (LWE)", "Step Elution"])
+def test_wash_elute_buffers_default_to_salt_only_and_the_sample_carries_the_rest(template):
+    iw, cw = built()
+    cw.use_starting_values = False
+    cw.components = ["Salt", "Protein", "Impurity"]
+    cw._model_picker.value = INSTRUMENT_TEMPLATES[template]
+
+    values = cw._model_form.collect_values()
+    assert values["c_buffer_a"] == [20.0, 0.0, 0.0]
+    assert values["c_buffer_b"] == [1000.0, 0.0, 0.0]
+    assert values["c_sample"] == [20.0, 20.0, 20.0]
+
+
 def test_export_script_reflects_a_renamed_single_component():
     iw, cw = built()
     cw.components = ["MyProtein"]  # still one component, just renamed
