@@ -175,6 +175,25 @@ def test_loop_templates_caption_says_the_sample_sits_in_the_loop():
     assert captions[0].startswith("Buffer A carries plain buffer")
 
 
+def _unit_text(html: str, unit: str) -> str:
+    """Text drawn from `unit`'s group up to the next unit group."""
+    start = html.find(f'data-unit="{unit}"')
+    end = html.find("data-unit=", start + 1)
+    return " ".join(re.findall(r">([^<>]+)<", html[start:end])) if start >= 0 else ""
+
+
+def test_sample_loop_is_labelled_with_the_components_it_holds():
+    iw, cw = _bound("Load–Wash–Elute (LWE)")
+    cw.components = ["Salt", "Protein"]
+    cw.use_starting_values = False
+    cw._model_form.element("c_sample").value = [0.0, 1.0]
+
+    assert "(Protein)" in _unit_text(iw._diagram.root.value, "sample_loop")
+
+    html = render_system_svg(_ALL_UNITS, (), ["buffer_a"], {"buffer_a": []})
+    assert "(" not in _unit_text(html, "sample_loop")
+
+
 def test_caption_mentions_the_mixer_only_while_it_is_in_the_path():
     iw, _cw = _bound("Step")
     assert "through the mixer" not in _captions(iw._diagram.root.value)[0]

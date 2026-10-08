@@ -170,7 +170,7 @@ def _label_of(unit: str) -> str:
     return UNIT_LABELS.get(unit, unit.capitalize())
 
 
-def _extent(it: _Item, note: str, sub: str = "") -> Tuple[float, float]:
+def _extent(it: _Item, note: str, sub: Sequence[str] = ()) -> Tuple[float, float]:
     """Return how far the item, captions included, reaches above and below the flow line."""
     label_lines = len(_lines(_label_of(it.unit)))
     if it.unit == "tubing_detectors":
@@ -183,7 +183,7 @@ def _extent(it: _Item, note: str, sub: str = "") -> Tuple[float, float]:
     if _label_of(it.unit) != load_symbol(it.symbol).text:
         down += 8 + label_lines * _CAPTION_LEAD
     if sub:
-        down += _CAPTION_LEAD if down > it.down else 8 + _CAPTION_LEAD
+        down += len(sub) * _CAPTION_LEAD + (0 if down > it.down else 8)
     return up, down
 
 
@@ -191,7 +191,7 @@ def _tube(x1: float, x2: float, y: float) -> str:
     return _wire(f"M{_num(x1)} {_num(y)} H{_num(x2)}", arrow=False, width=_TUBE_WIDTH)
 
 
-def _draw_item(it: _Item, my: float, note: str, sub: str = "") -> str:
+def _draw_item(it: _Item, my: float, note: str, sub: Sequence[str] = ()) -> str:
     label = _label_of(it.unit)
     lines = _lines(label)
     cx = it.x + it.width / 2
@@ -231,7 +231,7 @@ def _draw_item(it: _Item, my: float, note: str, sub: str = "") -> str:
         parts.append(_caption(lines, cx, below))
         below += len(lines) * _CAPTION_LEAD
     if sub:
-        parts.append(_caption([sub], cx, below))
+        parts.append(_caption(list(sub), cx, below))
     return "".join(parts)
 
 
@@ -395,8 +395,8 @@ def render_system_svg(
     drives; `None` means unknown, drawn as one generic inlet. Every buffer inlet and the feed
     inlet of the flow sheet is drawn, the ones outside `inlets` dimmed and marked unused.
     `carries` maps an inlet (and `"sample_loop"`) to the component names it delivers and adds
-    them to the labels and to a plain-language caption under the drawing. `column_model`
-    is captioned under the column symbol.
+    them to the labels (the sample loop's under its symbol) and to a plain-language caption
+    under the drawing. `column_model` is captioned under the column symbol.
 
     `highlight` marks units an accent halo and `data-highlight="true"`, and lists their
     labels in a "Characterized here" caption. `observe` draws a "measured here" marker at
@@ -458,9 +458,17 @@ def render_system_svg(
     up_max = stack_h / 2 + 4 + heading
     if feed_shown and has_loop:
         up_max = max(up_max, _FEED_RISE + 6 + feed_extra + _CAPTION_FONT)
+
+    def sub_lines(unit: str) -> List[str]:
+        if unit == "column" and column_model:
+            return [column_model]
+        if unit == "sample_loop" and known and carries and carries.get("sample_loop"):
+            return _names(carries["sample_loop"])
+        return []
+
     item_down = 0.0
     for it in items:
-        sub = (column_model or "") if it.unit == "column" else ""
+        sub = sub_lines(it.unit)
         up, down = _extent(it, "bypassed" if it.state == "bypassed" else "", sub)
         up_max, item_down = max(up_max, up), max(item_down, down)
     observe_lane = _observe_extent() if any(it.unit == observe for it in items) else 0.0
@@ -531,7 +539,7 @@ def render_system_svg(
     observe_drawn = False
     for it in items:
         note = "bypassed" if it.state == "bypassed" else ""
-        sub = (column_model or "") if it.unit == "column" else ""
+        sub = sub_lines(it.unit)
         is_highlighted = it.unit in highlight
         content = _draw_item(it, my, note, sub)
         if is_highlighted:
