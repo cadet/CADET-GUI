@@ -157,10 +157,24 @@ class ParameterEstimationWidget:
         )
         preview_section.add_class("cadetgui-section")
 
+        self._btn_clear = W.Button(
+            description="Clear", icon="eraser",
+            tooltip="Remove the datasets, fit parameters and fit results from this page",
+            layout=W.Layout(width="auto"),
+        )
+        self._btn_clear.on_click(lambda _btn: self.clear())
+        header = W.HBox(
+            [
+                W.HTML("<div class='cadetgui-panel-title'>Parameter estimation</div>"),
+                self._btn_clear,
+            ],
+            layout=W.Layout(justify_content="space-between", align_items="center"),
+        )
+
         self.root = W.VBox(
             [
                 W.HTML(style_tag()),
-                W.HTML("<div class='cadetgui-panel-title'>Parameter estimation</div>"),
+                header,
                 data_section,
                 param_space_section,
                 preview_section,
@@ -168,6 +182,18 @@ class ParameterEstimationWidget:
             ]
         )
         self.root.add_class("cadetgui-panel")
+
+    def clear(self) -> None:
+        """Remove the datasets, added parameters and fit results; ignored while a fit runs."""
+        if self._runner.running:
+            self.status.value = status_html("error", "Cancel the running fit before clearing.")
+            return
+        self.data.clear()
+        self.param_space.clear()
+        self._calibration_picker.selected_index = 0
+        self._runner.clear()
+        self._last_result = None
+        self._refresh_preview(force=True)
 
     def bind_to_config(self, config_widget: Any) -> None:
         """Track a ConfigurationWidget's column/binding parameters to fit."""

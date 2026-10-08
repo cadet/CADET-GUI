@@ -166,3 +166,38 @@ def test_workbench_passes_the_starting_values_switch_on(tmp_path, monkeypatch):
     assert WorkbenchWidget(include=steps).configuration.use_starting_values
     off = WorkbenchWidget(include=steps, starting_values=False)
     assert not off.configuration.use_starting_values
+
+
+def test_reset_restores_standard_starting_values_or_plain_defaults(tmp_path, monkeypatch):
+    import cadetgui.io.configuration_store as configuration_store
+    from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
+
+    monkeypatch.setattr(configuration_store, "default_store_dir", lambda: tmp_path)
+
+    cw = ConfigurationWidget(instrument=InstrumentWidget())
+    cw.components = ["Salt", "Protein"]
+    cw.select_models(template="Load–Wash–Elute (LWE)", binding=SMA)
+
+    def edit_and_reset():
+        cw.binding_form.element("adsorption_rate").value = [0.0, 3.0]
+        cw.binding_form.element("capacity").value = 500.0
+        cw._model_form.element("c_buffer_a").value = [123.0, 0.0]
+        cw.column_form.element("length").value = 0.2
+        for form in (cw.binding_form, cw._model_form, cw.column_form):
+            form._on_reset(None)
+        return cw.snapshot()
+
+    state = edit_and_reset()
+    assert state.binding_values["adsorption_rate"] == [0.0, 8.0]
+    assert state.binding_values["capacity"] == 1200.0
+    assert state.model_values["c_buffer_a"] == [50.0, 0.0]
+    assert state.column_values["length"] == 0.05
+    assert state.column_values["c"] == [50.0, 0.0]
+
+    cw.use_starting_values = False
+    state = edit_and_reset()
+    assert state.binding_values["adsorption_rate"] == [0.0, 0.0]
+    assert state.binding_values["capacity"] == 0.0
+    assert state.model_values["c_buffer_a"] == [20.0, 0.0]
+    assert state.column_values["length"] == 0.05
+    assert cw.process is not None

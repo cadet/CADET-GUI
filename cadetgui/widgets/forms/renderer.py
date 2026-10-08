@@ -51,7 +51,10 @@ def element_for_field(f: FieldSpec) -> Element:
 
 
 class FormRenderer:
-    """Render a ModelSpec into a form of Elements; auto-commits on every valid change."""
+    """Render a ModelSpec into a form of Elements; auto-commits on every valid change.
+
+    "Reset" sets every field to its default, or calls `on_reset` instead when given.
+    """
 
     def __init__(
         self,
@@ -59,8 +62,10 @@ class FormRenderer:
         *,
         on_built: Optional[Callable[[Any], None]] = None,
         on_invalid: Optional[Callable[[str], None]] = None,
+        on_reset: Optional[Callable[[], None]] = None,
     ) -> None:
         self.spec = spec
+        self._reset_hook = on_reset
         self.built: Any = None
         self._on_built = on_built
         self._on_invalid = on_invalid
@@ -139,7 +144,14 @@ class FormRenderer:
                 self._on_invalid(str(exc))
 
     def _on_reset(self, _btn: Any) -> None:
-        self.set_values({})
+        if self._reset_hook is not None:
+            self._reset_hook()
+        else:
+            self.set_values({})
+
+    def default_values(self) -> Dict[str, Any]:
+        """Return every field's default value."""
+        return {f.name: _coerced_default(f) for f in self.spec.fields}
 
     def set_values(self, values: Mapping[str, Any]) -> None:
         """Set the given field values (others reset to their defaults) and commit once."""

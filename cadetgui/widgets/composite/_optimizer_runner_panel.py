@@ -177,7 +177,15 @@ class OptimizerRunnerPanel:
         for name, box in self._knob_boxes.items():
             box.layout.display = "" if name == selected else "none"
 
-    def _on_run(self, _btn: Any) -> None:
+    def clear(self) -> None:
+        """Remove the last run's plots, fit table and Accept button; ignored while running."""
+        if self.running:
+            return
+        self._clear_output()
+        self._last_run_spec = None
+        self.status.value = "<em>Ready.</em>"
+
+    def _clear_output(self) -> None:
         for img in (self._live_plot_out, self._convergence_out, self._pairwise_out):
             img.value = b""
             img.layout.display = "none"
@@ -191,6 +199,8 @@ class OptimizerRunnerPanel:
         self._last_result = None
         self._elapsed_label.value = ""
 
+    def _on_run(self, _btn: Any) -> None:
+        self._clear_output()
         run_spec = self._build_run_spec()
         if isinstance(run_spec, str):
             self.status.value = status_html("error", str(run_spec))

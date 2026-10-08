@@ -193,3 +193,14 @@ def test_mapping_panel_cancel_discards_the_pending_file():
 
     assert di.datasets == []
     assert di._mapping_box.children == ()
+
+
+def test_clear_removes_every_dataset():
+    w = DataImportWidget()
+    _upload(w, "a.csv", "time_min,signal\n0,0\n1,2\n")
+    _upload(w, "b.csv", "time_min,signal\n0,0\n1,3\n")
+
+    w.clear()
+
+    assert w.datasets == []
+    assert w._dataset_picker.value is None

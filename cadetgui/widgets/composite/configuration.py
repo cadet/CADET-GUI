@@ -20,6 +20,7 @@ from ...cadetprocessadapter import (
     equilibration_inlets,
     inlet_contents,
     lwe_spec,
+    parameter_defaults,
     require_positive,
     step_elution_spec,
     template_required_units,
@@ -742,17 +743,19 @@ class ConfigurationWidget:
 
         self.persistence.set_name(name)
 
-    def _rebuild_forms(self) -> None:
-        if self._suspend_rebuild:
-            return
+    def _form_objects(self) -> tuple[Any, Any]:
+        """Return the column and binding model the parameter forms edit."""
         # A bypassed column has no instance in the flow sheet, so its forms are built
         # against a detached one that keeps the values while it is off.
         if self._column_bypassed():
             column = self._cached_column()
-            binding_model = self._cached_binding_model(column) if column is not None else None
-        else:
-            column = self._get_column()
-            binding_model = self._get_binding_model()
+            return column, self._cached_binding_model(column) if column is not None else None
+        return self._get_column(), self._get_binding_model()
+
+    def _rebuild_forms(self) -> None:
+        if self._suspend_rebuild:
+            return
+        column, binding_model = self._form_objects()
         model_fn = self._model_picker.value
         model_arg = self.flow_sheet if self._instrument is not None else column
         if model_arg is None or model_fn is None:
@@ -788,7 +791,11 @@ class ConfigurationWidget:
         self._rebuild_binding_form(column, binding_model, previous_binding)
         self._sync_column_bypass()
 
-        self._model_form = FormRenderer(model_fn(model_arg), on_built=self._on_process_built)
+        self._model_form = FormRenderer(
+            model_fn(model_arg),
+            on_built=self._on_process_built,
+            on_reset=lambda: self._reset_form("model"),
+        )
         if previous_model is not None:
             self._model_form.set_values(previous_model)
         self._model_form_box.children = (self._model_form.root,)
@@ -819,7 +826,8 @@ class ConfigurationWidget:
                 column,
                 multiplex=self._multiplex_state,
                 include_optional=self._show_optional_column_checkbox.value,
-            )
+            ),
+            on_reset=lambda: self._reset_form("column"),
         )
         self._column_form_box.children = (self._column_form.root,)
         if previous is not None:
@@ -841,6 +849,7 @@ class ConfigurationWidget:
                 binding_model, include_optional=self._show_optional_binding_checkbox.value
             ),
             on_built=_attach_binding,
+            on_reset=lambda: self._reset_form("binding"),
         )
         self._binding_form_box.children = (self._binding_form.root,)
         if previous is not None:
@@ -854,14 +863,39 @@ class ConfigurationWidget:
         if self._restoring or not self.use_starting_values:
             return
         state = self.snapshot()
+        seeded = self._seeded(state, method=method)
+        if seeded != state:
+            self._apply_state(self.config_name, seeded)
+
+    def _seeded(self, state: ConfigurationState, *, method: bool) -> ConfigurationState:
         shown = self.show_process_template
         seeded = with_starting_values(state, method=shown and method, equilibrate=shown)
         known = getattr(COLUMN_MODELS.get(state.column_key), "_parameters", ())
-        seeded = dataclasses.replace(seeded, column_values={
+        return dataclasses.replace(seeded, column_values={
             k: v for k, v in seeded.column_values.items() if k in known
         })
-        if seeded != state:
-            self._apply_state(self.config_name, seeded)
+
+    def _reset_form(self, part: str) -> None:
+        """Reset one form ("column", "binding" or "model") to its defaults.
+
+        Column and binding fields take a fresh model's defaults, the method fields the
+        template's; with standard starting values on, those are filled in on top.
+        """
+        form = {
+            "column": self._column_form, "binding": self._binding_form, "model": self._model_form,
+        }[part]
+        if form is None:
+            return
+        defaults = form.default_values()
+        column, binding_model = self._form_objects()
+        obj = {"column": column, "binding": binding_model}.get(part)
+        if obj is not None:
+            multiplex = self._multiplex_state if part == "column" else None
+            defaults.update(parameter_defaults(obj, list(defaults), multiplex=multiplex))
+        state = dataclasses.replace(self.snapshot(), **{f"{part}_values": defaults})
+        if self.use_starting_values:
+            state = self._seeded(state, method=part == "model")
+        self._apply_state(self.config_name, state)
 
     def _clear_event_section(self) -> None:
         self._event_sliders = {}

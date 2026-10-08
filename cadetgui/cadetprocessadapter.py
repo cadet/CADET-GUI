@@ -700,6 +700,23 @@ def build_parameter_config_spec(
     )
 
 
+def parameter_defaults(
+    obj: Any, names: Sequence[str], *, multiplex: Optional[Dict[str, bool]] = None
+) -> Dict[str, Any]:
+    """Return the defaults of `names` on a fresh instance of `obj`'s class.
+
+    CADET-Process's own defaults, else the GUI seed defaults; names without either are
+    left out.
+    """
+    fresh = type(obj)(obj.component_system, name=obj.name)
+    category, model_name = _category_and_model(fresh)
+    defaults = {
+        name: _resolve_param(fresh, category, model_name, name, multiplex=multiplex)[0]
+        for name in names
+    }
+    return {name: value for name, value in defaults.items() if value is not None}
+
+
 def classify_signal_ports(result: Any) -> list[tuple[str, tuple[str, str]]]:
     """List the simulated `(label, (unit, port))` signals, with sinks first.
 

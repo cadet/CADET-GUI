@@ -88,6 +88,13 @@ class ParameterSpaceEditor:
         self._refresh_added_rows()
         self._refresh_add_picker_options()
 
+    def clear(self) -> None:
+        """Remove every added row and forget its start and bounds."""
+        self._added_keys = []
+        self._param_state = {}
+        self._refresh_added_rows()
+        self._refresh_add_picker_options()
+
     def _snapshot_row_state(self) -> None:
         """Save the live field values into `_param_state`.
 

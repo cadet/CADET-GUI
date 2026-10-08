@@ -670,3 +670,29 @@ def test_finish_run_renders_analytics_after_a_real_run():
     assert pw._last_result.success
     assert pw._runner._convergence_out.layout.display == ""
     assert pw._runner._convergence_out.value
+
+
+def test_clear_removes_data_parameters_and_results():
+    cw, pw = _bound_widgets()
+    _ready_to_run(cw, pw)
+    pw._runner._on_run(None)
+    assert pw._runner._fit_table.value
+
+    pw.clear()
+
+    assert pw.data.datasets == []
+    assert len(pw.param_space) == 0
+    assert pw._runner._fit_table.value == ""
+    assert pw._runner._btn_accept.layout.display == "none"
+    assert pw._last_result is None
+
+
+def test_clear_is_refused_while_a_fit_runs(monkeypatch):
+    cw, pw = _bound_widgets()
+    _ready_to_run(cw, pw)
+    monkeypatch.setattr(type(pw._runner), "running", property(lambda _self: True))
+
+    pw.clear()
+
+    assert pw.data.datasets
+    assert "Cancel" in pw.status.value

@@ -217,6 +217,16 @@ class DataImportWidget:
         self._preview_selected()
         self._notify()
 
+    def clear(self) -> None:
+        """Remove every loaded dataset and any pending column mapping."""
+        self.datasets = []
+        self._mapping_box.children = ()
+        self._dataset_picker.set_options([])
+        self._preview_out.clear_output()
+        self._basis_label.value = ""
+        self.status.value = "<em>No experimental data loaded.</em>"
+        self._notify()
+
     def _on_remove(self, _btn: object) -> None:
         ds = self._dataset_picker.value
         if ds is None:
