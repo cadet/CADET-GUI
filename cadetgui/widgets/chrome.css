@@ -630,6 +630,35 @@
   color: var(--cg-muted);
 }
 
+.cadetgui-fit-table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: var(--cg-text-sm);
+}
+
+.cadetgui-fit-table th,
+.cadetgui-fit-table td {
+  padding: 5px 0 5px 32px;
+  border-bottom: 1px solid var(--cg-border);
+  text-align: left;
+}
+
+.cadetgui-fit-table th {
+  border-bottom-color: var(--cg-border-strong);
+  color: var(--cg-muted);
+  font-weight: 600;
+}
+
+.cadetgui-fit-table th:first-child,
+.cadetgui-fit-table td:first-child {
+  padding-left: 0;
+}
+
+.cadetgui-fit-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .cadetgui-info-unit {
   font-family: var(--cg-font-mono);
   white-space: nowrap;

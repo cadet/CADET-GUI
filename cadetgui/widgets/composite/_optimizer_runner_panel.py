@@ -41,7 +41,7 @@ class OptimizerRunnerPanel:
         self,
         *,
         build_run_spec: Callable[[], Union[RunSpec, str]],
-        accept_label: str = "Accept fitted parameters",
+        accept_label: str = "Accept",
         run_label: str = "Run estimation",
         title: str = "Run estimation",
         leading: Sequence[W.Widget] = (),
@@ -74,8 +74,9 @@ class OptimizerRunnerPanel:
             layout=W.Layout(display="none"),
         )
         self._btn_accept = W.Button(
-            description=accept_label, icon="check",
-            layout=W.Layout(display="none"),
+            description=accept_label, icon="check", button_style="success",
+            tooltip="Write the fitted values into the configuration",
+            layout=W.Layout(display="none", width="auto"),
         )
         self._live_plot_checkbox = W.Checkbox(description="Live plot", value=False, indent=False)
         self._elapsed_label = W.HTML(value="")
@@ -150,7 +151,7 @@ class OptimizerRunnerPanel:
                 *leading,
                 run_toolbar,
                 optimizer_row,
-                W.HBox([self._btn_run, self._btn_cancel, self._btn_accept, self._elapsed_label]),
+                W.HBox([self._btn_run, self._btn_cancel, self._elapsed_label]),
                 self._live_plot_error,
                 W.HBox(
                     [self._live_chart, self._history_chart],
@@ -158,6 +159,7 @@ class OptimizerRunnerPanel:
                 ),
                 self._live_plot_out,
                 self._fit_table,
+                self._btn_accept,
                 self._analytics_box,
                 self.status,
             ]

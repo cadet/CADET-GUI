@@ -399,11 +399,14 @@ class ParameterEstimationWidget:
     def _fit_table_html(self, fitted: dict[int, float]) -> str:
         rows = "".join(
             f"<tr><td>{self.param_space.params[idx].label}</td>"
-            f"<td>{self.param_space.params[idx].current_value:.4g}</td><td>{value:.4g}</td></tr>"
+            f"<td class='num'>{self.param_space.params[idx].current_value:.4g}</td>"
+            f"<td class='num'>{value:.4g}</td></tr>"
             for idx, value in fitted.items()
         )
-        header = "<tr><th>Parameter</th><th>Before</th><th>Fitted</th></tr>"
-        return f"<table>{header}{rows}</table>"
+        header = (
+            "<tr><th>Parameter</th><th class='num'>Before</th><th class='num'>Fitted</th></tr>"
+        )
+        return f"<table class='cadetgui-fit-table'>{header}{rows}</table>"
 
     def _apply_fitted(self, fitted: dict[int, float]) -> None:
         cw = self._config_widget
