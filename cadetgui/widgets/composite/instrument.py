@@ -489,7 +489,9 @@ class InstrumentWidget:
         """Reconstruct fields from a saved InstrumentState."""
         self._suspend_rebuild = True
         try:
-            self._loop_user_choice = state.include_sample_loop
+            # A locked loop is on because of the template, not the user's choice.
+            if not self._loop_locked:
+                self._loop_user_choice = state.include_sample_loop
             self._sample_loop_checkbox.value = state.include_sample_loop or self._loop_locked
             self._loop_volume_field.value = state.sample_loop_volume
             self._loop_diameter_auto_checkbox.value = state.sample_loop_diameter_auto

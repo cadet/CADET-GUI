@@ -750,6 +750,20 @@ def test_optional_loop_templates_unlock_it_and_restore_the_users_choice(label):
     assert iw._sample_loop_checkbox.disabled is False
 
 
+@pytest.mark.parametrize("user_choice", [False, True])
+def test_starting_values_on_a_loop_template_keep_the_users_loop_choice(user_choice):
+    iw, cw = built()
+    cw.components = ["Salt", "Protein"]
+    iw._sample_loop_checkbox.value = user_choice
+    cw.select_models(binding="Steric Mass Action (SMA)")
+
+    cw.select_models(template="Load–Wash–Elute (LWE)")
+    assert iw._sample_loop_checkbox.value is True
+    cw.select_models(template="Breakthrough")
+
+    assert iw._sample_loop_checkbox.value is user_choice
+
+
 def test_locked_sample_loop_survives_a_state_round_trip():
     iw, cw = built()
     cw._model_picker.value = INSTRUMENT_TEMPLATES["Pulse Injection"]
