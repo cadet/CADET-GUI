@@ -32,7 +32,8 @@ def test_sma_starting_values_fill_zeros_and_keep_the_salt_at_zero():
     })
     start = starting_values()["binding"][SMA]
     assert seeded["capacity"] == start["scalar"]["capacity"]
-    assert seeded["is_kinetic"] is False
+    assert seeded["is_kinetic"] is start["scalar"]["is_kinetic"]
+    assert seeded["reference_liquid_phase_conc"] == start["scalar"]["reference_liquid_phase_conc"]
     assert seeded["adsorption_rate"] == [0.0, start["per_component"]["adsorption_rate"]]
     assert seeded["steric_factor"] == [0.0, start["per_component"]["steric_factor"]]
 
@@ -114,10 +115,54 @@ def test_configuration_fills_starting_values_into_a_fresh_sma_setup(tmp_path, mo
     cw.select_models(template="Load–Wash–Elute (LWE)", binding=SMA)
     state = cw.snapshot()
     assert state.binding_values["capacity"] == 1200.0
-    assert state.binding_values["adsorption_rate"] == [0.0, 35.5]
+    assert state.binding_values["adsorption_rate"] == [0.0, 8.0]
+    assert state.binding_values["reference_liquid_phase_conc"] == 1000.0
+    assert state.show_optional_binding
     assert state.model_values["c_buffer_a"] == [50.0, 0.0]
     assert state.column_values["c"] == [50.0, 0.0]
     assert "cp" not in state.column_values
 
     cw.select_models(template="Pulse Injection")
     assert cw.snapshot().model_values["c_buffer_a"] == [400.0, 0.0]
+
+
+def test_optional_binding_values_replace_defaults_only_on_an_untouched_model():
+    defaults = {"adsorption_rate": [0.0, 0.0], "reference_liquid_phase_conc": 1.0}
+    assert binding_starting_values(SMA, ["Salt", "Protein"], defaults)[
+        "reference_liquid_phase_conc"] == 1000.0
+    edited = {"adsorption_rate": [0.0, 2.0], "reference_liquid_phase_conc": 1.0}
+    assert binding_starting_values(SMA, ["Salt", "Protein"], edited)[
+        "reference_liquid_phase_conc"] == 1.0
+
+
+def test_starting_values_can_be_switched_off(tmp_path, monkeypatch):
+    import cadetgui.io.configuration_store as configuration_store
+    from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
+
+    monkeypatch.setattr(configuration_store, "default_store_dir", lambda: tmp_path)
+
+    cw = ConfigurationWidget(instrument=InstrumentWidget(), starting_values=False)
+    cw.components = ["Salt", "Protein"]
+    cw.select_models(template="Load–Wash–Elute (LWE)", binding=SMA)
+    assert cw.snapshot().binding_values["capacity"] == 0.0
+
+    cw.use_starting_values = True
+    state = cw.snapshot()
+    assert state.binding_values["capacity"] == 1200.0
+    assert state.model_values["c_buffer_a"] == [50.0, 0.0]
+
+    cw.use_starting_values = False
+    cw.select_models(template="Pulse Injection")
+    assert cw.snapshot().model_values["c_buffer_a"] != [400.0, 0.0]
+
+
+def test_workbench_passes_the_starting_values_switch_on(tmp_path, monkeypatch):
+    import cadetgui.io.configuration_store as configuration_store
+    from cadetgui.widgets.composite import WorkbenchWidget
+
+    monkeypatch.setattr(configuration_store, "default_store_dir", lambda: tmp_path)
+
+    steps = ["System", "Process configuration"]
+    assert WorkbenchWidget(include=steps).configuration.use_starting_values
+    off = WorkbenchWidget(include=steps, starting_values=False)
+    assert not off.configuration.use_starting_values

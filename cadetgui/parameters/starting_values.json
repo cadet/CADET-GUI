@@ -1,15 +1,18 @@
 {
-  "description": "Standard starting values that make a freshly configured model simulate: synthetic, resin-independent guesses (lysozyme-like SMA values from the CADET tutorials), not measured values or bounds. Replace them with your own. Binding values only fill parameters that are missing or zero. 'methods' holds, per process template, the method concentrations that suit the binding model ('salt' for the first component, 'other' for every further one) and plain values; they replace the template's defaults, and the column then starts equilibrated with the method's starting salt. Times assume the lab-scale defaults (1 mL column, 1 mL/min).",
+  "description": "Standard starting values that make a freshly configured model simulate: synthetic, resin-independent guesses (lysozyme-like SMA values from the CADET tutorials, kinetic with reference concentrations), not measured values or bounds. Replace them with your own. Binding values only fill parameters that are missing or zero. 'methods' holds, per process template, the method concentrations that suit the binding model ('salt' for the first component, 'other' for every further one) and plain values; they replace the template's defaults, and the column then starts equilibrated with the method's starting salt. Times assume the lab-scale defaults (1 mL column, 1 mL/min).",
   "binding": {
     "Steric Mass Action (SMA)": {
       "salt_first": true,
+      "note": "Rates are relative to 1000 mM salt and the capacity. With the LWE method the protein elutes at about 11.5 min, near 410 mM salt; examples/data/example_lwe_signal.csv was simulated with adsorption_rate 12 and desorption_rate 60 instead.",
       "scalar": {
-        "is_kinetic": false,
-        "capacity": 1200.0
+        "is_kinetic": true,
+        "capacity": 1200.0,
+        "reference_liquid_phase_conc": 1000.0,
+        "reference_solid_phase_conc": 1200.0
       },
       "per_component": {
-        "adsorption_rate": 35.5,
-        "desorption_rate": 1000.0,
+        "adsorption_rate": 8.0,
+        "desorption_rate": 100.0,
         "characteristic_charge": 4.7,
         "steric_factor": 11.83
       },

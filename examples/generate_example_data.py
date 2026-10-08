@@ -3,6 +3,8 @@
 Every file is a CADET-Process simulation of the default configuration of
 `ConfigurationWidget(instrument=InstrumentWidget())` (lab scale, Breakthrough template),
 or of a named deviation from it, sampled at the column outlet with fixed-seed noise.
+`example_lwe_signal.csv` instead starts from the standard SMA starting values with the
+LWE template and adds detector tailing.
 
     python examples/generate_example_data.py
 
@@ -29,6 +31,8 @@ from cadetgui.widgets.composite import (  # noqa: E402
 OUT_DIR = Path(__file__).parent / "data"
 EXTINCTION_COEFFICIENT = 100.0  # L/(mol·cm)
 PATH_LENGTH = 0.2  # cm
+LWE = "Load–Wash–Elute (LWE)"
+SMA = "Steric Mass Action (SMA)"
 
 
 def default_state() -> ConfigurationState:
@@ -47,11 +51,37 @@ def with_values(
     )
 
 
-def outlet_signal(state: ConfigurationState, time_min: np.ndarray) -> np.ndarray:
-    """Simulate `state` and return the outlet's total concentration at `time_min`."""
+def lwe_state() -> ConfigurationState:
+    """Return the Salt + Protein LWE configuration with the standard SMA starting values."""
+    configuration = ConfigurationWidget(instrument=InstrumentWidget())
+    configuration.components = ["Salt", "Protein"]
+    configuration.select_models(template=LWE, binding=SMA)
+    return configuration.snapshot()
+
+
+def outlet_signal(
+    state: ConfigurationState,
+    time_min: np.ndarray,
+    component: int | None = None,
+    tailing_s: float = 0.0,
+) -> np.ndarray:
+    """Simulate `state` and return the outlet concentration at `time_min`.
+
+    `component` picks one component (default: the total); `tailing_s` passes the signal
+    through a first-order lag with that time constant, like a detector flow cell.
+    """
     solution = run_process(build_process(state)).solution["outlet"]["inlet"]
-    total = np.asarray(solution.solution).reshape(len(solution.time), -1).sum(axis=1)
-    return np.interp(time_min * 60.0, np.asarray(solution.time), total)
+    time_s = np.asarray(solution.time)
+    values = np.asarray(solution.solution).reshape(len(time_s), -1)
+    signal = values.sum(axis=1) if component is None else values[:, component]
+    if tailing_s > 0:
+        lagged = np.empty_like(signal)
+        lagged[0] = signal[0]
+        decay = np.exp(-np.diff(time_s) / tailing_s)
+        for i, d in enumerate(decay, start=1):
+            lagged[i] = d * lagged[i - 1] + (1.0 - d) * signal[i]
+        signal = lagged
+    return np.interp(time_min * 60.0, time_s, signal)
 
 
 def noisy(signal: np.ndarray, scale: float, seed: int) -> np.ndarray:
@@ -67,7 +97,7 @@ def write_csv(name: str, header: str, time_min: np.ndarray, signal: np.ndarray) 
 
 
 def main() -> None:
-    """Write the three example files."""
+    """Write the four example files."""
     base = default_state()
     time_min = np.round(np.arange(0.0, 5.0 + 1e-9, 0.01), 2)
     long_time_min = np.round(np.arange(0.0, 10.0 + 1e-9, 0.01), 2)
@@ -87,6 +117,14 @@ def main() -> None:
     )
     write_csv("example_binding_signal.csv", "time_min,signal", long_time_min,
               noisy(outlet_signal(binding, long_time_min), 0.01, 20260917))
+
+    lwe = with_values(
+        lwe_state(), binding={"adsorption_rate": [0.0, 12.0], "desorption_rate": [0.0, 60.0]}
+    )
+    lwe_time_min = np.round(np.arange(0.0, 25.0 + 1e-9, 0.01), 2)
+    write_csv("example_lwe_signal.csv", "time_min,protein_mM", lwe_time_min,
+              noisy(outlet_signal(lwe, lwe_time_min, component=1, tailing_s=4.0),
+                    0.01, 20261007))
 
 
 if __name__ == "__main__":

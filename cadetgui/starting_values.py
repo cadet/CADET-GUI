@@ -3,8 +3,9 @@
 `parameters/starting_values.json` lists, per binding model, `scalar` and `per_component`
 values and, under `methods`, per process template the method values that suit it;
 with `salt_first` the first component is the salt. Binding values only fill parameters
-that are missing or zero; method values replace the template's defaults, and the column
-then starts equilibrated with the method's starting salt.
+that are missing or zero, switches and optional scalars only an untouched model; method
+values replace the template's defaults, and the column then starts equilibrated with the
+method's starting salt.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
 
+from .cadetprocessadapter import BINDING_MODELS
 from .io.configuration_store import ConfigurationState
 
 __all__ = [
@@ -47,20 +49,33 @@ def _is_unset(value: Any) -> bool:
     return value is None or (_is_number(value) and value == 0)
 
 
+def _optional_keys(binding_key: str) -> set[str]:
+    """Scalar keys listed for `binding_key` that are not required parameters of its model."""
+    start = _entry(binding_key) or {}
+    required = getattr(BINDING_MODELS.get(binding_key), "_required_parameters", ())
+    return set(start.get("scalar", {})) - set(required)
+
+
 def binding_starting_values(
     binding_key: str, components: Sequence[str], values: Mapping[str, Any]
 ) -> Dict[str, Any]:
     """Return `values` with the binding parameters that are missing or zero filled in.
 
-    Switches such as `is_kinetic` are only set when no numeric binding value is set yet.
+    Switches such as `is_kinetic` and optional scalars such as reference concentrations
+    are only set when no per-component binding value is set yet.
     """
     start = _entry(binding_key)
     out = dict(values)
     if start is None:
         return out
-    untouched = all(_is_unset(v) for v in values.values() if not isinstance(v, bool))
+    untouched = all(_is_unset(values.get(k)) for k in start.get("per_component", {}))
+    optional = _optional_keys(binding_key)
     for key, value in start.get("scalar", {}).items():
-        if key not in out or (untouched if isinstance(value, bool) else _is_unset(out[key])):
+        if isinstance(value, bool) or key in optional:
+            fill = untouched
+        else:
+            fill = _is_unset(out.get(key))
+        if key not in out or fill:
             out[key] = value
     salt = 0 if start.get("salt_first") else None
     for key, value in start.get("per_component", {}).items():
@@ -110,7 +125,9 @@ def with_starting_values(
     `c` and `cp` (ignored by models without pores) hold the starting salt (buffer A, else
     the sample) and `q` the capacity, for the salt only. Method values reset that state;
     without them it is only set while `c`, `cp` and `q` are unset. A salt-first model
-    with real values stalls the solver on any other start.
+    with real values stalls the solver on any other start. Optional binding parameters
+    with starting values (e.g. reference concentrations) are only built while shown, so
+    the binding form shows its optional parameters.
     """
     start = _entry(recipe.binding_key)
     if start is None:
@@ -138,4 +155,7 @@ def with_starting_values(
         model_values=model if model is not None else recipe.model_values,
         column_values=column,
         show_optional_column=show_optional,
+        show_optional_binding=(
+            recipe.show_optional_binding or bool(_optional_keys(recipe.binding_key))
+        ),
     )

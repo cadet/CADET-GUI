@@ -122,6 +122,10 @@ class ConfigurationWidget:
     returns a complete recipe, and a bound instrument's sample loop is not locked by it.
     `intro` is HTML shown under the panel title. `set_flow_rate()` sets the flow rate every
     snapshot carries, whatever the method form holds.
+
+    `starting_values` (also a checkbox, `use_starting_values`) fills the standard starting
+    values (`cadetgui.starting_values`) into freshly chosen models; off, forms keep the
+    CADET-Process and template defaults.
     """
 
     def __init__(
@@ -131,8 +135,18 @@ class ConfigurationWidget:
         workspace_header: bool = True,
         show_process_template: bool = True,
         intro: str = "",
+        starting_values: bool = True,
     ) -> None:
         self.show_process_template = show_process_template
+        self._starting_values_checkbox = W.Checkbox(
+            value=starting_values,
+            description="Use standard starting values",
+            indent=False,
+            tooltip=(
+                "Fill binding values, method concentrations and the equilibrated column"
+                " start from parameters/starting_values.json when a model is chosen."
+            ),
+        )
         self._flow_rate: Optional[float] = None
         self._column_cache: dict[Any, Any] = {}
         self._binding_cache: dict[Any, Any] = {}
@@ -282,6 +296,7 @@ class ConfigurationWidget:
                 W.HTML("<div class='cadetgui-panel-title'>Configuration</div>"),
                 intro_html,
                 *([self.workspace_header.root] if workspace_header else []),
+                self._starting_values_checkbox,
                 components_section,
                 column_binding_row,
                 process_section,
@@ -297,6 +312,7 @@ class ConfigurationWidget:
         self._binding_picker.observe(self._on_selection_change, names="selected_index")
         self._model_picker.observe(self._on_model_selection_change, names="selected_index")
         self._btn_export.on_click(self._on_export)
+        self._starting_values_checkbox.observe(self._on_starting_values_toggle, names="value")
 
         if instrument is not None:
             self.bind_to_instrument(instrument)
@@ -378,6 +394,19 @@ class ConfigurationWidget:
             self._column_picker.value = COLUMN_MODELS[column]
         if binding is not None:
             self._binding_picker.value = BINDING_MODELS[binding]
+
+    @property
+    def use_starting_values(self) -> bool:
+        """Whether freshly chosen models get the standard starting values."""
+        return bool(self._starting_values_checkbox.value)
+
+    @use_starting_values.setter
+    def use_starting_values(self, value: bool) -> None:
+        self._starting_values_checkbox.value = bool(value)
+
+    def _on_starting_values_toggle(self, change: dict) -> None:
+        if change["new"] and self._model_form is not None:
+            self._apply_starting_values(method=True)
 
     @property
     def flow_rate(self) -> Optional[float]:
@@ -822,7 +851,7 @@ class ConfigurationWidget:
 
         Method values are only used while the process template is shown and with `method`.
         """
-        if self._restoring:
+        if self._restoring or not self.use_starting_values:
             return
         state = self.snapshot()
         shown = self.show_process_template

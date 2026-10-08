@@ -315,6 +315,7 @@ def test_show_optional_parameters_skips_none_valued_and_non_scalar_fields():
 
 def test_show_optional_parameters_does_not_apply_to_binding_form():
     iw, cw = built()
+    cw.use_starting_values = False
     cw._binding_picker.value = BINDING_MODELS["Steric Mass Action (SMA)"]
     cw._show_optional_column_checkbox.value = True
 
@@ -1013,10 +1014,10 @@ def _sma_pulse_with_edited_buffer():
     return iw, cw
 
 
-def test_edited_method_values_survive_showing_optional_binding_parameters():
+def test_edited_method_values_survive_toggling_optional_binding_parameters():
     _, cw = _sma_pulse_with_edited_buffer()
 
-    cw._show_optional_binding_checkbox.value = True
+    cw._show_optional_binding_checkbox.value = not cw._show_optional_binding_checkbox.value
 
     state = cw.snapshot()
     assert state.model_values["c_buffer_a"] == [123.0, 0.0]

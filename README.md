@@ -62,6 +62,9 @@ workbench.display()
 ```
 
 See [`examples/workbench.ipynb`](examples/workbench.ipynb).
+Standard starting values (`cadetgui/parameters/starting_values.json`) are filled
+into freshly chosen models; the "Use standard starting values" checkbox in the
+process configuration, or `WorkbenchWidget(starting_values=False)`, turns that off.
 
 ### The characterization workbench
 

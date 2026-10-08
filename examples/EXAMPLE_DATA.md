@@ -25,6 +25,7 @@ units bypassed. Each row below only lists what was changed from that base.
 | `example_uv_signal.csv` | *(nothing, the base itself)* | Outlet, Beer-Lambert (`extinction_coefficient = 100` L/(mol·cm), `path_length = 0.2` cm) | 0–5 min, 0.01 min steps | Gaussian, 1 % of max, seed `20260911` |
 | `example_raw_signal.csv` | `total_porosity = 0.60` | Outlet, no calibration | 0–5 min, 0.01 min steps | Gaussian, 1.5 % of max, seed `20260916` |
 | `example_binding_signal.csv` | `total_porosity = 0.65`, `axial_dispersion = 2e-8`, `adsorption_rate = [0.3]`, `desorption_rate = [0.05]` | Outlet, no calibration | 0–10 min, 0.01 min steps | Gaussian, 1 % of max, seed `20260917` |
+| `example_lwe_signal.csv` | Different base, see below: Salt + Protein, SMA, LWE; protein `adsorption_rate = 12`, `desorption_rate = 60` | Outlet, Protein only, 4 s first-order detector lag, no calibration | 0–25 min, 0.01 min steps | Gaussian, 1 % of max, seed `20261007` |
 
 All noise is clipped at `0` afterward (no negative signal values). Every file
 has a two-column header with the time in minutes (`time_min,...`) and reads
@@ -66,3 +67,36 @@ Verified with Nelder-Mead, starting from `total_porosity = 0.5`,
 `axial_dispersion` (true `2e-8`) is not in that verified set: on a single
 noisy trace its broadening of the front overlaps with that of the binding
 kinetics, so add it only once the other three are fitted.
+
+## `example_lwe_signal.csv`
+
+A load–wash–elute run with a different base: components Salt and Protein,
+**Steric Mass Action** binding and the **Load–Wash–Elute (LWE)** template, every
+value from the standard starting values (`cadetgui/parameters/starting_values.json`:
+kinetic SMA with reference concentrations 1000 mM and 1200, capacity 1200,
+characteristic charge 4.7, steric factor 11.83; load and wash at 50 mM salt, 5/15/5
+CV wash/gradient/final wash to 1000 mM, 50 µL sample loop at 1 mol/m³ protein). Only
+the protein's rates differ: `adsorption_rate = 12` and `desorption_rate = 60`
+instead of the starting values 8 and 100. The protein trace is then passed through a
+4 s first-order lag (a detector flow cell), which skews the peak slightly.
+
+At the starting values the protein elutes at about 11.5 min; the measured peak
+comes at about 12.7 min. In the workbench:
+
+1. **System: Instrument** — set the components to `Salt` and `Protein`.
+2. **System: Process configuration** — pick **Steric Mass Action (SMA)** and
+   **Load–Wash–Elute (LWE)**; with "Use standard starting values" on, every value
+   above is filled in.
+3. **Parameter Estimation** — import `example_lwe_signal.csv`, set **Signal
+   represents: Protein**, add the protein's **Adsorption rate** and **Desorption
+   rate**, run Nelder-Mead from the starting values (about 2 minutes):
+
+| Parameter | True value | Start | Recovered |
+|---|---|---|---|
+| `adsorption_rate` (Protein) | 12 | 8 | 10.2 |
+| `desorption_rate` (Protein) | 60 | 100 | 49.0 |
+
+Their ratio, which sets the elution position, is recovered within 4 %. The fitted
+desorption is slower than the true one because it also takes up the detector lag
+the model does not have: the SSE at the fitted values (0.0031) is lower than at the
+true ones (0.063).

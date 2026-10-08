@@ -40,6 +40,10 @@ class WorkbenchWidget:
     `include` narrows which steps are built and shown (default: all of `_STEPS`); a
     skipped step is neither constructed nor wired. Passing an explicit widget for a step
     not in `include` raises `ValueError`.
+
+    `starting_values=False` builds the default configuration widget with the standard
+    starting values switched off; its "Use standard starting values" checkbox toggles
+    them later.
     """
 
     def __init__(
@@ -50,6 +54,7 @@ class WorkbenchWidget:
         configuration: Optional[ConfigurationWidget] = None,
         solution: Optional[SolutionWidget] = None,
         parameter_estimation: Optional[ParameterEstimationWidget] = None,
+        starting_values: bool = True,
     ) -> None:
         steps = tuple(include) if include is not None else _STEPS
         validate_steps(steps, _STEPS)
@@ -64,7 +69,9 @@ class WorkbenchWidget:
             PROCESS,
             configuration,
             steps=steps,
-            factory=lambda: ConfigurationWidget(workspace_header=False),
+            factory=lambda: ConfigurationWidget(
+                workspace_header=False, starting_values=starting_values
+            ),
         )
         self.solution = resolve_step(SIMULATION, solution, steps=steps, factory=SolutionWidget)
         self.parameter_estimation = resolve_step(
