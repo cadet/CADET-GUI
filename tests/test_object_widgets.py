@@ -372,3 +372,32 @@ def test_unit_operations_widget_follows_the_component_system_widget():
 def test_parameter_view_handles_units_without_components():
     inlet = Inlet(ComponentSystem(0), "inlet")
     assert "Concentration" in UnitOperationWidget(inlet)._body.value
+
+
+def test_flow_sheet_widget_removes_connections_and_units():
+    cs = ComponentSystem(1)
+    inlet, column, outlet = (
+        Inlet(cs, "inlet"), LumpedRateModelWithoutPores(cs, "column"), Outlet(cs, "outlet")
+    )
+    widget = FlowSheetWidget(
+        FlowSheet(cs, "flow_sheet"),
+        units=[inlet, column, outlet],
+        connections=[("inlet", "outlet"), ("inlet", "column")],
+    )
+    flow_sheet = widget.flow_sheet
+    labels = [row.children[1].value for row in widget.controls._added.children]
+    assert any("inlet → outlet" in label for label in labels)
+
+    rows = widget.controls._added.children
+    wrong = next(r for r in rows if "inlet → outlet" in r.children[1].value)
+    wrong.children[0].click()
+    assert not flow_sheet.connection_exists(inlet, outlet)
+    assert flow_sheet.connection_exists(inlet, column)
+    assert "add_connection(inlet, outlet)" not in widget.code()
+
+    column_row = next(
+        r for r in widget.controls._added.children if ">column</code>" in r.children[1].value
+    )
+    column_row.children[0].click()
+    assert column not in flow_sheet.units
+    assert column in [unit for _, unit in widget.controls.unit_picker._options]

@@ -200,7 +200,7 @@ def _units_of(units: Any) -> List[Any]:
 
 
 class _BuildControls:
-    """Add units to a flow sheet and connect them."""
+    """Add units to a flow sheet, connect them, and undo either."""
 
     def __init__(self, flow_sheet: Any, units: Any, on_change: Callable[[], None]) -> None:
         self.flow_sheet = flow_sheet
@@ -214,6 +214,7 @@ class _BuildControls:
         self.destination_picker = ChoiceField(label="To:", options=[])
         self.connect_button = W.Button(description="Connect", icon="arrow-right")
         self.status = W.HTML()
+        self._added = W.VBox()
         self.root = W.VBox([
             W.HTML("<div class='cadetgui-section-title'>Build</div>"),
             self.unit_picker,
@@ -222,6 +223,7 @@ class _BuildControls:
             self.destination_picker,
             self.connect_button,
             self.status,
+            self._added,
         ])
         self.add_button.on_click(lambda _button: self.add())
         self.connect_button.on_click(lambda _button: self.connect())
@@ -239,6 +241,29 @@ class _BuildControls:
         destinations = [(u.name, u) for u in units if not isinstance(u, Inlet)]
         self.origin_picker.set_options(origins, keep_value=True)
         self.destination_picker.set_options(destinations, keep_value=True)
+        self._added.children = self._rows()
+
+    def _rows(self) -> List[W.Widget]:
+        rows: List[W.Widget] = []
+        for unit in self.flow_sheet.units:
+            rows.append(self._row(
+                f"<code class='cadetgui-param-label'>{escape(unit.name)}</code>",
+                f"Remove {unit.name} and its connections from the flow sheet",
+                lambda unit=unit: self.flow_sheet.remove_unit(unit),
+            ))
+        for origin, destination in _edges(self.flow_sheet):
+            rows.append(self._row(
+                f"<code class='cadetgui-param-label'>{escape(origin.name)} → "
+                f"{escape(destination.name)}</code>",
+                f"Remove the connection {origin.name} → {destination.name}",
+                lambda o=origin, d=destination: self.flow_sheet.remove_connection(o, d),
+            ))
+        return rows
+
+    def _row(self, label: str, tooltip: str, remove: Callable[[], None]) -> W.HBox:
+        button = W.Button(description="✕", tooltip=tooltip, layout=W.Layout(width="36px"))
+        button.on_click(lambda _button: self._run(remove))
+        return W.HBox([button, W.HTML(label)])
 
     def _run(self, action: Callable[[], None]) -> None:
         try:
