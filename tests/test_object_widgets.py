@@ -161,3 +161,17 @@ def test_simulation_widget_reports_a_failed_run(process):
     widget = SimulationWidget(process)
     assert widget.run() is None
     assert "Simulation failed" in widget.status.value
+
+
+def test_simulation_widget_overlays_a_reference(process):
+    import numpy as np
+    from CADETProcess.reference import ReferenceIO
+
+    time = np.linspace(0, 600, 61)
+    reference = ReferenceIO("measured", time, (time > 120).astype(float))
+    widget = SimulationWidget(process, reference=reference)
+    assert [s["name"] for s in widget.chart.series] == ["measured"]
+
+    widget.run()
+    assert [s["name"] for s in widget.chart.series] == ["A", "measured"]
+    assert widget.chart.series[1]["dashed"]

@@ -8,7 +8,7 @@ import ipywidgets as W
 from ...cadetprocessadapter import classify_signal_ports, measurable_signal_options
 from ...simulation import run_process
 from .._chrome import style_tag
-from .._series import solution_series
+from .._series import reference_series, solution_series
 from .._status import status_html
 from ..elements import ChoiceField, ChromatogramChart
 
@@ -16,10 +16,14 @@ __all__ = ["SimulationWidget"]
 
 
 class SimulationWidget:
-    """Simulate a CADET-Process Process and plot the concentration at a chosen unit."""
+    """Simulate a CADET-Process Process and plot the concentration at a chosen unit.
 
-    def __init__(self, process: Any) -> None:
+    A `reference` (CADET-Process `ReferenceIO`, e.g. measured data) is drawn dashed.
+    """
+
+    def __init__(self, process: Any, reference: Optional[Any] = None) -> None:
         self.process = process
+        self.reference = reference
         self.results: Optional[Any] = None
         self._listeners: List[Callable[[Any], None]] = []
         self._btn_run = W.Button(description="Run simulation", icon="play", button_style="success")
@@ -38,6 +42,7 @@ class SimulationWidget:
         self.root.add_class("cadetgui-panel")
         self._btn_run.on_click(lambda _btn: self.run())
         self._signal.observe(lambda _change: self._plot(), names="selected_index")
+        self._plot()
 
     def run(self) -> Optional[Any]:
         """Simulate the process with CADET and show the results."""
@@ -62,10 +67,14 @@ class SimulationWidget:
         return results
 
     def _plot(self) -> None:
-        if self.results is None or self._signal.value is None:
-            return
-        unit, port = self._signal.value
-        self.chart.series = solution_series(self.results.solution[unit][port]) or []
+        series = []
+        if self.results is not None and self._signal.value is not None:
+            unit, port = self._signal.value
+            series = solution_series(self.results.solution[unit][port]) or []
+        if self.reference is not None:
+            ref = self.reference
+            series.append(reference_series(ref.name, ref.time, ref.solution[:, 0]))
+        self.chart.series = series
 
     def get_value(self) -> Optional[Any]:
         """Return the SimulationResults of the last run, or None."""
