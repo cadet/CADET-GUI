@@ -5,10 +5,13 @@ from html import escape
 from typing import Any, Dict, List, Optional, Tuple
 
 import ipywidgets as W
-from CADETProcess.processModel import Cstr, Inlet, Outlet, TubularReactor
+from CADETProcess.processModel import Cstr, Inlet, NoBinding, Outlet, TubularReactor
 from CADETProcess.processModel.unitOperation import ChromatographicColumnBase
 
+from .._chrome import style_tag
+from ..elements import ChoiceField
 from ._pid_symbols import FG, MUTED, MUTED_STROKE, load_symbol
+from .parameters_widget import ParametersWidget
 from .system_diagram import _PORTS, _caption, _marker, _symbol, _tube, _wire
 
 __all__ = ["FlowSheetWidget", "render_flow_sheet_svg"]
@@ -19,6 +22,7 @@ _ROW = 70
 _BOX = (130.0, 60.0)
 _TUBE_LENGTH = 90.0
 _LEAD = 16
+WARN = "var(--cg-warn, #a16207)"
 
 
 @dataclass
@@ -91,6 +95,12 @@ def _layers(units: List[Any], edges: List[Tuple[Any, Any]]) -> Dict[Any, int]:
         for nxt in successors[unit]:
             if (unit, nxt) in forward:
                 layer[nxt] = max(layer[nxt], layer[unit] + 1)
+
+    # Unconnected units are lined up after the connected ones, in the order they were added.
+    connected = {u for edge in edges for u in edge}
+    first_free = max((layer[u] for u in connected), default=-1) + 1
+    for offset, unit in enumerate(u for u in units if u not in connected):
+        layer[unit] = first_free + offset
     return layer
 
 
@@ -108,7 +118,7 @@ def render_flow_sheet_svg(flow_sheet: Any) -> str:
         columns.setdefault(layer[unit], []).append(nodes[unit])
 
     # Units in the same row share one flow line, so straight connections stay straight.
-    caption_h = 2 * _LEAD + 8
+    caption_h = 3 * _LEAD + 8
     n_rows = max(len(c) for c in columns.values())
     up = [max(c[r].up for c in columns.values() if r < len(c)) for r in range(n_rows)]
     down = [max(c[r].down for c in columns.values() if r < len(c)) for r in range(n_rows)]
@@ -162,6 +172,13 @@ def render_flow_sheet_svg(flow_sheet: Any) -> str:
         top = node.y + node.down + 18
         parts.append(_caption([node.unit.name], cx, top, strong=True))
         parts.append(_caption([type(node.unit).__name__], cx, top + _LEAD))
+        missing = len(getattr(node.unit, "missing_parameters", []))
+        if missing:
+            label = f"{missing} missing parameter{'s' if missing > 1 else ''}"
+            parts.append(
+                f'<text x="{cx:g}" y="{top + 2 * _LEAD:g}" text-anchor="middle" font-size="14" '
+                f'style="fill: {WARN}">{label}</text>'
+            )
 
     height = bottom + _MARGIN
     return (
@@ -175,16 +192,47 @@ def render_flow_sheet_svg(flow_sheet: Any) -> str:
 
 
 class FlowSheetWidget:
-    """Read-only diagram of a CADET-Process FlowSheet: its units and how they are connected."""
+    """Diagram of a CADET-Process FlowSheet, with the parameters of a chosen unit below it.
+
+    Units with missing parameters are marked in the diagram. A column's binding model is
+    shown next to the column's own parameters.
+    """
 
     def __init__(self, flow_sheet: Any) -> None:
         self.flow_sheet = flow_sheet
-        self.root = W.HTML()
+        self.diagram = W.HTML()
+        self.unit_picker = ChoiceField(label="Parameters of:", options=[])
+        self.parameters: List[ParametersWidget] = []
+        self._panel = W.VBox()
+        self.root = W.VBox([W.HTML(style_tag()), self.diagram, self.unit_picker, self._panel])
+        self.unit_picker.observe(lambda _change: self._show_unit(), names="selected_index")
         self.refresh()
 
     def refresh(self) -> None:
-        """Redraw, e.g. after units or connections were added in code."""
-        self.root.value = render_flow_sheet_svg(self.flow_sheet)
+        """Redraw, e.g. after units, connections or parameters were changed in code."""
+        self._draw()
+        units = list(self.flow_sheet.units)
+        selected = self.unit_picker.value
+        self.unit_picker.set_options([(u.name, u) for u in units], keep_value=True)
+        if selected not in units and units:
+            missing = [u for u in units if u.missing_parameters]
+            self.unit_picker.value = (missing or units)[0]
+        self.unit_picker.layout.display = "" if units else "none"
+        self._show_unit()
+
+    def _draw(self) -> None:
+        self.diagram.value = render_flow_sheet_svg(self.flow_sheet)
+
+    def _show_unit(self) -> None:
+        unit = self.unit_picker.value
+        objects = [] if unit is None else [unit]
+        binding_model = getattr(unit, "binding_model", None)
+        if binding_model is not None and not isinstance(binding_model, NoBinding):
+            objects.append(binding_model)
+        self.parameters = [ParametersWidget(obj) for obj in objects]
+        for widget in self.parameters:
+            widget.add_listener(lambda _obj: self._draw())
+        self._panel.children = [w.root for w in self.parameters]
 
     def get_value(self) -> Any:
         """Return the FlowSheet this widget shows."""

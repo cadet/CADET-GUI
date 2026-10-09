@@ -10,6 +10,7 @@ from CADETProcess.processModel import (
     Cstr,
     FlowSheet,
     Inlet,
+    Langmuir,
     LumpedRateModelWithoutPores,
     Outlet,
     Process,
@@ -127,11 +128,36 @@ def test_flow_sheet_widget_refresh_shows_units_added_later():
     cs = ComponentSystem(1)
     flow_sheet = FlowSheet(cs, "flow_sheet")
     widget = FlowSheetWidget(flow_sheet)
-    assert "no units yet" in widget.root.value
+    assert "no units yet" in widget.diagram.value
+    assert widget.unit_picker.layout.display == "none"
 
     flow_sheet.add_unit(Inlet(cs, "inlet"))
     widget.refresh()
-    assert ">inlet<" in widget.root.value
+    assert ">inlet<" in widget.diagram.value
+    assert widget.unit_picker.option_labels == ["inlet"]
+
+
+def test_flow_sheet_widget_marks_and_selects_units_with_missing_parameters():
+    cs = ComponentSystem(1)
+    column = LumpedRateModelWithoutPores(cs, "column")
+    widget = FlowSheetWidget(_flow_sheet(Inlet(cs, "inlet"), column, Outlet(cs, "outlet")))
+
+    assert widget.unit_picker.value is column
+    assert "4 missing parameters" in widget.diagram.value
+
+    widget.parameters[0].fields["length"].value = "0.1"
+    assert "3 missing parameters" in widget.diagram.value
+
+
+def test_flow_sheet_widget_shows_a_columns_binding_model():
+    cs = ComponentSystem(1)
+    column = LumpedRateModelWithoutPores(cs, "column")
+    widget = FlowSheetWidget(_flow_sheet(Inlet(cs, "inlet"), column, Outlet(cs, "outlet")))
+    assert [type(p.obj).__name__ for p in widget.parameters] == ["LumpedRateModelWithoutPores"]
+
+    column.binding_model = Langmuir(cs, "langmuir")
+    widget.refresh()
+    assert [p.obj for p in widget.parameters] == [column, column.binding_model]
 
 
 def test_events_widget_lists_events_and_their_timelines(process):
