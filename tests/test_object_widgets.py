@@ -358,3 +358,18 @@ def test_builders_create_a_model_that_their_code_reproduces():
     built = simulator.simulate(process_widget.process).solution.outlet.outlet.solution
     rebuilt = simulator.simulate(namespace["process"]).solution.outlet.outlet.solution
     np.testing.assert_allclose(built, rebuilt)
+
+
+def test_unit_parameters_editor_groups_required_parameters_and_lists_missing_ones():
+    _components, units = _build_tracer_model()
+    units.parameter_picker.value = units.units["column"]
+    editor = units.editor
+    groups = [c.value for c in editor.root.children if "cadetgui-param-group" in str(c.value)]
+    assert "Required parameters" in groups[0]
+    assert "Missing: axial_dispersion, diameter, length, total_porosity" in editor.status.value
+
+    for name, text in {
+        "length": "0.1", "diameter": "0.02", "total_porosity": "0.4", "axial_dispersion": "1e-7",
+    }.items():
+        editor.fields[f"column.{name}"].value = text
+    assert "All required parameters are set" in editor.status.value

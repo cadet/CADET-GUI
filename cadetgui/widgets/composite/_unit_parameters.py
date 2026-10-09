@@ -7,6 +7,7 @@ import ipywidgets as W
 from CADETProcess.processModel import Inlet, NoBinding
 
 from ...parameters import describe_parameter
+from .._status import status_html
 from ..elements import TextField
 from ._parameter_values import (
     assign_literal,
@@ -45,8 +46,10 @@ def parameter_code(unit: Any) -> List[str]:
 class UnitParametersEditor:
     """Edit the parameters of one unit operation, and of its binding model.
 
-    Values are assigned to the objects, so CADET-Process validates them. An inlet's
-    concentration is a cubic profile, edited by its coefficients with a `PolynomialEditor`.
+    Required parameters come first, and a status line lists those still missing, as
+    `required_parameters` and `missing_parameters` do in CADET-Process. Values are
+    assigned to the objects, so CADET-Process validates them. An inlet's concentration
+    is a cubic profile, edited by its coefficients with a `PolynomialEditor`.
     """
 
     def __init__(
@@ -63,32 +66,56 @@ class UnitParametersEditor:
         self.fields: Dict[str, TextField] = {}
         self.editors: List[PolynomialEditor] = []
         self._owners: Dict[str, Tuple[Any, str]] = {}
+        self._profiles = profiles
+        self._drag_profiles = drag_profiles
         children: List[W.Widget] = []
         for target, owner in _owners(unit):
             if owner is not unit:
                 title = f"Binding model · {type(owner).__name__}"
-                children.append(W.HTML(f"<div class='cadetgui-param-group'>{title}</div>"))
-            for name in parameter_names(owner):
-                if isinstance(owner, Inlet) and name in profiles:
-                    indices = range(owner.n_comp) if name == "c" else [None]
-                    for index in indices:
-                        editor = PolynomialEditor(
-                            owner, name, index,
-                            on_change=self._changed, draggable=drag_profiles,
-                        )
-                        self.editors.append(editor)
-                        children.append(editor.root)
-                    continue
-                key = f"{target}.{name}"
-                unit_label, _description = describe_parameter(owner, name)
-                field = TextField(label=name, value=format_value(owner, name), units=unit_label)
-                field.observe(lambda change, key=key: self._on_edit(key, change), names="value")
-                self.fields[key] = field
-                self._owners[key] = (owner, name)
-                children.append(field)
+                children.append(W.HTML(f"<div class='cadetgui-section-title'>{title}</div>"))
+            required = set(getattr(owner, "required_parameters", []))
+            names = parameter_names(owner)
+            groups = (
+                ("Required parameters", [n for n in names if n in required]),
+                ("Initial state and options" if required else "Parameters",
+                 [n for n in names if n not in required]),
+            )
+            for group, group_names in groups:
+                if group_names:
+                    children.append(W.HTML(f"<div class='cadetgui-param-group'>{group}</div>"))
+                for name in group_names:
+                    children += self._widgets_for(target, owner, name)
+        self.status = W.HTML()
         title = f"{escape(unit.name)} · {type(unit).__name__}"
         heading = W.HTML(f"<div class='cadetgui-section-title'>{title}</div>")
-        self.root = W.VBox([heading, *children])
+        self.root = W.VBox([heading, self.status, *children])
+        self._show_missing()
+
+    def _widgets_for(self, target: str, owner: Any, name: str) -> List[W.Widget]:
+        if isinstance(owner, Inlet) and name in self._profiles:
+            indices = range(owner.n_comp) if name == "c" else [None]
+            editors = [
+                PolynomialEditor(
+                    owner, name, index, on_change=self._changed, draggable=self._drag_profiles
+                )
+                for index in indices
+            ]
+            self.editors += editors
+            return [editor.root for editor in editors]
+        key = f"{target}.{name}"
+        unit_label, _description = describe_parameter(owner, name)
+        field = TextField(label=name, value=format_value(owner, name), units=unit_label)
+        field.observe(lambda change, key=key: self._on_edit(key, change), names="value")
+        self.fields[key] = field
+        self._owners[key] = (owner, name)
+        return [field]
+
+    def _show_missing(self) -> None:
+        missing = self.unit.missing_parameters
+        if missing:
+            self.status.value = status_html("warn", "Missing: " + ", ".join(sorted(missing)))
+        else:
+            self.status.value = status_html("ok", "All required parameters are set.")
 
     def _on_edit(self, key: str, change: dict) -> None:
         owner, name = self._owners[key]
@@ -105,4 +132,5 @@ class UnitParametersEditor:
     def _changed(self) -> None:
         for key, field in self.fields.items():
             field.value = format_value(*self._owners[key])
+        self._show_missing()
         self._on_change()
