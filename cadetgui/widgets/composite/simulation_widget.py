@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import html
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Tuple
 
 import ipywidgets as W
+from CADETProcess.solution import SolutionIO
 
-from ...cadetprocessadapter import classify_signal_ports, measurable_signal_options
 from ...simulation import run_process
 from .._chrome import style_tag
 from .._series import reference_series, solution_series
@@ -15,10 +15,21 @@ from ..elements import ChoiceField, ChromatogramChart
 __all__ = ["SimulationWidget"]
 
 
+def _solution_options(results: Any) -> List[Tuple[str, Tuple[str, str]]]:
+    return [
+        (f"{unit}.{port}", (unit, port))
+        for unit, ports in results.solution.items()
+        for port, solution in ports.items()
+        if isinstance(solution, SolutionIO)
+    ]
+
+
 class SimulationWidget:
     """Simulate a CADET-Process Process and plot the concentration at a chosen unit.
 
-    A `reference` (CADET-Process `ReferenceIO`, e.g. measured data) is drawn dashed.
+    Every unit's `inlet` and `outlet` solution can be shown, labelled by its path in
+    `results.solution`, e.g. `column.outlet`. A `reference` (CADET-Process `ReferenceIO`,
+    e.g. measured data) is drawn dashed.
     """
 
     def __init__(self, process: Any, reference: Optional[Any] = None) -> None:
@@ -56,8 +67,11 @@ class SimulationWidget:
         finally:
             self._btn_run.disabled = False
         self.results = results
-        ports = classify_signal_ports(results)
-        self._signal.set_options(measurable_signal_options(self.process, ports), keep_value=True)
+        first_run = self._signal.value is None
+        options = _solution_options(results)
+        self._signal.set_options(options, keep_value=True)
+        if first_run and ("outlet", "outlet") in [value for _, value in options]:
+            self._signal.value = ("outlet", "outlet")
         self._plot()
         self.status.value = status_html(
             "ok", f"Simulation finished in {results.time_elapsed:.2f} s."
