@@ -10,6 +10,7 @@ from CADETProcess.processModel.unitOperation import ChromatographicColumnBase
 
 from .._chrome import style_tag
 from ..elements import ChoiceField
+from ._parameter_values import components_html
 from ._pid_symbols import FG, MUTED, MUTED_STROKE, load_symbol
 from .system_diagram import _PORTS, _caption, _marker, _symbol, _tube, _wire
 from .unit_operation_widget import UnitOperationWidget
@@ -200,15 +201,19 @@ class FlowSheetWidget:
     def __init__(self, flow_sheet: Any) -> None:
         self.flow_sheet = flow_sheet
         self.diagram = W.HTML()
+        self._components = W.HTML()
         self.unit_picker = ChoiceField(label="Unit:", options=[])
         self.unit_view: Optional[UnitOperationWidget] = None
         self._panel = W.VBox()
-        self.root = W.VBox([W.HTML(style_tag()), self.diagram, self.unit_picker, self._panel])
+        self.root = W.VBox([
+            W.HTML(style_tag()), self._components, self.diagram, self.unit_picker, self._panel,
+        ])
         self.unit_picker.observe(lambda _change: self._show_unit(), names="selected_index")
         self.refresh()
 
     def refresh(self) -> None:
         """Redraw, e.g. after units, connections or parameters were changed in code."""
+        self._components.value = components_html(self.flow_sheet.component_system)
         self.diagram.value = render_flow_sheet_svg(self.flow_sheet)
         units = list(self.flow_sheet.units)
         selected = self.unit_picker.value

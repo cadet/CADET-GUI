@@ -5,7 +5,6 @@ from .characterization_setup import CharacterizationSetupWidget
 from .characterization_step import CharacterizationStepWidget
 from .characterization_workbench import CharacterizationWorkbenchWidget
 from .comparisons import ComparisonsWidget
-from .component_system_widget import ComponentSystemWidget
 from .configuration import ConfigurationWidget
 from .data_import import DataImportWidget, ExperimentalDataset
 from .flow_rate import FlowRateSection
@@ -42,7 +41,6 @@ __all__ = [
     "StudyComponentsWidget",
     "WorkbenchWidget",
     "WorkspaceHeader",
-    "ComponentSystemWidget",
     "UnitOperationWidget",
     "FlowSheetWidget",
     "ProcessWidget",

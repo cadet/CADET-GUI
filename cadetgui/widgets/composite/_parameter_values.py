@@ -1,13 +1,22 @@
 from __future__ import annotations
 
 import ast
+from html import escape
 from typing import Any, List, Optional
 
 import numpy as np
 from CADETProcess.dataStructure.parameter import NdPolynomial, Polynomial
 from CADETProcess.processModel import NoBinding
 
-__all__ = ["parameter_names", "parameter_owners", "format_value", "assign_literal"]
+__all__ = [
+    "components_html", "parameter_names", "parameter_owners", "format_value", "assign_literal",
+]
+
+
+def components_html(component_system: Any) -> str:
+    """One line naming the components of a ComponentSystem."""
+    names = ", ".join(escape(name) for name in component_system.names)
+    return f"<div class='cadetgui-note'>Components: {names}</div>"
 
 
 def parameter_names(obj: Any) -> List[str]:

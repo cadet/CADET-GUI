@@ -4,14 +4,9 @@ import warnings
 
 import numpy as np
 import pytest
-from cadetgui import (
-    ComponentSystemWidget,
-    FlowSheetWidget,
-    ProcessWidget,
-    SimulationWidget,
-    UnitOperationWidget,
-)
+from cadetgui import FlowSheetWidget, ProcessWidget, SimulationWidget
 from cadetgui.widgets._units import unit_html
+from cadetgui.widgets.composite import UnitOperationWidget
 from cadetgui.widgets.composite.flow_sheet_widget import render_flow_sheet_svg
 from CADETProcess.processModel import (
     ComponentSystem,
@@ -62,10 +57,9 @@ def test_unit_html_renders_cadet_process_units():
     )
 
 
-def test_component_system_widget_lists_components():
-    widget = ComponentSystemWidget(ComponentSystem(["Salt", "Protein"]))
-    assert "2 components" in widget._body.value
-    assert "<td>Protein</td>" in widget._body.value
+def test_flow_sheet_and_process_widgets_name_the_components(process):
+    assert "Components: A" in FlowSheetWidget(process.flow_sheet).root.children[1].value
+    assert "Components: A" in ProcessWidget(process).root.children[2].value
 
 
 def test_unit_operation_widget_marks_missing_parameters_and_shows_units():

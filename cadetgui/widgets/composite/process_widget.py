@@ -11,6 +11,7 @@ from .._chrome import style_tag
 from ..elements import EventTimelineChart, TextField
 from ._parameter_values import (
     assign_literal,
+    components_html,
     format_value,
     parameter_names,
     parameter_owners,
@@ -63,6 +64,7 @@ class ProcessWidget:
         self.root = W.VBox([
             W.HTML(style_tag()),
             W.HTML(f"<div class='cadetgui-panel-title'>Process · {title}</div>"),
+            W.HTML(components_html(process.component_system)),
             self._parameters,
             W.HTML("<div class='cadetgui-section-title'>Events</div>"),
             self._events_table,
