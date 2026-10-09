@@ -182,7 +182,8 @@ def test_process_widget_locks_parameters_set_by_events(process):
     widget = ProcessWidget(process)
 
     assert widget.fields["flow_sheet.inlet.c"].disabled
-    assert [editor.name for editor in widget.editors] == ["flow_rate"]
+    assert widget.editors == []
+    assert not widget.fields["flow_sheet.inlet.flow_rate"].disabled
     assert "flow_sheet.inlet.c" in widget._events_table.value
     assert [s["name"] for s in widget.chart.series] == ["Inlet"]
 
@@ -217,8 +218,23 @@ def test_simulation_widget_overlays_a_reference(process):
     assert widget.chart.series[1]["dashed"]
 
 
-def test_process_widget_edits_inlet_profiles_as_polynomials(process):
+def test_process_widget_edits_inlet_profiles_by_coefficients(process):
     widget = ProcessWidget(process)
+    [concentration] = widget.editors
+    assert "flow_sheet.inlet.flow_rate" in widget.fields
+
+    concentration.fields[1].value = "0.005"
+    np.testing.assert_allclose(process.flow_sheet.inlet.c[0], [1, 0.005, 0, 0])
+    series = concentration.chart.series[0]
+    assert series["times"][-1] == pytest.approx(10.0)
+    assert series["values"][-1] == pytest.approx(1 + 0.005 * 600)
+
+    widget.fields["flow_sheet.inlet.flow_rate"].value = "2e-7"
+    assert process.flow_sheet.inlet.flow_rate[0] == 2e-7
+
+
+def test_process_widget_can_drag_profiles_and_edit_the_flow_rate_profile(process):
+    widget = ProcessWidget(process, drag_profiles=True, flow_rate_profile=True)
     concentration, flow_rate = widget.editors
     assert concentration.chart.points == [1.0, 1.0, 1.0, 1.0]
     assert "flow_sheet.inlet.c" not in widget.fields
@@ -234,7 +250,7 @@ def test_process_widget_edits_inlet_profiles_as_polynomials(process):
 def test_polynomial_editor_restarts_the_profile_in_every_section(process):
     process.flow_sheet.inlet.c = [[0, 0.01, 0, 0]]
     process.add_event("flow", "flow_sheet.inlet.flow_rate", 1e-7, 300)
-    editor = ProcessWidget(process).editors[0]
+    editor = ProcessWidget(process, drag_profiles=True).editors[0]
 
     assert editor.chart.duration == 300
     curve = editor.chart.curve
@@ -277,9 +293,8 @@ def test_builders_create_a_model_that_their_code_reproduces():
         "length": "0.1", "diameter": "0.02", "total_porosity": "0.4", "axial_dispersion": "1e-7",
     }.items():
         process_widget.fields[f"flow_sheet.column.{name}"].value = text
-    concentration, flow_rate = process_widget.editors
-    concentration.chart.points = [0.0, 1.0, 2.0, 3.0]
-    flow_rate.fields[0].value = "1e-7"
+    process_widget.editors[0].fields[1].value = "0.005"
+    process_widget.fields["flow_sheet.inlet.flow_rate"].value = "1e-7"
 
     code = "\n\n".join(
         widget.code() for widget in (components, units, flow_sheet_widget, process_widget)

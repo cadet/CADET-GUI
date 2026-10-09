@@ -8,7 +8,7 @@ import ipywidgets as W
 import numpy as np
 
 from ...parameters import describe_parameter
-from ..elements import PolynomialChart, TextField
+from ..elements import LineChart, PolynomialChart, TextField
 from ._parameter_values import _number_text
 
 __all__ = ["PolynomialEditor"]
@@ -24,10 +24,11 @@ def _coefficient_unit(base: str, power: int) -> str:
 
 
 class PolynomialEditor:
-    """Edit one cubic inlet profile, e.g. `Inlet.c` of one component, by dragging or by value.
+    """Edit one cubic inlet profile, e.g. `Inlet.c` of one component, by its coefficients.
 
-    CADET restarts the polynomial at every section of the process, so the handles cover
-    the first section and the chart shows the profile over the whole cycle.
+    The chart shows the profile over the whole cycle, since CADET restarts the polynomial
+    at every section of the process. With `draggable`, four handles over the first section
+    shape it as well.
     """
 
     def __init__(
@@ -37,15 +38,17 @@ class PolynomialEditor:
         name: str,
         index: Optional[int] = None,
         on_change: Optional[Callable[[], None]] = None,
+        draggable: bool = False,
     ) -> None:
         self.process = process
+        self.draggable = draggable
         self.owner = owner
         self.name = name
         self.index = index
         self._on_change = on_change
         self._refreshing = False
         unit, _description = describe_parameter(owner, name)
-        self.chart = PolynomialChart(y_label=name)
+        self.chart = PolynomialChart(y_label=name) if draggable else LineChart(y_label=name)
         self.fields: List[TextField] = [
             TextField(label=f"a{k}", units=_coefficient_unit(unit, k)) for k in range(4)
         ]
@@ -57,7 +60,8 @@ class PolynomialEditor:
             self.chart,
             *self.fields,
         ])
-        self.chart.observe(lambda _change: self._on_drag(), names="points")
+        if draggable:
+            self.chart.observe(lambda _change: self._on_drag(), names="points")
         for k, field in enumerate(self.fields):
             field.observe(lambda change, k=k: self._on_field(k, change), names="value")
         self.refresh()
@@ -109,6 +113,11 @@ class PolynomialEditor:
             t = np.linspace(start, end, _SAMPLES_PER_SECTION)
             times += t.tolist()
             values += polynomial(t - start).tolist()
+        if not self.draggable:
+            self.chart.series = [
+                {"name": self.name, "times": [t / 60 for t in times], "values": values}
+            ]
+            return
         duration = self._sections()[0][1]
         self.chart.duration = duration
         self.chart.cycle_time = cycle_time

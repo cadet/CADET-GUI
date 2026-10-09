@@ -56,8 +56,10 @@ class ProcessWidget:
 
     Every parameter below the process is listed under its path, e.g.
     `flow_sheet.column.length`. Parameters that events change are locked. An inlet's
-    concentration and flow rate are cubic profiles, edited with a `PolynomialEditor`.
-    Given a flow sheet, it creates the process `name`; `values` (path: value) are set first.
+    concentration is a cubic profile, edited by its coefficients in a `PolynomialEditor`
+    (`drag_profiles` adds draggable handles); its flow rate is a plain value unless
+    `flow_rate_profile`. Given a flow sheet, it creates the process `name`; `values`
+    (path: value) are set first.
     """
 
     def __init__(
@@ -65,7 +67,11 @@ class ProcessWidget:
         process: Any,
         name: str = "process",
         values: Optional[Mapping[str, Any]] = None,
+        drag_profiles: bool = False,
+        flow_rate_profile: bool = False,
     ) -> None:
+        self._drag_profiles = drag_profiles
+        self._profiles = ("c", "flow_rate") if flow_rate_profile else ("c",)
         if isinstance(process, FlowSheet):
             process = Process(process, name)
         for path, value in (values or {}).items():
@@ -113,11 +119,12 @@ class ProcessWidget:
         locked_here = []
         for name in names:
             path = f"{prefix}{name}"
-            if isinstance(owner, Inlet) and name in ("c", "flow_rate") and path not in locked:
+            if isinstance(owner, Inlet) and name in self._profiles and path not in locked:
                 indices = range(owner.n_comp) if name == "c" else [None]
                 for index in indices:
                     editor = PolynomialEditor(
-                        self.process, owner, name, index, on_change=self._changed
+                        self.process, owner, name, index,
+                        on_change=self._changed, draggable=self._drag_profiles,
                     )
                     self.editors.append(editor)
                     widgets.append(editor.root)
