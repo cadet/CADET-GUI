@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import html
 import keyword
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
 import ipywidgets as W
 from CADETProcess.processModel import (
@@ -45,9 +45,12 @@ class UnitOperationsWidget:
     """Create unit operations by model and name; `units` holds them by name.
 
     Their parameters are set on the process level, e.g. with the `ProcessWidget`.
+    `units` (name: model class) are created right away.
     """
 
-    def __init__(self, component_system: Any) -> None:
+    def __init__(
+        self, component_system: Any, units: Optional[Mapping[str, type]] = None
+    ) -> None:
         self.component_system = component_system
         self.units: Dict[str, Any] = {}
         self._listeners: List[Callable[[Any], None]] = []
@@ -70,6 +73,11 @@ class UnitOperationsWidget:
         self.root.add_class("cadetgui-panel")
         self.model_picker.observe(lambda _change: self._suggest_name(), names="selected_index")
         self.create_button.on_click(lambda _button: self.create())
+        for name, model in (units or {}).items():
+            self.units[name] = model(component_system, name)
+        if self.units:
+            self._changed()
+            self._suggest_name()
 
     def _suggest_name(self) -> None:
         name = _suggested_name(self.model_picker.value)

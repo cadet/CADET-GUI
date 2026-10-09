@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import html
 import math
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 import ipywidgets as W
 import numpy as np
@@ -19,6 +19,7 @@ from ._parameter_values import (
     format_value,
     parameter_names,
     parameter_owners,
+    set_by_path,
 )
 from ._polynomial_editor import PolynomialEditor
 from ._timeline_data import timeline_chart_data
@@ -56,11 +57,19 @@ class ProcessWidget:
     Every parameter below the process is listed under its path, e.g.
     `flow_sheet.column.length`. Parameters that events change are locked. An inlet's
     concentration and flow rate are cubic profiles, edited with a `PolynomialEditor`.
+    Given a flow sheet, it creates the process `name`; `values` (path: value) are set first.
     """
 
-    def __init__(self, process: Any, name: str = "process") -> None:
+    def __init__(
+        self,
+        process: Any,
+        name: str = "process",
+        values: Optional[Mapping[str, Any]] = None,
+    ) -> None:
         if isinstance(process, FlowSheet):
             process = Process(process, name)
+        for path, value in (values or {}).items():
+            set_by_path(process, path, value)
         self.process = process
         self._listeners: List[Callable[[Any], None]] = []
         self.fields: Dict[str, TextField] = {}

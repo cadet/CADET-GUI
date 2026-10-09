@@ -18,6 +18,7 @@ __all__ = [
     "value_html",
     "code_literal",
     "assign_literal",
+    "set_by_path",
 ]
 
 
@@ -119,6 +120,15 @@ def code_literal(obj: Any, name: str) -> str:
     if isinstance(value, list):
         return repr(value)
     return _number_text(value)
+
+
+def set_by_path(root: Any, path: str, value: Any) -> None:
+    """Set the parameter at `path` below `root`, e.g. `flow_sheet.column.length`."""
+    *owners, name = path.split(".")
+    owner = root
+    for part in owners:
+        owner = getattr(owner, part)
+    setattr(owner, name, value)
 
 
 def assign_literal(obj: Any, name: str, text: str) -> Optional[str]:

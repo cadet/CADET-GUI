@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from html import escape
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import ipywidgets as W
 from CADETProcess import CADETProcessError
@@ -195,6 +195,10 @@ def render_flow_sheet_svg(flow_sheet: Any) -> str:
     )
 
 
+def _units_of(units: Any) -> List[Any]:
+    return list(units.units.values() if hasattr(units, "units") else units)
+
+
 class _BuildControls:
     """Add units to a flow sheet and connect them."""
 
@@ -225,8 +229,7 @@ class _BuildControls:
             units.add_listener(lambda _units: self.refresh())
 
     def _available(self) -> List[Any]:
-        units = self._units.units.values() if hasattr(self._units, "units") else self._units
-        return [u for u in units if u not in self.flow_sheet.units]
+        return [u for u in _units_of(self._units) if u not in self.flow_sheet.units]
 
     def refresh(self) -> None:
         """Offer the units not yet added, and every possible connection."""
@@ -262,11 +265,24 @@ class FlowSheetWidget:
     """Diagram of a CADET-Process FlowSheet, with a chosen unit's view below it.
 
     Units with missing parameters are marked in the diagram. Given `units` (a list of unit
-    operations, or a `UnitOperationsWidget`), it also adds units and connects them.
+    operations, or a `UnitOperationsWidget`), it also adds units and connects them;
+    `connections` (pairs of unit names) are made right away, adding their units.
     """
 
-    def __init__(self, flow_sheet: Any, units: Any = None) -> None:
+    def __init__(
+        self,
+        flow_sheet: Any,
+        units: Any = None,
+        connections: Sequence[Tuple[str, str]] = (),
+    ) -> None:
         self.flow_sheet = flow_sheet
+        if connections:
+            available = {u.name: u for u in _units_of(units)}
+            for pair in connections:
+                for name in pair:
+                    if available[name] not in flow_sheet.units:
+                        flow_sheet.add_unit(available[name])
+                flow_sheet.add_connection(available[pair[0]], available[pair[1]])
         self.diagram = W.HTML()
         self._components = W.HTML()
         self.unit_picker = ChoiceField(label="Show unit:", options=[])

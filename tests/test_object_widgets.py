@@ -304,3 +304,40 @@ def test_component_system_widget_replaces_the_object_only_when_names_change():
     assert widget.component_system is not first
     assert widget.component_system.names == ["Salt", "Protein"]
     assert 'ComponentSystem(["Salt", "Protein"])' in widget.code().replace("'", '"')
+
+
+def test_builders_start_from_presets():
+    from cadetgui import ComponentSystemWidget, UnitOperationsWidget
+
+    components = ComponentSystemWidget(names=["Tracer"])
+    units = UnitOperationsWidget(
+        components.component_system,
+        units={"inlet": Inlet, "column": LumpedRateModelWithoutPores, "outlet": Outlet},
+    )
+    assert list(units.units) == ["inlet", "column", "outlet"]
+    assert 'column = LumpedRateModelWithoutPores(component_system, "column")' in units.code()
+
+    flow_sheet_widget = FlowSheetWidget(
+        FlowSheet(components.component_system, "flow_sheet"),
+        units=units,
+        connections=[("inlet", "column"), ("column", "outlet")],
+    )
+    assert "flow_sheet.add_connection(column, outlet)" in flow_sheet_widget.code()
+
+    process_widget = ProcessWidget(
+        flow_sheet_widget.flow_sheet,
+        name="tracer",
+        values={
+            "cycle_time": 600,
+            "flow_sheet.inlet.c": 1,
+            "flow_sheet.inlet.flow_rate": 1e-7,
+            "flow_sheet.column.length": 0.1,
+            "flow_sheet.column.diameter": 0.02,
+            "flow_sheet.column.total_porosity": 0.4,
+            "flow_sheet.column.axial_dispersion": 1e-7,
+        },
+    )
+    process = process_widget.process
+    assert process.cycle_time == 600
+    assert process.flow_sheet.column.missing_parameters == []
+    assert "column.total_porosity = 0.4" in process_widget.code()
