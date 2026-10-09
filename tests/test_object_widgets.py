@@ -258,7 +258,7 @@ def test_builders_create_a_model_that_their_code_reproduces():
     ]:
         units.model_picker.selected_index = units.model_picker.option_labels.index(label)
         units.name_field.value = name
-        units.add()
+        units.create()
 
     flow_sheet = FlowSheet(component_system, "flow_sheet")
     flow_sheet_widget = FlowSheetWidget(flow_sheet, units=units)

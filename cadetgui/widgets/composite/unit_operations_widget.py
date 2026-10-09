@@ -53,7 +53,7 @@ class UnitOperationsWidget:
         self._listeners: List[Callable[[Any], None]] = []
         self.model_picker = ChoiceField(label="Model:", options=list(UNIT_OPERATION_MODELS.items()))
         self.name_field = TextField(label="Name:", value=_suggested_name(Inlet))
-        self.add_button = W.Button(description="Add", icon="plus")
+        self.create_button = W.Button(description="Create", icon="plus")
         self.status = W.HTML()
         self._list = W.VBox()
         self.code_view = CodeView(self.code)
@@ -62,14 +62,14 @@ class UnitOperationsWidget:
             W.HTML("<div class='cadetgui-panel-title'>Unit operations</div>"),
             self.model_picker,
             self.name_field,
-            self.add_button,
+            self.create_button,
             self.status,
             self._list,
             self.code_view.root,
         ])
         self.root.add_class("cadetgui-panel")
         self.model_picker.observe(lambda _change: self._suggest_name(), names="selected_index")
-        self.add_button.on_click(lambda _button: self.add())
+        self.create_button.on_click(lambda _button: self.create())
 
     def _suggest_name(self) -> None:
         name = _suggested_name(self.model_picker.value)
@@ -78,7 +78,7 @@ class UnitOperationsWidget:
             candidate, n = f"{name}_{n}", n + 1
         self.name_field.value = candidate
 
-    def add(self) -> Any:
+    def create(self) -> Any:
         """Create a unit of the selected model under the entered name, and return it."""
         name = self.name_field.value.strip()
         if not name.isidentifier() or keyword.iskeyword(name):
@@ -133,7 +133,7 @@ class UnitOperationsWidget:
         return dict(self.units)
 
     def add_listener(self, fn: Callable[[Any], None]) -> None:
-        """Call `fn(units)` whenever a unit is added or removed."""
+        """Call `fn(units)` whenever a unit is created or removed."""
         self._listeners.append(fn)
 
     def display(self) -> None:
