@@ -303,7 +303,7 @@ def test_component_system_widget_replaces_the_object_only_when_names_change():
     widget.field.value = ["Salt", "Protein"]
     assert widget.component_system is not first
     assert widget.component_system.names == ["Salt", "Protein"]
-    assert 'ComponentSystem(["Salt", "Protein"])' in widget.code().replace("'", '"')
+    assert 'ComponentSystem(["Salt", "Protein"])' in widget.code()
 
 
 def test_builders_start_from_presets():

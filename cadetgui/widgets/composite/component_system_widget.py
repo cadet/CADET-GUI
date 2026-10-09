@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Callable, List, Sequence
 
 import ipywidgets as W
@@ -51,7 +52,7 @@ class ComponentSystemWidget:
         """Return the CADET-Process code that creates this component system."""
         return (
             "from CADETProcess.processModel import ComponentSystem\n\n"
-            f"component_system = ComponentSystem({self.names!r})"
+            f"component_system = ComponentSystem([{', '.join(map(json.dumps, self.names))}])"
         )
 
     def _changed(self) -> None:
