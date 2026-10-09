@@ -46,14 +46,15 @@ class UnitOperationsWidget:
     """Create unit operations by model and name, and set their parameters.
 
     `component_system` is a ComponentSystem or a `ComponentSystemWidget`, whose current
-    component system is used at each creation. `units` (name: model class) are created
-    right away. `drag_profiles` and `flow_rate_profile` go to the inlet's profile editors.
+    component system is used at each creation. `units` (name: model class, or an existing
+    unit operation) are created or taken over right away. `drag_profiles` and
+    `flow_rate_profile` go to the inlet's profile editors.
     """
 
     def __init__(
         self,
         component_system: Any,
-        units: Optional[Mapping[str, type]] = None,
+        units: Optional[Mapping[str, Any]] = None,
         *,
         drag_profiles: bool = False,
         flow_rate_profile: bool = False,
@@ -90,7 +91,8 @@ class UnitOperationsWidget:
         self.create_button.on_click(lambda _button: self.create())
         self.parameter_picker.observe(lambda _change: self._show_editor(), names="selected_index")
         for name, model in (units or {}).items():
-            self.units[name] = model(self._component_system(), name)
+            is_class = isinstance(model, type)
+            self.units[name] = model(self._component_system(), name) if is_class else model
         if self.units:
             self._changed()
             self._suggest_name()

@@ -383,3 +383,13 @@ def test_unit_parameters_editor_groups_required_parameters_and_lists_missing_one
     }.items():
         editor.fields[f"column.{name}"].value = text
     assert "All required parameters are set" in editor.status.value
+
+
+def test_unit_operations_widget_takes_over_existing_units(process):
+    from cadetgui import UnitOperationsWidget
+
+    column = process.flow_sheet.column
+    units = UnitOperationsWidget(process.component_system, units={"column": column})
+    assert units.units["column"] is column
+    units.editor.fields["column.total_porosity"].value = "0.35"
+    assert column.total_porosity == 0.35
