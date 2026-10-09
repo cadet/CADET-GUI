@@ -5,7 +5,12 @@ from .choice_field import ChoiceField
 from .component_list_field import ComponentListField
 from .float_field import FloatField
 from .float_list_field import FloatListField
-from .line_chart import ChromatogramChart, EventTimelineChart, LineChart
+from .line_chart import (
+    ChromatogramChart,
+    EventTimelineChart,
+    LineChart,
+    PolynomialChart,
+)
 from .selectable_table import SelectableTable
 from .text_field import TextField
 
@@ -21,4 +26,5 @@ __all__ = [
     "LineChart",
     "EventTimelineChart",
     "ChromatogramChart",
+    "PolynomialChart",
 ]

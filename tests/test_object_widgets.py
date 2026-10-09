@@ -155,9 +155,7 @@ def test_process_widget_edits_parameters_by_path(process):
     widget = ProcessWidget(process)
     seen = []
     widget.add_listener(seen.append)
-    assert {"cycle_time", "flow_sheet.inlet.flow_rate", "flow_sheet.column.length"} <= set(
-        widget.fields
-    )
+    assert {"cycle_time", "flow_sheet.column.length"} <= set(widget.fields)
 
     widget.fields["flow_sheet.column.total_porosity"].value = "0.3"
     widget.fields["cycle_time"].value = "900"
@@ -184,15 +182,9 @@ def test_process_widget_locks_parameters_set_by_events(process):
     widget = ProcessWidget(process)
 
     assert widget.fields["flow_sheet.inlet.c"].disabled
-    assert not widget.fields["flow_sheet.inlet.flow_rate"].disabled
+    assert [editor.name for editor in widget.editors] == ["flow_rate"]
     assert "flow_sheet.inlet.c" in widget._events_table.value
     assert [s["name"] for s in widget.chart.series] == ["Inlet"]
-
-
-def test_process_widget_shows_constant_inlet_profiles_as_plain_values(process):
-    widget = ProcessWidget(process)
-    assert widget.fields["flow_sheet.inlet.c"].value == "1"
-    assert widget.fields["flow_sheet.inlet.flow_rate"].value == "1e-7"
 
 
 def test_simulation_widget_runs_and_plots_the_outlet_first(process):
@@ -223,3 +215,28 @@ def test_simulation_widget_overlays_a_reference(process):
     widget.run()
     assert [s["name"] for s in widget.chart.series] == ["A", "measured"]
     assert widget.chart.series[1]["dashed"]
+
+
+def test_process_widget_edits_inlet_profiles_as_polynomials(process):
+    widget = ProcessWidget(process)
+    concentration, flow_rate = widget.editors
+    assert concentration.chart.points == [1.0, 1.0, 1.0, 1.0]
+    assert "flow_sheet.inlet.c" not in widget.fields
+
+    concentration.chart.points = [0.0, 1.0, 2.0, 3.0]
+    np.testing.assert_allclose(process.flow_sheet.inlet.c[0], [0, 3 / 600, 0, 0], atol=1e-12)
+    assert concentration.fields[1].value == "0.005"
+
+    flow_rate.fields[0].value = "2e-7"
+    assert process.flow_sheet.inlet.flow_rate[0] == 2e-7
+
+
+def test_polynomial_editor_restarts_the_profile_in_every_section(process):
+    process.flow_sheet.inlet.c = [[0, 0.01, 0, 0]]
+    process.add_event("flow", "flow_sheet.inlet.flow_rate", 1e-7, 300)
+    editor = ProcessWidget(process).editors[0]
+
+    assert editor.chart.duration == 300
+    curve = editor.chart.curve
+    assert max(curve["values"]) == pytest.approx(3.0)
+    assert curve["values"][curve["times"].index(300.0)] == pytest.approx(3.0)

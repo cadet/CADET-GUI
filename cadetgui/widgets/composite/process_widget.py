@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Tuple
 
 import ipywidgets as W
 import numpy as np
+from CADETProcess.processModel import Inlet
 
 from ...parameters import describe_parameter
 from .._chrome import style_tag
@@ -16,6 +17,7 @@ from ._parameter_values import (
     parameter_names,
     parameter_owners,
 )
+from ._polynomial_editor import PolynomialEditor
 from ._timeline_data import timeline_chart_data
 
 __all__ = ["ProcessWidget", "events_table_html"]
@@ -49,13 +51,15 @@ class ProcessWidget:
     """Configure a CADET-Process Process: cycle time, unit parameters by path, and events.
 
     Every parameter below the process is listed under its path, e.g.
-    `flow_sheet.column.length`. Parameters that events change are locked.
+    `flow_sheet.column.length`. Parameters that events change are locked. An inlet's
+    concentration and flow rate are cubic profiles, edited with a `PolynomialEditor`.
     """
 
     def __init__(self, process: Any) -> None:
         self.process = process
         self._listeners: List[Callable[[Any], None]] = []
         self.fields: Dict[str, TextField] = {}
+        self.editors: List[PolynomialEditor] = []
         self._owners: Dict[str, Tuple[Any, str]] = {}
         self._parameters = W.VBox()
         self._events_table = W.HTML()
@@ -76,6 +80,7 @@ class ProcessWidget:
     def refresh(self) -> None:
         """Rebuild from the process, e.g. after units or events were added in code."""
         self.fields = {}
+        self.editors = []
         self._owners = {}
         children = [_heading("process")]
         children += self._group(self.process, "", ["cycle_time"])
@@ -91,6 +96,15 @@ class ProcessWidget:
         locked_here = []
         for name in names:
             path = f"{prefix}{name}"
+            if isinstance(owner, Inlet) and name in ("c", "flow_rate") and path not in locked:
+                indices = range(owner.n_comp) if name == "c" else [None]
+                for index in indices:
+                    editor = PolynomialEditor(
+                        self.process, owner, name, index, on_change=self._changed
+                    )
+                    self.editors.append(editor)
+                    widgets.append(editor.root)
+                continue
             unit, _description = describe_parameter(owner, name)
             field = TextField(label=name, value=format_value(owner, name), units=unit)
             if path in locked:
@@ -115,8 +129,13 @@ class ProcessWidget:
         field.error = error or ""
         if error:
             return
-        for other, other_field in self.fields.items():
-            other_field.value = format_value(*self._owners[other])
+        self._changed()
+
+    def _changed(self) -> None:
+        for path, field in self.fields.items():
+            field.value = format_value(*self._owners[path])
+        for editor in self.editors:
+            editor.refresh()
         self._refresh_events()
         for fn in list(self._listeners):
             fn(self.process)
