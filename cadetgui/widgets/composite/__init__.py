@@ -7,11 +7,15 @@ from .characterization_workbench import CharacterizationWorkbenchWidget
 from .comparisons import ComparisonsWidget
 from .configuration import ConfigurationWidget
 from .data_import import DataImportWidget, ExperimentalDataset
+from .events_widget import EventsWidget
 from .flow_rate import FlowRateSection
+from .flow_sheet_widget import FlowSheetWidget
 from .instrument import InstrumentWidget
 from .parameter_estimation import ParameterEstimationWidget
 from .parameter_store_view import ParameterStoreWidget
+from .parameters_widget import ParametersWidget
 from .run_history import RunHistoryWidget, RunRecord
+from .simulation_widget import SimulationWidget
 from .solution import SolutionWidget
 from .study_components import StudyComponentsWidget
 from .workbench import WorkbenchWidget
@@ -37,4 +41,8 @@ __all__ = [
     "StudyComponentsWidget",
     "WorkbenchWidget",
     "WorkspaceHeader",
+    "ParametersWidget",
+    "FlowSheetWidget",
+    "EventsWidget",
+    "SimulationWidget",
 ]

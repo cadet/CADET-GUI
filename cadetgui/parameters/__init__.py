@@ -29,7 +29,7 @@ from CADETProcess.simulator.cadetAdapter import (
     unit_parameters_map,
 )
 
-__all__ = ["get_parameters", "get_parameter"]
+__all__ = ["get_parameters", "get_parameter", "describe_parameter"]
 
 # The CADET-Process class behind each (category, model name).
 _MODEL_CLASSES: dict[tuple[str, str], type] = {
@@ -123,3 +123,11 @@ def get_parameters(category: str, model: str) -> dict[str, dict]:
 def get_parameter(category: str, model: str, name: str) -> dict:
     """Metadata for one parameter, e.g. `get_parameter("binding", "Langmuir", "capacity")`."""
     return get_parameters(category, model)[name]
+
+
+def describe_parameter(obj: Any, name: str) -> tuple[str, str]:
+    """Return unit and description of parameter `name` of any CADET-Process object."""
+    descriptor = _descriptor(type(obj), name)
+    if descriptor is None:
+        return "", ""
+    return descriptor.unit or "", descriptor.description or ""
