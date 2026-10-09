@@ -5,19 +5,20 @@ from .characterization_setup import CharacterizationSetupWidget
 from .characterization_step import CharacterizationStepWidget
 from .characterization_workbench import CharacterizationWorkbenchWidget
 from .comparisons import ComparisonsWidget
+from .component_system_widget import ComponentSystemWidget
 from .configuration import ConfigurationWidget
 from .data_import import DataImportWidget, ExperimentalDataset
-from .events_widget import EventsWidget
 from .flow_rate import FlowRateSection
 from .flow_sheet_widget import FlowSheetWidget
 from .instrument import InstrumentWidget
 from .parameter_estimation import ParameterEstimationWidget
 from .parameter_store_view import ParameterStoreWidget
-from .parameters_widget import ParametersWidget
+from .process_widget import ProcessWidget
 from .run_history import RunHistoryWidget, RunRecord
 from .simulation_widget import SimulationWidget
 from .solution import SolutionWidget
 from .study_components import StudyComponentsWidget
+from .unit_operation_widget import UnitOperationWidget
 from .workbench import WorkbenchWidget
 from .workspace_header import WorkspaceHeader
 
@@ -41,8 +42,9 @@ __all__ = [
     "StudyComponentsWidget",
     "WorkbenchWidget",
     "WorkspaceHeader",
-    "ParametersWidget",
+    "ComponentSystemWidget",
+    "UnitOperationWidget",
     "FlowSheetWidget",
-    "EventsWidget",
+    "ProcessWidget",
     "SimulationWidget",
 ]

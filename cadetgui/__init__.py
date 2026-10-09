@@ -1,8 +1,9 @@
 """Widget-based GUI layer on top of CADET-Process.
 
 `WorkbenchWidget` and `CharacterizationWorkbenchWidget` are the ready-made benches;
-`ParametersWidget`, `FlowSheetWidget`, `EventsWidget` and `SimulationWidget` each show
-one CADET-Process object. They load lazily, so `import cadetgui` stays cheap.
+`ComponentSystemWidget`, `UnitOperationWidget`, `FlowSheetWidget`, `ProcessWidget` and
+`SimulationWidget` each show one CADET-Process object. They load lazily, so
+`import cadetgui` stays cheap.
 """
 from typing import TYPE_CHECKING, Any
 
@@ -11,19 +12,21 @@ __version__ = "0.1.0"
 if TYPE_CHECKING:
     from .widgets.composite import (
         CharacterizationWorkbenchWidget,
-        EventsWidget,
+        ComponentSystemWidget,
         FlowSheetWidget,
-        ParametersWidget,
+        ProcessWidget,
         SimulationWidget,
+        UnitOperationWidget,
         WorkbenchWidget,
     )
 
 __all__ = [
     "WorkbenchWidget",
     "CharacterizationWorkbenchWidget",
-    "ParametersWidget",
+    "ComponentSystemWidget",
+    "UnitOperationWidget",
     "FlowSheetWidget",
-    "EventsWidget",
+    "ProcessWidget",
     "SimulationWidget",
 ]
 

@@ -5,14 +5,14 @@ from html import escape
 from typing import Any, Dict, List, Optional, Tuple
 
 import ipywidgets as W
-from CADETProcess.processModel import Cstr, Inlet, NoBinding, Outlet, TubularReactor
+from CADETProcess.processModel import Cstr, Inlet, Outlet, TubularReactor
 from CADETProcess.processModel.unitOperation import ChromatographicColumnBase
 
 from .._chrome import style_tag
 from ..elements import ChoiceField
 from ._pid_symbols import FG, MUTED, MUTED_STROKE, load_symbol
-from .parameters_widget import ParametersWidget
 from .system_diagram import _PORTS, _caption, _marker, _symbol, _tube, _wire
+from .unit_operation_widget import UnitOperationWidget
 
 __all__ = ["FlowSheetWidget", "render_flow_sheet_svg"]
 
@@ -192,17 +192,16 @@ def render_flow_sheet_svg(flow_sheet: Any) -> str:
 
 
 class FlowSheetWidget:
-    """Diagram of a CADET-Process FlowSheet, with the parameters of a chosen unit below it.
+    """Read-only diagram of a CADET-Process FlowSheet, with a chosen unit's view below it.
 
-    Units with missing parameters are marked in the diagram. A column's binding model is
-    shown next to the column's own parameters.
+    Units with missing parameters are marked in the diagram.
     """
 
     def __init__(self, flow_sheet: Any) -> None:
         self.flow_sheet = flow_sheet
         self.diagram = W.HTML()
-        self.unit_picker = ChoiceField(label="Parameters of:", options=[])
-        self.parameters: List[ParametersWidget] = []
+        self.unit_picker = ChoiceField(label="Unit:", options=[])
+        self.unit_view: Optional[UnitOperationWidget] = None
         self._panel = W.VBox()
         self.root = W.VBox([W.HTML(style_tag()), self.diagram, self.unit_picker, self._panel])
         self.unit_picker.observe(lambda _change: self._show_unit(), names="selected_index")
@@ -210,7 +209,7 @@ class FlowSheetWidget:
 
     def refresh(self) -> None:
         """Redraw, e.g. after units, connections or parameters were changed in code."""
-        self._draw()
+        self.diagram.value = render_flow_sheet_svg(self.flow_sheet)
         units = list(self.flow_sheet.units)
         selected = self.unit_picker.value
         self.unit_picker.set_options([(u.name, u) for u in units], keep_value=True)
@@ -220,19 +219,10 @@ class FlowSheetWidget:
         self.unit_picker.layout.display = "" if units else "none"
         self._show_unit()
 
-    def _draw(self) -> None:
-        self.diagram.value = render_flow_sheet_svg(self.flow_sheet)
-
     def _show_unit(self) -> None:
         unit = self.unit_picker.value
-        objects = [] if unit is None else [unit]
-        binding_model = getattr(unit, "binding_model", None)
-        if binding_model is not None and not isinstance(binding_model, NoBinding):
-            objects.append(binding_model)
-        self.parameters = [ParametersWidget(obj) for obj in objects]
-        for widget in self.parameters:
-            widget.add_listener(lambda _obj: self._draw())
-        self._panel.children = [w.root for w in self.parameters]
+        self.unit_view = None if unit is None else UnitOperationWidget(unit)
+        self._panel.children = [] if self.unit_view is None else [self.unit_view.root]
 
     def get_value(self) -> Any:
         """Return the FlowSheet this widget shows."""
