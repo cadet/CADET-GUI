@@ -311,6 +311,12 @@ def test_process_widget_sets_cycle_time_and_shows_events_and_paths(process):
     assert widget.events.get_title(0) == "Events (0)"
     assert widget.chart.layout.display == "none"
     assert "flow_sheet.column.length" in widget._paths.value
+    assert "missing" not in widget._paths.value
+
+    process.flow_sheet.column.length = None
+    widget.refresh()
+    assert widget._paths.value.count(">missing<") == 1
+    process.flow_sheet.column.length = 0.1
 
     widget.cycle_time.value = "900"
     assert process.cycle_time == 900

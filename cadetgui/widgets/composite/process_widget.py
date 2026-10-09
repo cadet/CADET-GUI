@@ -50,10 +50,13 @@ def parameter_paths_html(process: Any) -> str:
     """Read-only list of the parameters below a process, under their paths."""
     rows = []
     for prefix, owner in parameter_owners(process):
+        missing = set(getattr(owner, "missing_parameters", []))
         for name in parameter_names(owner):
             value = value_html(owner, name)
-            missing = "<span class='cadetgui-param-missing'>missing</span>"
-            shown = value if value is not None else missing
+            if name in missing:
+                shown = "<span class='cadetgui-param-missing'>missing</span>"
+            else:
+                shown = "–" if value is None else value
             rows.append(
                 f"<tr><td><code>{html.escape(prefix)}.{html.escape(name)}</code></td>"
                 f"<td>{shown}</td></tr>"
