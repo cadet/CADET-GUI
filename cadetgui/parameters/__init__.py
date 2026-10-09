@@ -15,6 +15,7 @@ from CADETProcess.dataStructure import Bool, Integer, Ranged, Sized, Switch
 from CADETProcess.processModel import (
     Cstr,
     GeneralRateModel,
+    Inlet,
     Langmuir,
     Linear,
     LumpedRateModelWithoutPores,
@@ -125,8 +126,20 @@ def get_parameter(category: str, model: str, name: str) -> dict:
     return get_parameters(category, model)[name]
 
 
+# Inlet's polynomial descriptors carry neither unit nor description.
+_INLET_DESCRIPTIONS = {
+    "c": (
+        r"\frac{\mathrm{mol}}{\mathrm{m}^{3}}",
+        "Concentration of each component in the delivered liquid.",
+    ),
+    "flow_rate": (r"\frac{\mathrm{m}^{3}}{\mathrm{s}}", "Volumetric flow rate."),
+}
+
+
 def describe_parameter(obj: Any, name: str) -> tuple[str, str]:
     """Return unit and description of parameter `name` of any CADET-Process object."""
+    if isinstance(obj, Inlet) and name in _INLET_DESCRIPTIONS:
+        return _INLET_DESCRIPTIONS[name]
     descriptor = _descriptor(type(obj), name)
     if descriptor is None:
         return "", ""

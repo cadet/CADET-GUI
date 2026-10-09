@@ -667,3 +667,65 @@
 .cadetgui-info-missing {
   color: var(--cg-warn);
 }
+
+/* Read-only parameter list of a CADET-Process object (UnitOperationWidget). */
+.cadetgui-params {
+  display: flex;
+  flex-direction: column;
+  max-width: 760px;
+}
+
+.cadetgui-param-group {
+  margin: var(--cg-space-3, 12px) 0 var(--cg-space-1, 4px);
+  font-size: var(--cg-text-sm, 12px);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cg-muted);
+}
+
+.cadetgui-param {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, max-content);
+  gap: var(--cg-space-3, 12px);
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--cg-border);
+}
+
+.cadetgui-param-label {
+  font-weight: 600;
+  color: var(--cg-fg);
+}
+
+.cadetgui-param-attr {
+  font-family: var(--cg-font-mono);
+  font-size: var(--cg-text-sm, 12px);
+  color: var(--cg-muted);
+}
+
+.cadetgui-param-desc {
+  font-size: var(--cg-text-sm, 12px);
+  color: var(--cg-muted);
+  margin-top: 2px;
+}
+
+.cadetgui-param-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cadetgui-param-unit {
+  color: var(--cg-muted);
+  margin-left: 2px;
+}
+
+.cadetgui-param-missing {
+  display: inline-block;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: var(--cg-text-sm, 12px);
+  color: var(--cg-warn);
+  border: 1px solid var(--cg-warn);
+}

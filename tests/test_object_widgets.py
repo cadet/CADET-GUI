@@ -7,6 +7,11 @@ import pytest
 from cadetgui import FlowSheetWidget, ProcessWidget, SimulationWidget
 from cadetgui.widgets._units import unit_html
 from cadetgui.widgets.composite import UnitOperationWidget
+from cadetgui.widgets.composite._parameter_values import (
+    assign_literal,
+    format_value,
+    value_html,
+)
 from cadetgui.widgets.composite.flow_sheet_widget import render_flow_sheet_svg
 from CADETProcess.processModel import (
     ComponentSystem,
@@ -65,23 +70,41 @@ def test_flow_sheet_and_process_widgets_name_the_components(process):
 def test_unit_operation_widget_marks_missing_parameters_and_shows_units():
     column = LumpedRateModelWithoutPores(ComponentSystem(1), "column")
     widget = UnitOperationWidget(column)
-    assert widget._body.value.count("missing</span>") == 4
-    assert "m<sup>2</sup><sub>IV</sub>/s" in widget._body.value
+    assert widget._body.value.count(">missing</span>") == 4
 
     column.length = 0.1
+    column.axial_dispersion = 1e-7
     widget.refresh()
-    assert widget._body.value.count("missing</span>") == 3
-    assert "<code>0.1</code>" in widget._body.value
+    assert widget._body.value.count(">missing</span>") == 2
+    assert "0.1 <span class='cadetgui-param-unit'>m</span>" in widget._body.value
+    assert "10<sup>−7</sup> <span class='cadetgui-param-unit'>m<sup>2</sup><sub>IV</sub>/s" in (
+        widget._body.value
+    )
 
 
 def test_unit_operation_widget_shows_the_binding_model():
     cs = ComponentSystem(1)
     column = LumpedRateModelWithoutPores(cs, "column")
-    assert "NoBinding" in UnitOperationWidget(column)._body.value
+    assert "Binding model: none" in UnitOperationWidget(column)._body.value
+    assert "Binding model" not in UnitOperationWidget(Inlet(cs, "inlet"))._body.value
 
     column.binding_model = Langmuir(cs, "langmuir")
     body = UnitOperationWidget(column)._body.value
-    assert "Langmuir" in body and "capacity" in body
+    assert "Binding model: Langmuir" in body and "capacity" in body
+
+
+def test_values_read_without_brackets_and_per_component():
+    cs = ComponentSystem(["Salt", "Protein"])
+    binding = Langmuir(cs, "langmuir")
+    binding.capacity = [0, 100]
+    binding.adsorption_rate = [2.5e-5, 2.5e-5]
+
+    assert value_html(binding, "capacity") == "Salt: 0, Protein: 100"
+    assert value_html(binding, "adsorption_rate") == "2.5 × 10<sup>−5</sup>"
+    assert format_value(binding, "capacity") == "0, 100"
+    assert format_value(binding, "adsorption_rate") == "2.5e-5"
+    assert assign_literal(binding, "capacity", "10, 20") is None
+    assert binding.capacity == [10, 20]
 
 
 def test_flow_sheet_diagram_draws_every_unit_and_connection(process):
@@ -168,8 +191,8 @@ def test_process_widget_locks_parameters_set_by_events(process):
 
 def test_process_widget_shows_constant_inlet_profiles_as_plain_values(process):
     widget = ProcessWidget(process)
-    assert widget.fields["flow_sheet.inlet.c"].value == "[1.0]"
-    assert widget.fields["flow_sheet.inlet.flow_rate"].value == "1e-07"
+    assert widget.fields["flow_sheet.inlet.c"].value == "1"
+    assert widget.fields["flow_sheet.inlet.flow_rate"].value == "1e-7"
 
 
 def test_simulation_widget_runs_and_plots_the_outlet_first(process):
