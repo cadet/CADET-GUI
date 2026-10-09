@@ -17,20 +17,15 @@ __all__ = ["UnitOperationWidget", "parameters_html"]
 
 def _row(obj: Any, name: str, missing: bool) -> str:
     unit, description = describe_parameter(obj, name)
-    label = name.replace("_", " ").capitalize()
     value = value_html(obj, name)
     if missing or value is None:
         shown = "<span class='cadetgui-param-missing'>missing</span>" if missing else "–"
     else:
         shown = f"{value} <span class='cadetgui-param-unit'>{unit_html(unit)}</span>"
     note = f"<div class='cadetgui-param-desc'>{escape(description)}</div>" if description else ""
-    attr = (
-        "" if label.lower() == name
-        else f"<code class='cadetgui-param-attr'>{escape(name)}</code>"
-    )
     return (
         "<div class='cadetgui-param'>"
-        f"<div><span class='cadetgui-param-label'>{escape(label)}</span> {attr}{note}</div>"
+        f"<div><code class='cadetgui-param-label'>{escape(name)}</code>{note}</div>"
         f"<div class='cadetgui-param-value'>{shown}</div>"
         "</div>"
     )

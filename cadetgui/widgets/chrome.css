@@ -694,6 +694,7 @@
 }
 
 .cadetgui-param-label {
+  font-family: var(--cg-font-mono);
   font-weight: 600;
   color: var(--cg-fg);
 }
