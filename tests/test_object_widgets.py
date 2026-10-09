@@ -159,11 +159,11 @@ def test_simulation_widget_runs_and_plots_the_outlet_first(process):
     results = widget.run()
 
     assert results is widget.get_value() is seen[0]
-    assert widget._signal.option_labels == [
-        "inlet.inlet", "inlet.outlet", "column.inlet", "column.outlet",
-        "outlet.inlet", "outlet.outlet",
-    ]
-    assert widget._signal.value == ("outlet", "outlet")
+    assert widget._signal.option_labels == ["inlet", "column.inlet", "column.outlet", "outlet"]
+    assert widget._signal.value == ("outlet", "inlet")
+    assert "_ = simulation_results.solution.outlet.inlet.plot()" in widget.code()
+    widget._signal.value = ("inlet", "outlet")
+    assert "solution.inlet.outlet.plot()" in widget.code()
     assert widget.chart.series[0]["name"] == "A"
 
 
