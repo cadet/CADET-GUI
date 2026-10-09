@@ -341,3 +341,15 @@ def test_builders_start_from_presets():
     assert process.cycle_time == 600
     assert process.flow_sheet.column.missing_parameters == []
     assert "column.total_porosity = 0.4" in process_widget.code()
+
+
+def test_component_system_widget_starts_empty_and_ignores_unnamed_rows():
+    from cadetgui import ComponentSystemWidget
+
+    widget = ComponentSystemWidget()
+    assert widget.field.value == []
+    assert widget.component_system.n_comp == 0
+
+    widget.field.value = ["", "Tracer", " "]
+    assert widget.names == ["Tracer"]
+    assert 'ComponentSystem(["Tracer"])' in widget.code()

@@ -11,7 +11,7 @@ function render({ model, el }) {
   const counter = document.createElement("span");
   counter.className = "cadetgui-field-count";
 
-  const minComponents = () => model.get("min_components") || 1;
+  const minComponents = () => model.get("min_components") ?? 1;
 
   function updateCounter() {
     const n = rows.children.length;
@@ -39,6 +39,7 @@ function render({ model, el }) {
     const input = document.createElement("input");
     input.type = "text";
     input.value = name;
+    input.placeholder = "name";
     input.addEventListener("change", commit);
     row.appendChild(input);
 
@@ -61,7 +62,7 @@ function render({ model, el }) {
   function syncFromModel() {
     rows.innerHTML = "";
     const names = model.get("value") || [];
-    const list = names.length ? names : ["Component 1"];
+    const list = names.length || model.get("blank_rows") ? names : ["Component 1"];
     list.forEach((n) => addRow(n));
     wrap.classList.toggle("cadetgui-field-list-stacked", list.length > 1);
     updateCounter();
@@ -73,7 +74,7 @@ function render({ model, el }) {
   addBtn.className = "cadetgui-field-list-add";
   addBtn.textContent = "+ Add component";
   addBtn.addEventListener("click", () => {
-    addRow(`Component ${rows.children.length + 1}`);
+    addRow(model.get("blank_rows") ? "" : `Component ${rows.children.length + 1}`);
     commit();
     updateRemoveButtons();
   });

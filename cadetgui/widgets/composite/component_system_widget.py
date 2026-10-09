@@ -20,9 +20,9 @@ class ComponentSystemWidget:
     one keep it.
     """
 
-    def __init__(self, names: Sequence[str] = ("Component 1",)) -> None:
+    def __init__(self, names: Sequence[str] = ()) -> None:
         self._listeners: List[Callable[[Any], None]] = []
-        self.field = ComponentListField(label="Components:", value=list(names))
+        self.field = ComponentListField(label="Components:", value=list(names), blank_rows=True)
         self._component_system = ComponentSystem(list(names))
         self.code_view = CodeView(self.code)
         self.root = W.VBox([
@@ -36,8 +36,8 @@ class ComponentSystemWidget:
 
     @property
     def names(self) -> List[str]:
-        """The component names, in order."""
-        return list(self.field.value)
+        """The component names, in order; rows without a name are left out."""
+        return [name.strip() for name in self.field.value if name.strip()]
 
     @property
     def component_system(self) -> ComponentSystem:
