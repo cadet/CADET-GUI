@@ -353,3 +353,22 @@ def test_component_system_widget_starts_empty_and_ignores_unnamed_rows():
     widget.field.value = ["", "Tracer", " "]
     assert widget.names == ["Tracer"]
     assert 'ComponentSystem(["Tracer"])' in widget.code()
+
+
+def test_unit_operations_widget_follows_the_component_system_widget():
+    from cadetgui import ComponentSystemWidget, UnitOperationsWidget
+
+    components = ComponentSystemWidget()
+    units = UnitOperationsWidget(components)
+    assert units.create() is None
+    assert "Add a component first" in units.status.value
+
+    components.field.value = ["Tracer"]
+    inlet = units.create()
+    assert inlet.component_system is components.component_system
+    assert "No parameters" not in UnitOperationWidget(inlet)._body.value
+
+
+def test_parameter_view_handles_units_without_components():
+    inlet = Inlet(ComponentSystem(0), "inlet")
+    assert "Concentration" in UnitOperationWidget(inlet)._body.value

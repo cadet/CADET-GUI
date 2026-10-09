@@ -44,8 +44,9 @@ def _suggested_name(model: type) -> str:
 class UnitOperationsWidget:
     """Create unit operations by model and name; `units` holds them by name.
 
-    Their parameters are set on the process level, e.g. with the `ProcessWidget`.
-    `units` (name: model class) are created right away.
+    `component_system` is a ComponentSystem or a `ComponentSystemWidget`, whose current
+    component system is used at each creation. Parameters are set on the process level,
+    e.g. with the `ProcessWidget`. `units` (name: model class) are created right away.
     """
 
     def __init__(
@@ -74,10 +75,14 @@ class UnitOperationsWidget:
         self.model_picker.observe(lambda _change: self._suggest_name(), names="selected_index")
         self.create_button.on_click(lambda _button: self.create())
         for name, model in (units or {}).items():
-            self.units[name] = model(component_system, name)
+            self.units[name] = model(self._component_system(), name)
         if self.units:
             self._changed()
             self._suggest_name()
+
+    def _component_system(self) -> Any:
+        source = self.component_system
+        return source.component_system if hasattr(source, "component_system") else source
 
     def _suggest_name(self) -> None:
         name = _suggested_name(self.model_picker.value)
@@ -95,7 +100,11 @@ class UnitOperationsWidget:
         if name in self.units:
             self.status.value = status_html("error", f"There is already a unit named {name}.")
             return None
-        unit = self.model_picker.value(self.component_system, name)
+        component_system = self._component_system()
+        if component_system.n_comp == 0:
+            self.status.value = status_html("error", "Add a component first.")
+            return None
+        unit = self.model_picker.value(component_system, name)
         self.units[name] = unit
         self.status.value = ""
         self._changed()

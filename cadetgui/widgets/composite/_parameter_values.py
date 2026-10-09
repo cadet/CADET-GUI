@@ -54,6 +54,8 @@ def _value(obj: Any, name: str) -> Any:
     value = getattr(obj, name)
     if isinstance(value, np.ndarray):
         value = value.tolist()
+    if isinstance(value, list) and not value:
+        return None
     # Polynomial inputs (e.g. Inlet.c) hold [constant, linear, quadratic, cubic] per entry;
     # while the profile is constant, only the constants matter.
     if value is not None and isinstance(getattr(type(obj), name, None), (NdPolynomial, Polynomial)):
