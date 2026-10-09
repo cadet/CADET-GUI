@@ -19,6 +19,7 @@ from .._chrome import style_tag
 from .._status import status_html
 from ..elements import ChoiceField, TextField
 from ._code_view import CodeView
+from ._unit_parameters import UnitParametersEditor, parameter_code
 
 __all__ = ["UnitOperationsWidget", "UNIT_OPERATION_MODELS"]
 
@@ -42,17 +43,28 @@ def _suggested_name(model: type) -> str:
 
 
 class UnitOperationsWidget:
-    """Create unit operations by model and name; `units` holds them by name.
+    """Create unit operations by model and name, and set their parameters.
 
     `component_system` is a ComponentSystem or a `ComponentSystemWidget`, whose current
-    component system is used at each creation. Parameters are set on the process level,
-    e.g. with the `ProcessWidget`. `units` (name: model class) are created right away.
+    component system is used at each creation. `units` (name: model class) are created
+    right away. `drag_profiles` and `flow_rate_profile` go to the inlet's profile editors.
     """
 
     def __init__(
-        self, component_system: Any, units: Optional[Mapping[str, type]] = None
+        self,
+        component_system: Any,
+        units: Optional[Mapping[str, type]] = None,
+        *,
+        drag_profiles: bool = False,
+        flow_rate_profile: bool = False,
     ) -> None:
         self.component_system = component_system
+        self._editor_options = {
+            "drag_profiles": drag_profiles, "flow_rate_profile": flow_rate_profile,
+        }
+        self.parameter_picker = ChoiceField(label="Parameters of:", options=[])
+        self.editor: Optional[UnitParametersEditor] = None
+        self._editor_box = W.VBox()
         self.units: Dict[str, Any] = {}
         self._listeners: List[Callable[[Any], None]] = []
         self.model_picker = ChoiceField(label="Model:", options=list(UNIT_OPERATION_MODELS.items()))
@@ -69,11 +81,14 @@ class UnitOperationsWidget:
             self.create_button,
             self.status,
             self._list,
+            self.parameter_picker,
+            self._editor_box,
             self.code_view.root,
         ])
         self.root.add_class("cadetgui-panel")
         self.model_picker.observe(lambda _change: self._suggest_name(), names="selected_index")
         self.create_button.on_click(lambda _button: self.create())
+        self.parameter_picker.observe(lambda _change: self._show_editor(), names="selected_index")
         for name, model in (units or {}).items():
             self.units[name] = model(self._component_system(), name)
         if self.units:
@@ -108,6 +123,7 @@ class UnitOperationsWidget:
         self.units[name] = unit
         self.status.value = ""
         self._changed()
+        self.parameter_picker.value = unit
         self._suggest_name()
         return unit
 
@@ -129,6 +145,24 @@ class UnitOperationsWidget:
             )
             rows.append(W.HBox([button, label]))
         self._list.children = rows
+        self.parameter_picker.set_options(
+            [(name, unit) for name, unit in self.units.items()], keep_value=True
+        )
+        self.parameter_picker.layout.display = "" if self.units else "none"
+        self._show_editor()
+        self._notify()
+
+    def _show_editor(self) -> None:
+        unit = self.parameter_picker.value
+        if self.editor is not None and self.editor.unit is unit:
+            return
+        self.editor = (
+            None if unit is None
+            else UnitParametersEditor(unit, self._notify, **self._editor_options)
+        )
+        self._editor_box.children = [] if self.editor is None else [self.editor.root]
+
+    def _notify(self) -> None:
         self.code_view.refresh()
         for fn in list(self._listeners):
             fn(self.units)
@@ -139,10 +173,9 @@ class UnitOperationsWidget:
         if not classes:
             return "# No unit operations yet."
         lines = [f"from CADETProcess.processModel import {', '.join(classes)}", ""]
-        lines += [
-            f'{name} = {type(unit).__name__}(component_system, "{name}")'
-            for name, unit in self.units.items()
-        ]
+        for name, unit in self.units.items():
+            lines.append(f'{name} = {type(unit).__name__}(component_system, "{name}")')
+            lines += parameter_code(unit)
         return "\n".join(lines)
 
     def get_value(self) -> Dict[str, Any]:
@@ -150,7 +183,7 @@ class UnitOperationsWidget:
         return dict(self.units)
 
     def add_listener(self, fn: Callable[[Any], None]) -> None:
-        """Call `fn(units)` whenever a unit is created or removed."""
+        """Call `fn(units)` whenever a unit is created, removed or a parameter changes."""
         self._listeners.append(fn)
 
     def display(self) -> None:

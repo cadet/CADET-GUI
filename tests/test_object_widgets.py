@@ -151,43 +151,6 @@ def test_flow_sheet_widget_marks_and_shows_units_with_missing_parameters():
     assert widget.unit_view.unit is column
 
 
-def test_process_widget_edits_parameters_by_path(process):
-    widget = ProcessWidget(process)
-    seen = []
-    widget.add_listener(seen.append)
-    assert {"cycle_time", "flow_sheet.column.length"} <= set(widget.fields)
-
-    widget.fields["flow_sheet.column.total_porosity"].value = "0.3"
-    widget.fields["cycle_time"].value = "900"
-
-    assert process.flow_sheet.column.total_porosity == 0.3
-    assert process.cycle_time == 900
-    assert seen == [process, process]
-
-
-def test_process_widget_shows_cadet_process_validation_errors(process):
-    widget = ProcessWidget(process)
-    field = widget.fields["flow_sheet.column.total_porosity"]
-
-    field.value = "1.5"
-    assert "upper bound" in field.error
-    assert process.flow_sheet.column.total_porosity == 0.4
-
-    field.value = "ten"
-    assert "Enter a number" in field.error
-
-
-def test_process_widget_locks_parameters_set_by_events(process):
-    process.add_event("wash", "flow_sheet.inlet.c", 0, 300)
-    widget = ProcessWidget(process)
-
-    assert widget.fields["flow_sheet.inlet.c"].disabled
-    assert widget.editors == []
-    assert not widget.fields["flow_sheet.inlet.flow_rate"].disabled
-    assert "flow_sheet.inlet.c" in widget._events_table.value
-    assert [s["name"] for s in widget.chart.series] == ["Inlet"]
-
-
 def test_simulation_widget_runs_and_plots_the_outlet_first(process):
     widget = SimulationWidget(process)
     seen = []
@@ -218,96 +181,6 @@ def test_simulation_widget_overlays_a_reference(process):
     assert widget.chart.series[1]["dashed"]
 
 
-def test_process_widget_edits_inlet_profiles_by_coefficients(process):
-    widget = ProcessWidget(process)
-    [concentration] = widget.editors
-    assert "flow_sheet.inlet.flow_rate" in widget.fields
-
-    concentration.fields[1].value = "0.005"
-    np.testing.assert_allclose(process.flow_sheet.inlet.c[0], [1, 0.005, 0, 0])
-    series = concentration.chart.series[0]
-    assert series["times"][-1] == pytest.approx(10.0)
-    assert series["values"][-1] == pytest.approx(1 + 0.005 * 600)
-
-    widget.fields["flow_sheet.inlet.flow_rate"].value = "2e-7"
-    assert process.flow_sheet.inlet.flow_rate[0] == 2e-7
-
-
-def test_process_widget_can_drag_profiles_and_edit_the_flow_rate_profile(process):
-    widget = ProcessWidget(process, drag_profiles=True, flow_rate_profile=True)
-    concentration, flow_rate = widget.editors
-    assert concentration.chart.points == [1.0, 1.0, 1.0, 1.0]
-    assert "flow_sheet.inlet.c" not in widget.fields
-
-    concentration.chart.points = [0.0, 1.0, 2.0, 3.0]
-    np.testing.assert_allclose(process.flow_sheet.inlet.c[0], [0, 3 / 600, 0, 0], atol=1e-12)
-    assert concentration.fields[1].value == "0.005"
-
-    flow_rate.fields[0].value = "2e-7"
-    assert process.flow_sheet.inlet.flow_rate[0] == 2e-7
-
-
-def test_polynomial_editor_restarts_the_profile_in_every_section(process):
-    process.flow_sheet.inlet.c = [[0, 0.01, 0, 0]]
-    process.add_event("flow", "flow_sheet.inlet.flow_rate", 1e-7, 300)
-    editor = ProcessWidget(process, drag_profiles=True).editors[0]
-
-    assert editor.chart.duration == 300
-    curve = editor.chart.curve
-    assert max(curve["values"]) == pytest.approx(3.0)
-    assert curve["values"][curve["times"].index(300.0)] == pytest.approx(3.0)
-
-
-def test_builders_create_a_model_that_their_code_reproduces():
-    from cadetgui import ComponentSystemWidget, UnitOperationsWidget
-    from CADETProcess.simulator import Cadet
-
-    components = ComponentSystemWidget(names=["Tracer"])
-    component_system = components.component_system
-    assert components.component_system is component_system
-
-    units = UnitOperationsWidget(component_system)
-    for label, name in [
-        ("Inlet", "inlet"),
-        ("Lumped Rate Model Without Pores (LRM)", "column"),
-        ("Outlet", "outlet"),
-    ]:
-        units.model_picker.selected_index = units.model_picker.option_labels.index(label)
-        units.name_field.value = name
-        units.create()
-
-    flow_sheet = FlowSheet(component_system, "flow_sheet")
-    flow_sheet_widget = FlowSheetWidget(flow_sheet, units=units)
-    controls = flow_sheet_widget.controls
-    for _ in range(3):
-        controls.add()
-    for origin, destination in [("inlet", "column"), ("column", "outlet")]:
-        controls.origin_picker.value = units.units[origin]
-        controls.destination_picker.value = units.units[destination]
-        controls.connect()
-    assert "missing parameter" in flow_sheet_widget.diagram.value
-
-    process_widget = ProcessWidget(flow_sheet, name="tracer")
-    process_widget.fields["cycle_time"].value = "600"
-    for name, text in {
-        "length": "0.1", "diameter": "0.02", "total_porosity": "0.4", "axial_dispersion": "1e-7",
-    }.items():
-        process_widget.fields[f"flow_sheet.column.{name}"].value = text
-    process_widget.editors[0].fields[1].value = "0.005"
-    process_widget.fields["flow_sheet.inlet.flow_rate"].value = "1e-7"
-
-    code = "\n\n".join(
-        widget.code() for widget in (components, units, flow_sheet_widget, process_widget)
-    )
-    namespace = {}
-    exec(code, namespace)
-
-    simulator = Cadet()
-    built = simulator.simulate(process_widget.process).solution.outlet.outlet.solution
-    rebuilt = simulator.simulate(namespace["process"]).solution.outlet.outlet.solution
-    np.testing.assert_allclose(built, rebuilt)
-
-
 def test_component_system_widget_replaces_the_object_only_when_names_change():
     from cadetgui import ComponentSystemWidget
 
@@ -319,43 +192,6 @@ def test_component_system_widget_replaces_the_object_only_when_names_change():
     assert widget.component_system is not first
     assert widget.component_system.names == ["Salt", "Protein"]
     assert 'ComponentSystem(["Salt", "Protein"])' in widget.code()
-
-
-def test_builders_start_from_presets():
-    from cadetgui import ComponentSystemWidget, UnitOperationsWidget
-
-    components = ComponentSystemWidget(names=["Tracer"])
-    units = UnitOperationsWidget(
-        components.component_system,
-        units={"inlet": Inlet, "column": LumpedRateModelWithoutPores, "outlet": Outlet},
-    )
-    assert list(units.units) == ["inlet", "column", "outlet"]
-    assert 'column = LumpedRateModelWithoutPores(component_system, "column")' in units.code()
-
-    flow_sheet_widget = FlowSheetWidget(
-        FlowSheet(components.component_system, "flow_sheet"),
-        units=units,
-        connections=[("inlet", "column"), ("column", "outlet")],
-    )
-    assert "flow_sheet.add_connection(column, outlet)" in flow_sheet_widget.code()
-
-    process_widget = ProcessWidget(
-        flow_sheet_widget.flow_sheet,
-        name="tracer",
-        values={
-            "cycle_time": 600,
-            "flow_sheet.inlet.c": 1,
-            "flow_sheet.inlet.flow_rate": 1e-7,
-            "flow_sheet.column.length": 0.1,
-            "flow_sheet.column.diameter": 0.02,
-            "flow_sheet.column.total_porosity": 0.4,
-            "flow_sheet.column.axial_dispersion": 1e-7,
-        },
-    )
-    process = process_widget.process
-    assert process.cycle_time == 600
-    assert process.flow_sheet.column.missing_parameters == []
-    assert "column.total_porosity = 0.4" in process_widget.code()
 
 
 def test_component_system_widget_starts_empty_and_ignores_unnamed_rows():
@@ -416,3 +252,109 @@ def test_flow_sheet_widget_removes_connections_and_units():
     column_row.children[0].click()
     assert column not in flow_sheet.units
     assert column in [unit for _, unit in widget.controls.unit_picker._options]
+
+
+def _build_tracer_model():
+    from cadetgui import ComponentSystemWidget, UnitOperationsWidget
+
+    components = ComponentSystemWidget(names=["Tracer"])
+    units = UnitOperationsWidget(components)
+    for label, name in [
+        ("Inlet", "inlet"),
+        ("Lumped Rate Model Without Pores (LRM)", "column"),
+        ("Outlet", "outlet"),
+    ]:
+        units.model_picker.selected_index = units.model_picker.option_labels.index(label)
+        units.name_field.value = name
+        units.create()
+    return components, units
+
+
+def test_unit_operations_widget_edits_parameters_of_the_selected_unit():
+    _components, units = _build_tracer_model()
+    assert units.editor.unit is units.units["outlet"]
+    column = units.units["column"]
+    units.parameter_picker.value = column
+    assert units.editor.unit is column
+
+    units.editor.fields["column.total_porosity"].value = "1.5"
+    assert "upper bound" in units.editor.fields["column.total_porosity"].error
+    units.editor.fields["column.total_porosity"].value = "0.4"
+    assert column.total_porosity == 0.4
+    assert "column.total_porosity = 0.4" in units.code()
+
+    units.parameter_picker.value = units.units["inlet"]
+    [concentration] = units.editor.editors
+    concentration.fields[1].value = "0.005"
+    np.testing.assert_allclose(units.units["inlet"].c[0], [0, 0.005, 0, 0])
+    assert "<polyline" in concentration.chart.value
+    units.editor.fields["inlet.flow_rate"].value = "2e-7"
+    assert units.units["inlet"].flow_rate[0] == 2e-7
+
+
+def test_inlet_profile_editor_can_drag_and_follows_process_sections(process):
+    from cadetgui.widgets.composite._polynomial_editor import PolynomialEditor
+
+    inlet = process.flow_sheet.inlet
+    inlet.c = [[0, 0.01, 0, 0]]
+    process.add_event("flow", "flow_sheet.inlet.flow_rate", 1e-7, 300)
+    editor = PolynomialEditor(inlet, "c", 0, process=process, draggable=True)
+
+    assert editor.chart.duration == 300
+    assert max(editor.chart.curve["values"]) == pytest.approx(3.0)
+    editor.chart.points = [0.0, 1.0, 2.0, 3.0]
+    np.testing.assert_allclose(inlet.c[0], [0, 0.01, 0, 0], atol=1e-12)
+
+
+def test_process_widget_sets_cycle_time_and_shows_events_and_paths(process):
+    widget = ProcessWidget(process)
+    assert widget.events.get_title(0) == "Events (0)"
+    assert widget.chart.layout.display == "none"
+    assert "flow_sheet.column.length" in widget._paths.value
+
+    widget.cycle_time.value = "900"
+    assert process.cycle_time == 900
+    widget.cycle_time.value = "-1"
+    assert "lower bound" in widget.cycle_time.error
+
+    process.add_event("wash", "flow_sheet.inlet.c", 0, 300)
+    widget.refresh()
+    assert widget.events.get_title(0) == "Events (1)"
+    assert "flow_sheet.inlet.c" in widget._events_table.value
+    assert 'process.add_event("wash", "flow_sheet.inlet.c", 0, 300)' in widget.code()
+
+
+def test_builders_create_a_model_that_their_code_reproduces():
+    from CADETProcess.simulator import Cadet
+
+    components, units = _build_tracer_model()
+    for name, text in {
+        "column.length": "0.1", "column.diameter": "0.02",
+        "column.total_porosity": "0.4", "column.axial_dispersion": "1e-7",
+    }.items():
+        units.parameter_picker.value = units.units["column"]
+        units.editor.fields[name].value = text
+    units.parameter_picker.value = units.units["inlet"]
+    units.editor.editors[0].fields[1].value = "0.005"
+    units.editor.fields["inlet.flow_rate"].value = "1e-7"
+
+    flow_sheet_widget = FlowSheetWidget(
+        FlowSheet(components.component_system, "flow_sheet"),
+        units=units,
+        connections=[("inlet", "column"), ("column", "outlet")],
+    )
+    assert "missing parameter" not in flow_sheet_widget.diagram.value
+    process_widget = ProcessWidget(
+        flow_sheet_widget.flow_sheet, name="tracer", values={"cycle_time": 600}
+    )
+
+    code = "\n\n".join(
+        widget.code() for widget in (components, units, flow_sheet_widget, process_widget)
+    )
+    namespace = {}
+    exec(code, namespace)
+
+    simulator = Cadet()
+    built = simulator.simulate(process_widget.process).solution.outlet.outlet.solution
+    rebuilt = simulator.simulate(namespace["process"]).solution.outlet.outlet.solution
+    np.testing.assert_allclose(built, rebuilt)

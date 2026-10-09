@@ -228,7 +228,7 @@ class _BuildControls:
         self.add_button.on_click(lambda _button: self.add())
         self.connect_button.on_click(lambda _button: self.connect())
         if hasattr(units, "add_listener"):
-            units.add_listener(lambda _units: self.refresh())
+            units.add_listener(lambda _units: self._on_change())
 
     def _available(self) -> List[Any]:
         return [u for u in _units_of(self._units) if u not in self.flow_sheet.units]
