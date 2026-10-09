@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import html
+import math
 from typing import Any, Callable, Dict, List, Tuple
 
 import ipywidgets as W
 import numpy as np
-from CADETProcess.processModel import Inlet
+from CADETProcess.processModel import FlowSheet, Inlet, Process
 
 from ...parameters import describe_parameter
 from .._chrome import style_tag
 from ..elements import EventTimelineChart, TextField
+from ._code_view import CodeView
 from ._parameter_values import (
     assign_literal,
+    code_literal,
     components_html,
     format_value,
     parameter_names,
@@ -55,7 +58,9 @@ class ProcessWidget:
     concentration and flow rate are cubic profiles, edited with a `PolynomialEditor`.
     """
 
-    def __init__(self, process: Any) -> None:
+    def __init__(self, process: Any, name: str = "process") -> None:
+        if isinstance(process, FlowSheet):
+            process = Process(process, name)
         self.process = process
         self._listeners: List[Callable[[Any], None]] = []
         self.fields: Dict[str, TextField] = {}
@@ -64,6 +69,7 @@ class ProcessWidget:
         self._parameters = W.VBox()
         self._events_table = W.HTML()
         self.chart = EventTimelineChart()
+        self.code_view = CodeView(self.code)
         title = html.escape(process.name)
         self.root = W.VBox([
             W.HTML(style_tag()),
@@ -73,6 +79,7 @@ class ProcessWidget:
             W.HTML("<div class='cadetgui-section-title'>Events</div>"),
             self._events_table,
             self.chart,
+            self.code_view.root,
         ])
         self.root.add_class("cadetgui-panel")
         self.refresh()
@@ -89,6 +96,7 @@ class ProcessWidget:
             children += self._group(owner, f"{prefix}.", parameter_names(owner))
         self._parameters.children = children
         self._refresh_events()
+        self.code_view.refresh()
 
     def _group(self, owner: Any, prefix: str, names: List[str]) -> List[W.Widget]:
         locked = set(self.process.event_parameters)
@@ -137,6 +145,7 @@ class ProcessWidget:
         for editor in self.editors:
             editor.refresh()
         self._refresh_events()
+        self.code_view.refresh()
         for fn in list(self._listeners):
             fn(self.process)
 
@@ -150,6 +159,32 @@ class ProcessWidget:
         self.chart.phases = data["phases"]
         self.chart.markers = data["markers"]
         self.chart.series = data["series"]
+
+    def code(self) -> str:
+        """Return the CADET-Process code that creates this process and sets its parameters."""
+        lines = [
+            "from CADETProcess.processModel import Process",
+            "",
+            f'process = Process({self.process.flow_sheet.name}, "{self.process.name}")',
+        ]
+        if math.isfinite(float(self.process.cycle_time)):
+            lines.append(f"process.cycle_time = {code_literal(self.process, 'cycle_time')}")
+        for prefix, owner in parameter_owners(self.process):
+            target = prefix.removeprefix("flow_sheet.")
+            names = list(getattr(owner, "required_parameters", []))
+            names += [n for n in ("c", "flow_rate") if isinstance(owner, Inlet)]
+            assigned = [n for n in sorted(names) if getattr(owner, n) is not None]
+            if assigned:
+                lines.append("")
+                lines += [f"{target}.{n} = {code_literal(owner, n)}" for n in assigned]
+        if self.process.events:
+            lines.append("")
+            lines += [
+                f'process.add_event("{e.name}", "{e.parameter_path}", '
+                f"{_state(e.state)}, {e.time:g})"
+                for e in sorted(self.process.events, key=lambda e: e.time)
+            ]
+        return "\n".join(lines)
 
     def get_value(self) -> Any:
         """Return the Process this widget configures."""

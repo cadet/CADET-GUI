@@ -16,6 +16,7 @@ __all__ = [
     "parameter_owners",
     "format_value",
     "value_html",
+    "code_literal",
     "assign_literal",
 ]
 
@@ -75,7 +76,7 @@ def _number_text(x: Any) -> str:
 def format_value(obj: Any, name: str) -> str:
     """Format parameter `name` of `obj` for editing, e.g. `1e-7` or `1, 2`; "" if unset."""
     value = _value(obj, name)
-    if value is None:
+    if value is None or (isinstance(value, float) and math.isinf(value)):
         return ""
     if isinstance(value, list) and not any(isinstance(v, list) for v in value):
         return ", ".join(_number_text(v) for v in value)
@@ -108,6 +109,16 @@ def value_html(obj: Any, name: str) -> Optional[str]:
     if len(names) != len(value):
         return ", ".join(_number_html(v) for v in value)
     return ", ".join(f"{escape(n)}: {_number_html(v)}" for n, v in zip(names, value))
+
+
+def code_literal(obj: Any, name: str) -> str:
+    """Format parameter `name` of `obj` as the right-hand side of a Python assignment."""
+    value = _value(obj, name)
+    if isinstance(value, list) and not any(isinstance(v, list) for v in value):
+        return f"[{', '.join(_number_text(v) for v in value)}]"
+    if isinstance(value, list):
+        return repr(value)
+    return _number_text(value)
 
 
 def assign_literal(obj: Any, name: str, text: str) -> Optional[str]:
