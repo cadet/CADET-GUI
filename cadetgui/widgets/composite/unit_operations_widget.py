@@ -47,8 +47,10 @@ class UnitOperationsWidget:
     """Create unit operations by model and name, and set their parameters.
 
     Created units are stored in `units`, a dict of name: unit operation, which is filled in
-    place when given; entries that are model classes are created right away. `drag_profiles`
-    and `flow_rate_profile` go to the inlet's profile editors.
+    place when given; entries that are model classes are created right away. With
+    `edit=False` it only creates units, with `create=False` it only sets parameters, e.g. to
+    show both steps separately on one `units` dict. `drag_profiles` and `flow_rate_profile`
+    go to the inlet's profile editors.
     """
 
     def __init__(
@@ -56,6 +58,8 @@ class UnitOperationsWidget:
         component_system: Any,
         units: Optional[Dict[str, Any]] = None,
         *,
+        create: bool = True,
+        edit: bool = True,
         drag_profiles: bool = False,
         flow_rate_profile: bool = False,
     ) -> None:
@@ -74,18 +78,20 @@ class UnitOperationsWidget:
         self.status = W.HTML()
         self._list = W.VBox()
         self.code_view = CodeView(self.code)
-        self.root = W.VBox([
+        title = "Unit operations" if create and edit else (
+            "Create unit operations" if create else "Unit operation parameters"
+        )
+        children: List[W.Widget] = [
             W.HTML(style_tag()),
-            W.HTML("<div class='cadetgui-panel-title'>Unit operations</div>"),
-            self.model_picker,
-            self.name_field,
-            self.create_button,
-            self.status,
-            self._list,
-            self.parameter_picker,
-            self._editor_box,
-            self.code_view.root,
-        ])
+            W.HTML(f"<div class='cadetgui-panel-title'>{title}</div>"),
+        ]
+        if create:
+            children += [
+                self.model_picker, self.name_field, self.create_button, self.status, self._list,
+            ]
+        if edit:
+            children += [self.parameter_picker, self._editor_box]
+        self.root = W.VBox(children + [self.code_view.root])
         self.root.add_class("cadetgui-panel")
         self.model_picker.observe(lambda _change: self._suggest_name(), names="selected_index")
         self.create_button.on_click(lambda _button: self.create())

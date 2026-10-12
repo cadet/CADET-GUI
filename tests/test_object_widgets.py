@@ -441,3 +441,29 @@ def test_unit_operations_widget_takes_over_existing_units(process):
     assert units.units["column"] is column
     units.editor.fields["column.total_porosity"].value = "0.35"
     assert column.total_porosity == 0.35
+
+
+def test_units_can_be_created_and_edited_in_separate_widgets():
+    from cadetgui import UnitOperationsWidget
+
+    component_system = ComponentSystem(["Tracer"])
+    units = {}
+    creator = UnitOperationsWidget(component_system, units, edit=False)
+    editor = UnitOperationsWidget(component_system, units, create=False)
+    assert creator.parameter_picker not in creator.root.children
+    assert editor.create_button not in editor.root.children
+
+    picker = creator.model_picker
+    picker.selected_index = picker.option_labels.index("Lumped Rate Model Without Pores (LRM)")
+    creator.name_field.value = "column"
+    creator.create()
+    assert editor.parameter_picker.value is units["column"]
+    editor.editor.fields["column.length"].value = "0.1"
+    assert units["column"].length == 0.1
+    assert "length" not in units["column"].missing_parameters
+
+
+def test_simulation_widget_marks_times_and_writes_them_into_its_code(process):
+    widget = SimulationWidget(process, markers={"t_R": 126.0})
+    assert widget.chart.markers == [{"name": "t_R", "time": 2.1}]
+    assert 'ax.axvline(2.1, color="gray", linestyle="--", label="t_R")' in widget.code()

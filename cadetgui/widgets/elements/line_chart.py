@@ -53,8 +53,12 @@ class EventTimelineChart(LineChart):
 
 
 class ChromatogramChart(LineChart):
-    """Simulated and optionally measured signals over time."""
+    """Simulated and optionally measured signals over time.
 
+    `markers` (`{"name", "time"}`, minutes) are drawn as labelled vertical lines.
+    """
+
+    markers = T.List(T.Dict()).tag(sync=True)
     y_label = T.Unicode("Concentration").tag(sync=True)
     empty_text = T.Unicode("No solution to show").tag(sync=True)
     view_width = T.Int(720).tag(sync=True)

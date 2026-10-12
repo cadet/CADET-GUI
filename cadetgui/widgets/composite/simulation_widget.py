@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import html
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Mapping, Optional, Tuple
 
 import ipywidgets as W
 from CADETProcess.processModel import Inlet, Outlet
@@ -41,17 +41,26 @@ class SimulationWidget:
 
     Inlets and outlets are listed by their unit name (what an inlet delivers, what reaches
     an outlet), other units by port, e.g. `column.outlet`; it starts on the first outlet.
-    A `reference` (CADET-Process `ReferenceIO`, e.g. measured data) is drawn dashed.
+    A `reference` (CADET-Process `ReferenceIO`, e.g. measured data) is drawn dashed;
+    `markers` (name: time in seconds, e.g. an expected breakthrough time) as vertical lines.
     """
 
-    def __init__(self, process: Any, reference: Optional[Any] = None) -> None:
+    def __init__(
+        self,
+        process: Any,
+        reference: Optional[Any] = None,
+        markers: Optional[Mapping[str, float]] = None,
+    ) -> None:
         self.process = process
         self.reference = reference
+        self.markers = dict(markers or {})
         self.results: Optional[Any] = None
         self._listeners: List[Callable[[Any], None]] = []
         self._btn_run = W.Button(description="Run simulation", icon="play", button_style="success")
         self._signal = ChoiceField(label="Show:", options=[])
-        self.chart = ChromatogramChart()
+        self.chart = ChromatogramChart(
+            markers=[{"name": name, "time": time / 60} for name, time in self.markers.items()]
+        )
         self.status = W.HTML()
         self.code_view = CodeView(self.code)
         title = html.escape(process.name)
@@ -113,13 +122,20 @@ class SimulationWidget:
         """Return the CADET-Process code that simulates the process and plots the shown solution."""
         outlets = [u.name for u in self.process.flow_sheet.units if isinstance(u, Outlet)]
         unit, port = self._signal.value or (outlets[0] if outlets else "outlet", "inlet")
-        return "\n".join([
+        lines = [
             "from CADETProcess.simulator import Cadet",
             "",
             "simulator = Cadet()",
             "simulation_results = simulator.simulate(process)",
-            f"_ = simulation_results.solution.{unit}.{port}.plot()",
-        ])
+        ]
+        if not self.markers:
+            return "\n".join(lines + [f"_ = simulation_results.solution.{unit}.{port}.plot()"])
+        lines.append(f"fig, ax = simulation_results.solution.{unit}.{port}.plot()")
+        lines += [
+            f'_ = ax.axvline({time / 60:g}, color="gray", linestyle="--", label="{name}")'
+            for name, time in self.markers.items()
+        ]
+        return "\n".join(lines)
 
     def get_value(self) -> Optional[Any]:
         """Return the SimulationResults of the last run, or None."""
