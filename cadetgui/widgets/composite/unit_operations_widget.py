@@ -90,6 +90,8 @@ class UnitOperationsWidget:
         self.model_picker.observe(lambda _change: self._suggest_name(), names="selected_index")
         self.create_button.on_click(lambda _button: self.create())
         self.parameter_picker.observe(lambda _change: self._show_editor(), names="selected_index")
+        if hasattr(component_system, "add_listener"):
+            component_system.add_listener(lambda _names: self._notify())
         for name, model in (units or {}).items():
             is_class = isinstance(model, type)
             self.units[name] = model(self._component_system(), name) if is_class else model

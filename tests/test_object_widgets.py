@@ -185,7 +185,7 @@ def test_simulation_widget_overlays_a_reference(process):
     assert widget.chart.series[1]["dashed"]
 
 
-def test_component_system_widget_replaces_the_object_only_when_names_change():
+def test_component_system_widget_updates_its_object_in_place():
     from cadetgui import ComponentSystemWidget
 
     widget = ComponentSystemWidget(names=["Tracer"])
@@ -193,8 +193,8 @@ def test_component_system_widget_replaces_the_object_only_when_names_change():
     assert widget.get_value() is first
 
     widget.field.value = ["Salt", "Protein"]
-    assert widget.component_system is not first
-    assert widget.component_system.names == ["Salt", "Protein"]
+    assert widget.component_system is first
+    assert first.names == ["Salt", "Protein"]
     assert 'ComponentSystem(["Salt", "Protein"])' in widget.code()
 
 
@@ -222,6 +222,33 @@ def test_unit_operations_widget_follows_the_component_system_widget():
     inlet = units.create()
     assert inlet.component_system is components.component_system
     assert "No parameters" not in UnitOperationWidget(inlet)._body.value
+
+
+def test_widgets_created_before_the_model_follow_it():
+    from cadetgui import ComponentSystemWidget, UnitOperationsWidget
+
+    components = ComponentSystemWidget()
+    units = UnitOperationsWidget(components)
+    flow_sheet_widget = FlowSheetWidget(
+        FlowSheet(components.component_system, "flow_sheet"), units=units
+    )
+    process_widget = ProcessWidget(flow_sheet_widget, name="tracer")
+
+    components.field.value = ["Tracer"]
+    assert "Tracer" in process_widget._components.value
+    for label, name in [("Inlet", "inlet"), ("Outlet", "outlet")]:
+        units.model_picker.selected_index = units.model_picker.option_labels.index(label)
+        units.name_field.value = name
+        units.create()
+    controls = flow_sheet_widget.controls
+    for name in ("inlet", "outlet"):
+        controls.unit_picker.value = units.units[name]
+        controls.add()
+    controls.origin_picker.value = units.units["inlet"]
+    controls.destination_picker.value = units.units["outlet"]
+    controls.connect()
+    assert process_widget.process.flow_sheet is flow_sheet_widget.flow_sheet
+    assert "flow_sheet.inlet.flow_rate" in process_widget._paths.value
 
 
 def test_parameter_view_handles_units_without_components():

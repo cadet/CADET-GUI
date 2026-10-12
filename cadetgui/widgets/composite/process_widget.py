@@ -22,6 +22,7 @@ from ._parameter_values import (
     value_html,
 )
 from ._timeline_data import timeline_chart_data
+from .flow_sheet_widget import FlowSheetWidget
 
 __all__ = ["ProcessWidget", "events_table_html", "parameter_paths_html"]
 
@@ -81,7 +82,8 @@ class ProcessWidget:
 
     The parameters belong to the unit operations; the process reaches them under paths
     such as `flow_sheet.column.length`, which events and optimization refer to. Given a
-    flow sheet, it creates the process `name`; `values` (path: value) are set first.
+    flow sheet, it creates the process `name`; given a `FlowSheetWidget`, it also follows
+    its changes. `values` (path: value) are set first.
     """
 
     def __init__(
@@ -90,6 +92,9 @@ class ProcessWidget:
         name: str = "process",
         values: Optional[Mapping[str, Any]] = None,
     ) -> None:
+        source = process if isinstance(process, FlowSheetWidget) else None
+        if source is not None:
+            process = source.flow_sheet
         if isinstance(process, FlowSheet):
             process = Process(process, name)
         for path, value in (values or {}).items():
@@ -102,6 +107,7 @@ class ProcessWidget:
         self._events_table = W.HTML()
         self.chart = EventTimelineChart()
         self._paths = W.HTML()
+        self._components = W.HTML()
         self.events = _collapsible("Events", W.VBox([self._events_table, self.chart]))
         self.parameters = _collapsible("Parameters by path", self._paths)
         self.code_view = CodeView(self.code)
@@ -109,7 +115,7 @@ class ProcessWidget:
         self.root = W.VBox([
             W.HTML(style_tag()),
             W.HTML(f"<div class='cadetgui-panel-title'>Process · {title}</div>"),
-            W.HTML(components_html(process.component_system)),
+            self._components,
             self.cycle_time,
             self.events,
             self.parameters,
@@ -117,10 +123,13 @@ class ProcessWidget:
         ])
         self.root.add_class("cadetgui-panel")
         self.cycle_time.observe(lambda change: self._on_cycle_time(change), names="value")
+        if source is not None:
+            source.add_listener(lambda _flow_sheet: self.refresh())
         self.refresh()
 
     def refresh(self) -> None:
         """Show the current state, e.g. after events or unit parameters changed in code."""
+        self._components.value = components_html(self.process.component_system)
         self.cycle_time.value = format_value(self.process, "cycle_time")
         n_events = len(self.process.events)
         self.events.set_title(0, f"Events ({n_events})")

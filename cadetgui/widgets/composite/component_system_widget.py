@@ -16,8 +16,8 @@ __all__ = ["ComponentSystemWidget"]
 class ComponentSystemWidget:
     """Define the components of a model by name; `component_system` is the object.
 
-    The object is replaced when the names change; units and flow sheets made with the old
-    one keep it.
+    The object is updated in place, so units, flow sheets and processes made with it follow
+    the names.
     """
 
     def __init__(self, names: Sequence[str] = ()) -> None:
@@ -56,7 +56,10 @@ class ComponentSystemWidget:
         )
 
     def _changed(self) -> None:
-        self._component_system = ComponentSystem(self.names)
+        for component in list(self._component_system.components):
+            self._component_system.remove_component(component)
+        for name in self.names:
+            self._component_system.add_component(name)
         self.code_view.refresh()
         for fn in list(self._listeners):
             fn(self.names)

@@ -301,6 +301,7 @@ class FlowSheetWidget:
         connections: Sequence[Tuple[str, str]] = (),
     ) -> None:
         self.flow_sheet = flow_sheet
+        self._listeners: List[Callable[[Any], None]] = []
         if connections:
             available = {u.name: u for u in _units_of(units)}
             for pair in connections:
@@ -345,6 +346,8 @@ class FlowSheetWidget:
         if self.controls is not None:
             self.controls.refresh()
         self.code_view.refresh()
+        for fn in list(self._listeners):
+            fn(self.flow_sheet)
 
     def _show_unit(self) -> None:
         unit = self.unit_picker.value
@@ -368,6 +371,10 @@ class FlowSheetWidget:
     def get_value(self) -> Any:
         """Return the FlowSheet this widget shows."""
         return self.flow_sheet
+
+    def add_listener(self, fn: Callable[[Any], None]) -> None:
+        """Call `fn(flow_sheet)` whenever the diagram is redrawn."""
+        self._listeners.append(fn)
 
     def display(self) -> None:
         """Render this widget in a Jupyter cell."""
