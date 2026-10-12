@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from html import escape
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import ipywidgets as W
 from CADETProcess import CADETProcessError
@@ -13,6 +13,7 @@ from .._chrome import style_tag
 from .._status import status_html
 from ..elements import ChoiceField
 from ._code_view import CodeView
+from ._model_sync import changed, watch
 from ._parameter_values import components_html
 from ._pid_symbols import FG, MUTED, MUTED_STROKE, load_symbol
 from .system_diagram import _PORTS, _caption, _marker, _symbol, _tube, _wire
@@ -196,7 +197,7 @@ def render_flow_sheet_svg(flow_sheet: Any) -> str:
 
 
 def _units_of(units: Any) -> List[Any]:
-    return list(units.units.values() if hasattr(units, "units") else units)
+    return list(units.values() if isinstance(units, Mapping) else units)
 
 
 class _BuildControls:
@@ -227,8 +228,6 @@ class _BuildControls:
         ])
         self.add_button.on_click(lambda _button: self.add())
         self.connect_button.on_click(lambda _button: self.connect())
-        if hasattr(units, "add_listener"):
-            units.add_listener(lambda _units: self._on_change())
 
     def _available(self) -> List[Any]:
         return [u for u in _units_of(self._units) if u not in self.flow_sheet.units]
@@ -290,7 +289,7 @@ class FlowSheetWidget:
     """Diagram of a CADET-Process FlowSheet, with a chosen unit's view below it.
 
     Units with missing parameters are marked in the diagram. Given `units` (a list of unit
-    operations, or a `UnitOperationsWidget`), it also adds units and connects them;
+    operations, or a dict of name: unit operation), it also adds units and connects them;
     `connections` (pairs of unit names) are made right away, adding their units.
     """
 
@@ -301,7 +300,6 @@ class FlowSheetWidget:
         connections: Sequence[Tuple[str, str]] = (),
     ) -> None:
         self.flow_sheet = flow_sheet
-        self._listeners: List[Callable[[Any], None]] = []
         if connections:
             available = {u.name: u for u in _units_of(units)}
             for pair in connections:
@@ -314,7 +312,7 @@ class FlowSheetWidget:
         self.unit_picker = ChoiceField(label="Show unit:", options=[])
         self.unit_view: Optional[UnitOperationWidget] = None
         self._panel = W.VBox()
-        self.controls = None if units is None else _BuildControls(flow_sheet, units, self.refresh)
+        self.controls = None if units is None else _BuildControls(flow_sheet, units, self._edited)
         self.code_view = CodeView(self.code)
         title = escape(str(flow_sheet.name))
         children = [
@@ -329,6 +327,7 @@ class FlowSheetWidget:
         self.root = W.VBox(children)
         self.root.add_class("cadetgui-panel")
         self.unit_picker.observe(lambda _change: self._show_unit(), names="selected_index")
+        watch(flow_sheet.component_system, self)
         self.refresh()
 
     def refresh(self) -> None:
@@ -346,8 +345,10 @@ class FlowSheetWidget:
         if self.controls is not None:
             self.controls.refresh()
         self.code_view.refresh()
-        for fn in list(self._listeners):
-            fn(self.flow_sheet)
+
+    def _edited(self) -> None:
+        self.refresh()
+        changed(self.flow_sheet.component_system, self)
 
     def _show_unit(self) -> None:
         unit = self.unit_picker.value
@@ -371,10 +372,6 @@ class FlowSheetWidget:
     def get_value(self) -> Any:
         """Return the FlowSheet this widget shows."""
         return self.flow_sheet
-
-    def add_listener(self, fn: Callable[[Any], None]) -> None:
-        """Call `fn(flow_sheet)` whenever the diagram is redrawn."""
-        self._listeners.append(fn)
 
     def display(self) -> None:
         """Render this widget in a Jupyter cell."""

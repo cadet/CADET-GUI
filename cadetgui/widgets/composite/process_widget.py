@@ -11,6 +11,7 @@ from CADETProcess.processModel import FlowSheet, Process
 from .._chrome import style_tag
 from ..elements import EventTimelineChart, TextField
 from ._code_view import CodeView
+from ._model_sync import changed, watch
 from ._parameter_values import (
     assign_literal,
     code_literal,
@@ -22,7 +23,6 @@ from ._parameter_values import (
     value_html,
 )
 from ._timeline_data import timeline_chart_data
-from .flow_sheet_widget import FlowSheetWidget
 
 __all__ = ["ProcessWidget", "events_table_html", "parameter_paths_html"]
 
@@ -82,8 +82,7 @@ class ProcessWidget:
 
     The parameters belong to the unit operations; the process reaches them under paths
     such as `flow_sheet.column.length`, which events and optimization refer to. Given a
-    flow sheet, it creates the process `name`; given a `FlowSheetWidget`, it also follows
-    its changes. `values` (path: value) are set first.
+    flow sheet, it creates the process `name`; `values` (path: value) are set first.
     """
 
     def __init__(
@@ -92,9 +91,6 @@ class ProcessWidget:
         name: str = "process",
         values: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        source = process if isinstance(process, FlowSheetWidget) else None
-        if source is not None:
-            process = source.flow_sheet
         if isinstance(process, FlowSheet):
             process = Process(process, name)
         for path, value in (values or {}).items():
@@ -123,8 +119,7 @@ class ProcessWidget:
         ])
         self.root.add_class("cadetgui-panel")
         self.cycle_time.observe(lambda change: self._on_cycle_time(change), names="value")
-        if source is not None:
-            source.add_listener(lambda _flow_sheet: self.refresh())
+        watch(process.component_system, self)
         self.refresh()
 
     def refresh(self) -> None:
@@ -153,6 +148,7 @@ class ProcessWidget:
         if error:
             return
         self.refresh()
+        changed(self.process.component_system, self)
         for fn in list(self._listeners):
             fn(self.process)
 

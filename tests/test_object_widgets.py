@@ -188,7 +188,7 @@ def test_simulation_widget_overlays_a_reference(process):
 def test_component_system_widget_updates_its_object_in_place():
     from cadetgui import ComponentSystemWidget
 
-    widget = ComponentSystemWidget(names=["Tracer"])
+    widget = ComponentSystemWidget(ComponentSystem(["Tracer"]))
     first = widget.component_system
     assert widget.get_value() is first
 
@@ -214,7 +214,7 @@ def test_unit_operations_widget_follows_the_component_system_widget():
     from cadetgui import ComponentSystemWidget, UnitOperationsWidget
 
     components = ComponentSystemWidget()
-    units = UnitOperationsWidget(components)
+    units = UnitOperationsWidget(components.component_system)
     assert units.create() is None
     assert "Add a component first" in units.status.value
 
@@ -227,28 +227,36 @@ def test_unit_operations_widget_follows_the_component_system_widget():
 def test_widgets_created_before_the_model_follow_it():
     from cadetgui import ComponentSystemWidget, UnitOperationsWidget
 
-    components = ComponentSystemWidget()
-    units = UnitOperationsWidget(components)
-    flow_sheet_widget = FlowSheetWidget(
-        FlowSheet(components.component_system, "flow_sheet"), units=units
-    )
-    process_widget = ProcessWidget(flow_sheet_widget, name="tracer")
+    component_system = ComponentSystem()
+    components = ComponentSystemWidget(component_system)
+    units = {}
+    unit_operations = UnitOperationsWidget(component_system, units)
+    flow_sheet = FlowSheet(component_system, "flow_sheet")
+    flow_sheet_widget = FlowSheetWidget(flow_sheet, units=units)
+    process = Process(flow_sheet, "tracer")
+    process_widget = ProcessWidget(process)
 
     components.field.value = ["Tracer"]
+    assert component_system.names == ["Tracer"]
     assert "Tracer" in process_widget._components.value
     for label, name in [("Inlet", "inlet"), ("Outlet", "outlet")]:
-        units.model_picker.selected_index = units.model_picker.option_labels.index(label)
-        units.name_field.value = name
-        units.create()
+        picker = unit_operations.model_picker
+        picker.selected_index = picker.option_labels.index(label)
+        unit_operations.name_field.value = name
+        unit_operations.create()
+    assert set(units) == {"inlet", "outlet"}
     controls = flow_sheet_widget.controls
     for name in ("inlet", "outlet"):
-        controls.unit_picker.value = units.units[name]
+        controls.unit_picker.value = units[name]
         controls.add()
-    controls.origin_picker.value = units.units["inlet"]
-    controls.destination_picker.value = units.units["outlet"]
+    controls.origin_picker.value = units["inlet"]
+    controls.destination_picker.value = units["outlet"]
     controls.connect()
-    assert process_widget.process.flow_sheet is flow_sheet_widget.flow_sheet
     assert "flow_sheet.inlet.flow_rate" in process_widget._paths.value
+
+    unit_operations.parameter_picker.value = units["inlet"]
+    unit_operations.editor.fields["inlet.flow_rate"].value = "1e-7"
+    assert "missing parameter" not in flow_sheet_widget.diagram.value
 
 
 def test_parameter_view_handles_units_without_components():
@@ -288,8 +296,8 @@ def test_flow_sheet_widget_removes_connections_and_units():
 def _build_tracer_model():
     from cadetgui import ComponentSystemWidget, UnitOperationsWidget
 
-    components = ComponentSystemWidget(names=["Tracer"])
-    units = UnitOperationsWidget(components)
+    components = ComponentSystemWidget(ComponentSystem(["Tracer"]))
+    units = UnitOperationsWidget(components.component_system)
     for label, name in [
         ("Inlet", "inlet"),
         ("Lumped Rate Model Without Pores (LRM)", "column"),
@@ -377,7 +385,7 @@ def test_builders_create_a_model_that_their_code_reproduces():
 
     flow_sheet_widget = FlowSheetWidget(
         FlowSheet(components.component_system, "flow_sheet"),
-        units=units,
+        units=units.units,
         connections=[("inlet", "column"), ("column", "outlet")],
     )
     assert "missing parameter" not in flow_sheet_widget.diagram.value

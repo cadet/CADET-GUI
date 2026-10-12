@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, List, Sequence
+from typing import Any, Callable, List, Optional
 
 import ipywidgets as W
 from CADETProcess.processModel import ComponentSystem
@@ -9,21 +9,26 @@ from CADETProcess.processModel import ComponentSystem
 from .._chrome import style_tag
 from ..elements import ComponentListField
 from ._code_view import CodeView
+from ._model_sync import changed, watch
 
 __all__ = ["ComponentSystemWidget"]
 
 
 class ComponentSystemWidget:
-    """Define the components of a model by name; `component_system` is the object.
+    """Define the components of a ComponentSystem by name.
 
-    The object is updated in place, so units, flow sheets and processes made with it follow
-    the names.
+    The ComponentSystem is edited in place, so units, flow sheets and processes made with
+    it follow the names. Without one, an empty ComponentSystem is created.
     """
 
-    def __init__(self, names: Sequence[str] = ()) -> None:
+    def __init__(self, component_system: Optional[ComponentSystem] = None) -> None:
         self._listeners: List[Callable[[Any], None]] = []
-        self.field = ComponentListField(label="Components:", value=list(names), blank_rows=True)
-        self._component_system = ComponentSystem(list(names))
+        self._component_system = (
+            ComponentSystem() if component_system is None else component_system
+        )
+        self.field = ComponentListField(
+            label="Components:", value=list(self._component_system.names), blank_rows=True
+        )
         self.code_view = CodeView(self.code)
         self.root = W.VBox([
             W.HTML(style_tag()),
@@ -33,6 +38,7 @@ class ComponentSystemWidget:
         ])
         self.root.add_class("cadetgui-panel")
         self.field.observe(lambda _change: self._changed(), names="value")
+        watch(self._component_system, self)
 
     @property
     def names(self) -> List[str]:
@@ -55,12 +61,20 @@ class ComponentSystemWidget:
             f"component_system = ComponentSystem([{', '.join(map(json.dumps, self.names))}])"
         )
 
-    def _changed(self) -> None:
-        for component in list(self._component_system.components):
-            self._component_system.remove_component(component)
-        for name in self.names:
-            self._component_system.add_component(name)
+    def refresh(self) -> None:
+        """Show the current components, e.g. after they were changed in code."""
+        if self.names != list(self._component_system.names):
+            self.field.value = list(self._component_system.names)
         self.code_view.refresh()
+
+    def _changed(self) -> None:
+        if self.names != list(self._component_system.names):
+            for component in list(self._component_system.components):
+                self._component_system.remove_component(component)
+            for name in self.names:
+                self._component_system.add_component(name)
+        self.code_view.refresh()
+        changed(self._component_system, self)
         for fn in list(self._listeners):
             fn(self.names)
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import html
 import keyword
-from typing import Any, Callable, Dict, List, Mapping, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import ipywidgets as W
 from CADETProcess.processModel import (
@@ -19,6 +19,7 @@ from .._chrome import style_tag
 from .._status import status_html
 from ..elements import ChoiceField, TextField
 from ._code_view import CodeView
+from ._model_sync import changed, watch
 from ._unit_parameters import UnitParametersEditor, parameter_code
 
 __all__ = ["UnitOperationsWidget", "UNIT_OPERATION_MODELS"]
@@ -45,16 +46,15 @@ def _suggested_name(model: type) -> str:
 class UnitOperationsWidget:
     """Create unit operations by model and name, and set their parameters.
 
-    `component_system` is a ComponentSystem or a `ComponentSystemWidget`, whose current
-    component system is used at each creation. `units` (name: model class, or an existing
-    unit operation) are created or taken over right away. `drag_profiles` and
-    `flow_rate_profile` go to the inlet's profile editors.
+    Created units are stored in `units`, a dict of name: unit operation, which is filled in
+    place when given; entries that are model classes are created right away. `drag_profiles`
+    and `flow_rate_profile` go to the inlet's profile editors.
     """
 
     def __init__(
         self,
         component_system: Any,
-        units: Optional[Mapping[str, Any]] = None,
+        units: Optional[Dict[str, Any]] = None,
         *,
         drag_profiles: bool = False,
         flow_rate_profile: bool = False,
@@ -66,7 +66,7 @@ class UnitOperationsWidget:
         self.parameter_picker = ChoiceField(label="Parameters of:", options=[])
         self.editor: Optional[UnitParametersEditor] = None
         self._editor_box = W.VBox()
-        self.units: Dict[str, Any] = {}
+        self.units: Dict[str, Any] = {} if units is None else units
         self._listeners: List[Callable[[Any], None]] = []
         self.model_picker = ChoiceField(label="Model:", options=list(UNIT_OPERATION_MODELS.items()))
         self.name_field = TextField(label="Name:", value=_suggested_name(Inlet))
@@ -90,18 +90,13 @@ class UnitOperationsWidget:
         self.model_picker.observe(lambda _change: self._suggest_name(), names="selected_index")
         self.create_button.on_click(lambda _button: self.create())
         self.parameter_picker.observe(lambda _change: self._show_editor(), names="selected_index")
-        if hasattr(component_system, "add_listener"):
-            component_system.add_listener(lambda _names: self._notify())
-        for name, model in (units or {}).items():
-            is_class = isinstance(model, type)
-            self.units[name] = model(self._component_system(), name) if is_class else model
+        for name, model in list(self.units.items()):
+            if isinstance(model, type):
+                self.units[name] = model(component_system, name)
+        watch(component_system, self)
         if self.units:
-            self._changed()
+            self.refresh()
             self._suggest_name()
-
-    def _component_system(self) -> Any:
-        source = self.component_system
-        return source.component_system if hasattr(source, "component_system") else source
 
     def _suggest_name(self) -> None:
         name = _suggested_name(self.model_picker.value)
@@ -119,7 +114,7 @@ class UnitOperationsWidget:
         if name in self.units:
             self.status.value = status_html("error", f"There is already a unit named {name}.")
             return None
-        component_system = self._component_system()
+        component_system = self.component_system
         if component_system.n_comp == 0:
             self.status.value = status_html("error", "Add a component first.")
             return None
@@ -137,6 +132,11 @@ class UnitOperationsWidget:
         self._changed()
 
     def _changed(self) -> None:
+        self.refresh()
+        self._notify()
+
+    def refresh(self) -> None:
+        """Show the current units and parameters, e.g. after they were changed in code."""
         rows = []
         for name, unit in self.units.items():
             button = W.Button(
@@ -154,7 +154,7 @@ class UnitOperationsWidget:
         )
         self.parameter_picker.layout.display = "" if self.units else "none"
         self._show_editor()
-        self._notify()
+        self.code_view.refresh()
 
     def _show_editor(self) -> None:
         unit = self.parameter_picker.value
@@ -168,6 +168,7 @@ class UnitOperationsWidget:
 
     def _notify(self) -> None:
         self.code_view.refresh()
+        changed(self.component_system, self)
         for fn in list(self._listeners):
             fn(self.units)
 
