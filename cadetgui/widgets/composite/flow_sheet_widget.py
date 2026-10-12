@@ -290,7 +290,8 @@ class FlowSheetWidget:
 
     Units with missing parameters are marked in the diagram. Given `units` (a list of unit
     operations, or a dict of name: unit operation), it also adds units and connects them;
-    `connections` (pairs of unit names) are made right away, adding their units.
+    `connections` (pairs of unit names) are made right away, adding their units. Without
+    `units`, a chosen unit's parameters are shown below the diagram.
     """
 
     def __init__(
@@ -323,7 +324,8 @@ class FlowSheetWidget:
         ]
         if self.controls is not None:
             children += [self.controls.root, self.code_view.root]
-        children += [self.unit_picker, self._panel]
+        else:
+            children += [self.unit_picker, self._panel]
         self.root = W.VBox(children)
         self.root.add_class("cadetgui-panel")
         self.unit_picker.observe(lambda _change: self._show_unit(), names="selected_index")
@@ -351,6 +353,8 @@ class FlowSheetWidget:
         changed(self.flow_sheet.component_system, self)
 
     def _show_unit(self) -> None:
+        if self.controls is not None:
+            return
         unit = self.unit_picker.value
         self.unit_view = None if unit is None else UnitOperationWidget(unit)
         self._panel.children = [] if self.unit_view is None else [self.unit_view.root]

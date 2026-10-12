@@ -75,9 +75,10 @@ def profile_svg(times: Sequence[float], values: Sequence[float], symbol: str, un
 class PolynomialEditor:
     """Edit one cubic inlet profile, e.g. `Inlet.c` of one component, by its coefficients.
 
-    A picture shows the resulting profile: over the cycle of `process` (CADET restarts the
-    polynomial at every section), or over `duration` seconds without a process. With
-    `draggable`, a chart with four handles over the first section replaces the picture.
+    The constant term a0 is shown; a1 to a3 are in a collapsed section, opened when one of
+    them is set. A picture shows the resulting profile: over the cycle of `process` (CADET
+    restarts the polynomial at every section), or over `duration` seconds without a process.
+    With `draggable`, a chart with four handles over the first section replaces the picture.
     """
 
     def __init__(
@@ -104,13 +105,17 @@ class PolynomialEditor:
         self.fields: List[TextField] = [
             TextField(label=f"a{k}", units=_coefficient_unit(self._unit, k)) for k in range(4)
         ]
+        self.higher_terms = W.Accordion(children=[W.VBox(self.fields[1:])])
+        self.higher_terms.set_title(0, "Time-dependent terms a1 to a3")
+        self.higher_terms.selected_index = None
         self._note = W.HTML()
         component = None if index is None else owner.component_system.names[index]
         title = name if component is None else f"{name} · {component}"
         self._symbol = name if component is None else f"{name} ({component})"
         self.root = W.VBox([
             W.HTML(f"<code class='cadetgui-param-label'>{escape(title)}</code>"),
-            *self.fields,
+            self.fields[0],
+            self.higher_terms,
             self._note,
             self.chart,
         ])
@@ -155,6 +160,8 @@ class PolynomialEditor:
         for field, value in zip(self.fields, coefficients):
             field.value = _number_text(float(value) + 0.0)
             field.error = ""
+        if np.any(coefficients[1:] != 0):
+            self.higher_terms.selected_index = 0
         cycle_time = self.duration if self.process is None else float(self.process.cycle_time)
         if not math.isfinite(cycle_time) or cycle_time <= 0:
             self.chart.layout.display = "none"

@@ -253,6 +253,7 @@ def test_widgets_created_before_the_model_follow_it():
     controls.destination_picker.value = units["outlet"]
     controls.connect()
     assert "flow_sheet.inlet.flow_rate" in process_widget._paths.value
+    assert flow_sheet_widget.unit_picker not in flow_sheet_widget.root.children
 
     unit_operations.parameter_picker.value = units["inlet"]
     unit_operations.editor.fields["inlet.flow_rate"].value = "1e-7"
@@ -329,6 +330,18 @@ def test_unit_operations_widget_edits_parameters_of_the_selected_unit():
     assert "<polyline" in concentration.chart.value
     units.editor.fields["inlet.flow_rate"].value = "2e-7"
     assert units.units["inlet"].flow_rate[0] == 2e-7
+
+
+def test_inlet_profile_editor_collapses_the_time_dependent_terms():
+    from cadetgui.widgets.composite._polynomial_editor import PolynomialEditor
+
+    inlet = Inlet(ComponentSystem(["Tracer"]), "inlet")
+    inlet.c = [[1, 0, 0, 0]]
+    editor = PolynomialEditor(inlet, "c", 0)
+    assert editor.higher_terms.selected_index is None
+    editor.fields[1].value = "0.01"
+    assert editor.higher_terms.selected_index == 0
+    assert editor.coefficients()[1] == 0.01
 
 
 def test_inlet_profile_editor_can_drag_and_follows_process_sections(process):
