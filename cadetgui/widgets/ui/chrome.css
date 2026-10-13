@@ -403,16 +403,6 @@
   opacity: 1;
 }
 
-.cadetgui-script textarea {
-  border: 1px solid var(--cg-border-strong);
-  border-radius: var(--cg-radius-sm);
-  background: var(--cg-bg);
-  color: var(--cg-fg);
-  font-family: var(--cg-font-mono);
-  font-size: var(--cg-text-sm);
-  padding: 10px;
-}
-
 /* ---- InstrumentWorkbenchWidget: top bar + sidebar shell ---- */
 
 .cadetgui-workbench {

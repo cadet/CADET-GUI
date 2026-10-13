@@ -30,7 +30,7 @@ from ..benches.frame import WorkspaceHeader
 from ..elements import ComponentListField
 from ..forms import FormRenderer
 from ..ui.html import status_html
-from ..ui.layout import note, section
+from ..ui.layout import CodeView, note, section
 from ..ui.theme import style_tag
 from .column_binding import ColumnBindingSection
 from .flow_rate import FlowRateSection
@@ -156,9 +156,8 @@ class ConfigurationWidget(Widget):
         self.status = W.HTML("<em>Select a column and model.</em>")
         self.status.add_class("cadetgui-status")
 
-        self._btn_export = W.Button(description="Export script", icon="code")
-        self._script_out = W.Textarea(layout=W.Layout(width="100%", height="220px", display="none"))
-        self._script_out.add_class("cadetgui-script")
+        self.code_view = CodeView(self._shown_code)
+        self.add_listener(lambda *_: self.code_view.refresh())
 
         self.persistence = ConfigurationPersistence(
             default_name=_DEFAULT_CONFIG_NAME,
@@ -194,8 +193,7 @@ class ConfigurationWidget(Widget):
                 self._components_section,
                 self._models.root,
                 self._process.root,
-                self._btn_export,
-                self._script_out,
+                self.code_view.root,
                 self.status,
             ]
         )
@@ -203,7 +201,6 @@ class ConfigurationWidget(Widget):
 
         self._components.observe(self._on_components_change, names="value")
         self._model_picker.observe(self._on_model_selection_change, names="selected_index")
-        self._btn_export.on_click(self._on_export)
         self._starting_values_checkbox.observe(self._on_starting_values_toggle, names="value")
 
         if instrument is not None:
@@ -668,8 +665,8 @@ class ConfigurationWidget(Widget):
             state = self._seeded(state, method=part == "model")
         self._apply_state(self.config_name, state)
 
-    def export_script(self) -> str:
-        """Generate an executable CADET-Process script that rebuilds the current process."""
+    def code(self) -> str:
+        """Return an executable CADET-Process script that rebuilds the current process."""
         if self.process is None or self._model_form is None:
             raise RuntimeError("Nothing built yet — pick a column and a process template first.")
         column = self._get_column()
@@ -699,12 +696,8 @@ class ConfigurationWidget(Widget):
             raise RuntimeError(f"{self._model_form.spec.title!r} has no export support.")
         return standalone_script(export=export, **common)
 
-    def _on_export(self, _btn: Any) -> None:
+    def _shown_code(self) -> str:
         try:
-            script = self.export_script()
+            return self.code()
         except RuntimeError as exc:
-            self.status.value = status_html("error", str(exc))
-            return
-        self._script_out.value = script
-        self._script_out.layout.display = ""
-        self.status.value = "<em>Script generated below.</em>"
+            return f"# {exc}"

@@ -69,29 +69,28 @@ def test_configuration_widget_rebuilds_column_on_component_change():
     assert list(new_column.component_system.names) == ["Salt", "Protein", "Impurity"]
 
 
-def test_export_script_raises_when_nothing_has_been_built():
+def test_code_raises_when_nothing_has_been_built():
     _, cw = built()
     cw.process = None
     cw._model_form = None
     with pytest.raises(RuntimeError, match="(?i)nothing built"):
-        cw.export_script()
+        cw.code()
 
 
-def test_export_script_button_shows_error_status_when_nothing_has_been_built():
+def test_show_code_explains_when_nothing_has_been_built():
     _, cw = built()
     cw.process = None
     cw._model_form = None
-    cw._on_export(None)
-    assert "nothing built" in cw.status.value.lower()
-    assert cw._script_out.layout.display == "none"
+    cw.code_view.toggle.value = True
+    assert "nothing built" in cw.code_view._body.value.lower()
 
 
-def test_export_script_produces_executable_equivalent_process():
+def test_code_produces_executable_equivalent_process():
     import numpy as np
 
     iw, cw = built()
 
-    script = cw.export_script()
+    script = cw.code()
     ns = {}
     exec(compile(script, "<generated>", "exec"), ns)  # noqa: S102
 
@@ -111,13 +110,10 @@ def test_export_script_produces_executable_equivalent_process():
     )
 
 
-def test_export_script_button_populates_textarea_on_success():
+def test_show_code_follows_the_built_process():
     _, cw = built()
-
-    cw._on_export(None)
-    assert "process = " in cw._script_out.value
-    assert cw._script_out.layout.display == ""
-    assert "generated" in cw.status.value.lower()
+    cw.code_view.toggle.value = True
+    assert "process = " in cw.code_view._body.value
 
 
 def test_binding_model_defaults_to_linear():
@@ -158,14 +154,14 @@ def test_switching_column_type_keeps_binding_model_attachable():
     assert column.binding_model.component_system is column.component_system
 
 
-def test_export_script_includes_binding_model_and_round_trips():
+def test_code_includes_binding_model_and_round_trips():
     import numpy as np
     from cadetgui.process_model.simulation import run_process
 
     iw, cw = built()
     cw._binding_picker.value = BINDING_MODELS["Linear"]
 
-    script = cw.export_script()
+    script = cw.code()
     assert "BindingModel=Linear" in script
     assert "flow_sheet.column.binding_model." in script
 
@@ -388,11 +384,11 @@ def test_wash_elute_buffers_default_to_salt_only_and_the_sample_carries_the_rest
     assert values["c_sample"] == [20.0, 20.0, 20.0]
 
 
-def test_export_script_reflects_a_renamed_single_component():
+def test_code_reflects_a_renamed_single_component():
     iw, cw = built()
     cw.components = ["MyProtein"]  # still one component, just renamed
 
-    script = cw.export_script()
+    script = cw.code()
     assert "component_system = ComponentSystem(['MyProtein'])" in script
 
     ns = {}
