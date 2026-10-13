@@ -57,7 +57,6 @@ class UnitParametersEditor:
         unit: Any,
         on_change: Callable[[], None],
         *,
-        drag_profiles: bool = False,
         flow_rate_profile: bool = False,
     ) -> None:
         self.unit = unit
@@ -67,7 +66,6 @@ class UnitParametersEditor:
         self.editors: List[PolynomialEditor] = []
         self._owners: Dict[str, Tuple[Any, str]] = {}
         self._profiles = profiles
-        self._drag_profiles = drag_profiles
         children: List[W.Widget] = []
         for target, owner in _owners(unit):
             if owner is not unit:
@@ -96,7 +94,7 @@ class UnitParametersEditor:
             indices = range(owner.n_comp) if name == "c" else [None]
             editors = [
                 PolynomialEditor(
-                    owner, name, index, on_change=self._changed, draggable=self._drag_profiles
+                    owner, name, index, on_change=self._changed
                 )
                 for index in indices
             ]

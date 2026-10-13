@@ -28,6 +28,13 @@
   color: var(--cg-label);
 }
 
+/* A label with a tooltip (`help`). */
+.cadetgui-field-label-help {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
 .cadetgui-field-unit {
   color: var(--cg-unit);
   flex: 0 0 auto;
@@ -72,8 +79,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Grows to 340px; in narrow columns it stays narrower instead of the unit wrapping. */
 .cadetgui-field-input.cadetgui-field-input-text {
-  width: min(340px, 100%);
+  flex: 1 1 120px;
+  max-width: 340px;
+  width: auto;
 }
 
 .cadetgui-field-input:focus,

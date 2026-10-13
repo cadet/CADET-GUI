@@ -49,8 +49,8 @@ class UnitOperationsWidget:
     Created units are stored in `units`, a dict of name: unit operation, which is filled in
     place when given; entries that are model classes are created right away. With
     `edit=False` it only creates units, with `create=False` it only sets parameters, e.g. to
-    show both steps separately on one `units` dict. `drag_profiles` and `flow_rate_profile`
-    go to the inlet's profile editors.
+    show both steps separately on one `units` dict. `flow_rate_profile` also edits the
+    inlet's flow rate as a profile.
     """
 
     def __init__(
@@ -60,13 +60,10 @@ class UnitOperationsWidget:
         *,
         create: bool = True,
         edit: bool = True,
-        drag_profiles: bool = False,
         flow_rate_profile: bool = False,
     ) -> None:
         self.component_system = component_system
-        self._editor_options = {
-            "drag_profiles": drag_profiles, "flow_rate_profile": flow_rate_profile,
-        }
+        self._editor_options = {"flow_rate_profile": flow_rate_profile}
         self.parameter_picker = ChoiceField(label="Parameters of:", options=[])
         self.editor: Optional[UnitParametersEditor] = None
         self._editor_box = W.VBox()

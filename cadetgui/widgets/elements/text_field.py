@@ -25,5 +25,8 @@ class TextField(Element):
         value: str = "",
         units: Optional[str] = None,
         validate: Optional[Validator] = None,
+        help: str = "",
     ) -> None:
-        super().__init__(label=label, value=value, units=units or "", validate=validate)
+        super().__init__(
+            label=label, value=value, units=units or "", validate=validate, help=help
+        )

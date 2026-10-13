@@ -21,6 +21,7 @@ class Element(anywidget.AnyWidget):
     units = T.Unicode("").tag(sync=True)
     error = T.Unicode("").tag(sync=True)
     disabled = T.Bool(False).tag(sync=True)
+    help = T.Unicode("").tag(sync=True)
 
     value_trait_name = "value"
 

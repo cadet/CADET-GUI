@@ -2,11 +2,14 @@ function fieldLabel(model) {
   const el = document.createElement("span");
   el.className = "cadetgui-field-label";
   const sync = () => {
+    const help = model.get("help");
     el.textContent = model.get("label");
-    el.title = model.get("label");
+    el.title = help || model.get("label");
+    el.classList.toggle("cadetgui-field-label-help", Boolean(help));
   };
   sync();
   model.on("change:label", sync);
+  model.on("change:help", sync);
   return el;
 }
 

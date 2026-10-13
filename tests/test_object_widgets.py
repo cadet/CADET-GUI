@@ -332,30 +332,27 @@ def test_unit_operations_widget_edits_parameters_of_the_selected_unit():
     assert units.units["inlet"].flow_rate[0] == 2e-7
 
 
-def test_inlet_profile_editor_collapses_the_time_dependent_terms():
+def test_inlet_profile_editor_names_and_explains_the_terms():
     from cadetgui.widgets.composite._polynomial_editor import PolynomialEditor
 
     inlet = Inlet(ComponentSystem(["Tracer"]), "inlet")
     inlet.c = [[1, 0, 0, 0]]
     editor = PolynomialEditor(inlet, "c", 0)
-    assert editor.higher_terms.selected_index is None
+    assert [field.label for field in editor.fields][:2] == ["a₀ start value", "a₁ slope"]
+    assert all(field.help for field in editor.fields)
     editor.fields[1].value = "0.01"
-    assert editor.higher_terms.selected_index == 0
     assert editor.coefficients()[1] == 0.01
 
 
-def test_inlet_profile_editor_can_drag_and_follows_process_sections(process):
+def test_inlet_profile_editor_draws_the_profile_over_the_process_sections(process):
     from cadetgui.widgets.composite._polynomial_editor import PolynomialEditor
 
     inlet = process.flow_sheet.inlet
     inlet.c = [[0, 0.01, 0, 0]]
     process.add_event("flow", "flow_sheet.inlet.flow_rate", 1e-7, 300)
-    editor = PolynomialEditor(inlet, "c", 0, process=process, draggable=True)
-
-    assert editor.chart.duration == 300
-    assert max(editor.chart.curve["values"]) == pytest.approx(3.0)
-    editor.chart.points = [0.0, 1.0, 2.0, 3.0]
-    np.testing.assert_allclose(inlet.c[0], [0, 0.01, 0, 0], atol=1e-12)
+    editor = PolynomialEditor(inlet, "c", 0, process=process)
+    assert "<polyline" in editor.chart.value
+    assert ">3</text>" in editor.chart.value
 
 
 def test_process_widget_sets_cycle_time_and_shows_events_and_paths(process):
@@ -378,7 +375,7 @@ def test_process_widget_sets_cycle_time_and_shows_events_and_paths(process):
     process.add_event("wash", "flow_sheet.inlet.c", 0, 300)
     widget.refresh()
     assert widget.events.get_title(0) == "Events (1)"
-    assert "flow_sheet.inlet.c" in widget._events_table.value
+    assert widget.event_editor.table.rows[0][3]["text"] == "c"
     assert 'process.add_event("wash", "flow_sheet.inlet.c", 0, 300)' in widget.code()
 
 
@@ -467,3 +464,135 @@ def test_simulation_widget_marks_times_and_writes_them_into_its_code(process):
     widget = SimulationWidget(process, markers={"t_R": 126.0})
     assert widget.chart.markers == [{"name": "t_R", "time": 2.1}]
     assert 'ax.axvline(2.1, color="gray", linestyle="--", label="t_R")' in widget.code()
+
+
+def test_event_editor_adds_updates_and_removes_events(process):
+    widget = ProcessWidget(process)
+    editor = widget.event_editor
+    assert {"inlet · c", "column · flow_direction"} <= set(editor.path.option_labels)
+
+    editor.name.value = "wash"
+    editor.path.value = "flow_sheet.inlet.c"
+    editor.time.value = "300"
+    editor.editors[0].fields[0].value = "0"
+    editor.apply.click()
+    assert process.events_dict["wash"].time == 300
+    assert 'process.add_event("wash", "flow_sheet.inlet.c", [0], 300)' in widget.code()
+    assert widget.events.get_title(0) == "Events (1)"
+    assert editor.table.value == "wash"
+    assert [cell["text"] for cell in editor.table.rows[0]] == ["300", "wash", "inlet", "c", "0"]
+
+    editor.time.value = "200"
+    editor.apply.click()
+    assert [e.time for e in process.events] == [200]
+
+    editor.new.click()
+    assert editor.table.value is None
+    editor.name.value = "wash"
+    editor.apply.click()
+    assert "already exists" in editor.status.value
+    assert len(process.events) == 1
+
+    editor.table.value = "wash"
+    editor.remove.click()
+    assert process.events == []
+
+
+def test_event_editor_sets_a_gradient_that_the_code_reproduces(process):
+    from CADETProcess.simulator import Cadet
+
+    widget = ProcessWidget(process)
+    editor = widget.event_editor
+    editor.name.value = "gradient"
+    editor.path.value = "flow_sheet.inlet.c"
+    editor.time.value = "0"
+    editor.editors[0].fields[0].value = "0"
+    editor.editors[0].fields[1].value = "0.005"
+    editor.apply.click()
+    assert process.events_dict["gradient"].state == [[0, 0.005]]
+    assert editor.table.rows[0][4]["text"] == "0.005·Δt"
+
+    namespace = {"flow_sheet": process.flow_sheet}
+    exec(widget.code(), namespace)
+    simulator = Cadet()
+    built = simulator.simulate(process).solution.outlet.outlet.solution
+    rebuilt = simulator.simulate(namespace["process"]).solution.outlet.outlet.solution
+    np.testing.assert_allclose(built, rebuilt)
+
+
+def test_event_editor_edits_other_parameters_as_values_and_follows_code(process):
+    widget = ProcessWidget(process)
+    editor = widget.event_editor
+    editor.name.value = "reverse"
+    editor.path.value = "flow_sheet.column.flow_direction"
+    editor.time.value = "100"
+    editor.value.value = "-1"
+    editor.apply.click()
+    assert process.events_dict["reverse"].state == -1
+
+    process.add_event("wash", "flow_sheet.inlet.c", 0, 300)
+    widget.refresh()
+    editor.table.value = "wash"
+    assert editor.time.value == "300"
+    assert editor.editors[0].coefficients()[0] == 0
+
+
+@pytest.fixture
+def lc_process():
+    from CADETProcess.instruments import LCFlowSheet
+
+    cs = ComponentSystem(["Salt", "A"])
+    flow_sheet = LCFlowSheet(cs, sample_loop_volume=50e-9, ColumnModel=LumpedRateModelWithoutPores)
+    flow_sheet.mixer.init_liquid_volume = 1e-7
+    tubings = (
+        "tubing_pre_injection", "tubing_pre_column", "tubing_post_column", "tubing_detectors"
+    )
+    for name in tubings:
+        tubing = getattr(flow_sheet, name)
+        tubing.length = 0.1
+        tubing.diameter = 5e-4
+        tubing.axial_dispersion = 1e-6
+    column = flow_sheet.column
+    column.length = 0.1
+    column.diameter = 0.01
+    column.total_porosity = 0.4
+    column.axial_dispersion = 1e-7
+    return Process(flow_sheet, "process")
+
+
+def test_process_widget_offers_templates_only_for_an_lc_flow_sheet(process, lc_process):
+    assert ProcessWidget(process).mode.layout.display == "none"
+    assert ProcessWidget(lc_process).mode.layout.display == ""
+
+
+def test_template_mode_writes_the_template_events_into_the_same_process(lc_process):
+    from CADETProcess.instruments import Breakthrough
+    from CADETProcess.simulator import Cadet
+
+    widget = ProcessWidget(lc_process)
+    widget.mode.value = "Template"
+    templates = widget.template_editor
+    templates.picker.value = "Step"
+    assert widget.process is lc_process
+    assert [e.name for e in lc_process.events] == ["phase_0_B"]
+    assert "from CADETProcess.instruments import Step" in widget.code()
+
+    simulator = Cadet()
+    namespace = {"flow_sheet": lc_process.flow_sheet}
+    exec(widget.code(), namespace)
+    built = simulator.simulate(lc_process).solution.outlet.outlet.solution
+    rebuilt = simulator.simulate(namespace["process"]).solution.outlet.outlet.solution
+    np.testing.assert_allclose(built, rebuilt)
+
+    templates.picker.value = "Breakthrough"
+    reference = Breakthrough(
+        "reference", lc_process.flow_sheet, **templates.values()
+    )
+    np.testing.assert_allclose(
+        simulator.simulate(lc_process).solution.outlet.outlet.solution,
+        simulator.simulate(reference).solution.outlet.outlet.solution,
+    )
+
+    widget.mode.value = "Raw events"
+    assert "process.add_event(" in widget.code()
+    assert "phase_0_F" in widget.event_editor.table.option_labels

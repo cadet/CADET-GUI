@@ -9,7 +9,7 @@ import numpy as np
 
 from ...parameters import describe_parameter
 from .._units import unit_html
-from ..elements import PolynomialChart, TextField
+from ..elements import TextField
 from ._parameter_values import _number_text
 
 __all__ = ["PolynomialEditor", "profile_svg"]
@@ -72,13 +72,20 @@ def profile_svg(times: Sequence[float], values: Sequence[float], symbol: str, un
     )
 
 
-class PolynomialEditor:
-    """Edit one cubic inlet profile, e.g. `Inlet.c` of one component, by its coefficients.
+_TERMS = (
+    ("a₀ start value", "Value right at the start, Δt = 0."),
+    ("a₁ slope", "Change per second: a linear gradient."),
+    ("a₂ curvature", "Bends the profile; the slope changes by 2·a₂ per second."),
+    ("a₃ cubic term", "Third-order term, for S-shaped profiles."),
+)
 
-    The constant term a0 is shown; a1 to a3 are in a collapsed section, opened when one of
-    them is set. A picture shows the resulting profile: over the cycle of `process` (CADET
-    restarts the polynomial at every section), or over `duration` seconds without a process.
-    With `draggable`, a chart with four handles over the first section replaces the picture.
+
+class PolynomialEditor:
+    """Edit one cubic profile, e.g. `Inlet.c` of one component, by its four coefficients.
+
+    The profile is `a0 + a1*dt + a2*dt**2 + a3*dt**3`, with `dt` the time since `start`
+    (CADET restarts it at every section). A picture shows it over the cycle of `process`,
+    or over `duration` seconds without a process.
     """
 
     def __init__(
@@ -89,38 +96,31 @@ class PolynomialEditor:
         *,
         process: Any = None,
         duration: float = 600.0,
+        start: str = "the section start",
         on_change: Optional[Callable[[], None]] = None,
-        draggable: bool = False,
     ) -> None:
         self.owner = owner
         self.name = name
         self.index = index
         self.process = process
         self.duration = duration
-        self.draggable = draggable
         self._on_change = on_change
         self._refreshing = False
         self._unit, _description = describe_parameter(owner, name)
-        self.chart = PolynomialChart(y_label=name) if draggable else W.HTML()
+        self.chart = W.HTML()
         self.fields: List[TextField] = [
-            TextField(label=f"a{k}", units=_coefficient_unit(self._unit, k)) for k in range(4)
+            TextField(label=label, units=_coefficient_unit(self._unit, k), help=help_text)
+            for k, (label, help_text) in enumerate(_TERMS)
         ]
-        self.higher_terms = W.Accordion(children=[W.VBox(self.fields[1:])])
-        self.higher_terms.set_title(0, "Time-dependent terms a1 to a3")
-        self.higher_terms.selected_index = None
         self._note = W.HTML()
         component = None if index is None else owner.component_system.names[index]
-        title = name if component is None else f"{name} · {component}"
         self._symbol = name if component is None else f"{name} ({component})"
-        self.root = W.VBox([
-            W.HTML(f"<code class='cadetgui-param-label'>{escape(title)}</code>"),
-            self.fields[0],
-            self.higher_terms,
-            self._note,
-            self.chart,
-        ])
-        if draggable:
-            self.chart.observe(lambda _change: self._on_drag(), names="points")
+        formula = (
+            f"<code class='cadetgui-param-label'>{escape(self._symbol)}</code> = "
+            "a₀ + a₁·Δt + a₂·Δt² + a₃·Δt³"
+            f"<br><small>Δt: time since {escape(start)}</small>"
+        )
+        self.root = W.VBox([W.HTML(formula), *self.fields, self._note, self.chart])
         for k, field in enumerate(self.fields):
             field.observe(lambda change, k=k: self._on_field(k, change), names="value")
         self.refresh()
@@ -160,8 +160,6 @@ class PolynomialEditor:
         for field, value in zip(self.fields, coefficients):
             field.value = _number_text(float(value) + 0.0)
             field.error = ""
-        if np.any(coefficients[1:] != 0):
-            self.higher_terms.selected_index = 0
         cycle_time = self.duration if self.process is None else float(self.process.cycle_time)
         if not math.isfinite(cycle_time) or cycle_time <= 0:
             self.chart.layout.display = "none"
@@ -176,21 +174,7 @@ class PolynomialEditor:
             t = np.linspace(start, end, _SAMPLES_PER_SECTION)
             times += t.tolist()
             values += polynomial(t - start).tolist()
-        if not self.draggable:
-            self.chart.value = profile_svg(times, values, self._symbol, self._unit)
-            return
-        duration = self._sections()[0][1]
-        self.chart.duration = duration
-        self.chart.cycle_time = cycle_time
-        self.chart.curve = {"times": times, "values": values}
-        self.chart.points = polynomial(np.linspace(0, duration, 4)).tolist()
-
-    def _on_drag(self) -> None:
-        if self._refreshing:
-            return
-        times = np.linspace(0, self.chart.duration, 4)
-        coefficients = np.linalg.solve(np.vander(times, 4, increasing=True), self.chart.points)
-        self._set_coefficients(coefficients)
+        self.chart.value = profile_svg(times, values, self._symbol, self._unit)
 
     def _on_field(self, k: int, change: dict) -> None:
         if self._refreshing:

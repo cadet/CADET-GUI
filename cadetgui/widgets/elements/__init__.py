@@ -9,7 +9,6 @@ from .line_chart import (
     ChromatogramChart,
     EventTimelineChart,
     LineChart,
-    PolynomialChart,
 )
 from .selectable_table import SelectableTable
 from .text_field import TextField
@@ -26,5 +25,4 @@ __all__ = [
     "LineChart",
     "EventTimelineChart",
     "ChromatogramChart",
-    "PolynomialChart",
 ]

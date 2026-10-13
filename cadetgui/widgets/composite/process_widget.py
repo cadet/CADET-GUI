@@ -6,11 +6,13 @@ from typing import Any, Callable, List, Mapping, Optional
 
 import ipywidgets as W
 import numpy as np
+from CADETProcess.instruments import LCFlowSheet
 from CADETProcess.processModel import FlowSheet, Process
 
 from .._chrome import style_tag
 from ..elements import EventTimelineChart, TextField
 from ._code_view import CodeView
+from ._event_editor import EventEditor
 from ._model_sync import changed, watch
 from ._parameter_values import (
     assign_literal,
@@ -22,29 +24,14 @@ from ._parameter_values import (
     set_by_path,
     value_html,
 )
+from ._template_editor import TemplateEditor, available_templates
 from ._timeline_data import timeline_chart_data
 
-__all__ = ["ProcessWidget", "events_table_html", "parameter_paths_html"]
+__all__ = ["ProcessWidget", "parameter_paths_html"]
 
 
 def _state(value: Any) -> str:
     return repr(value.tolist() if isinstance(value, np.ndarray) else value)
-
-
-def events_table_html(process: Any) -> str:
-    """Table of a process's events: name, time, parameter path and state."""
-    if not process.events:
-        return "<em>This process has no events.</em>"
-    rows = "".join(
-        f"<tr><td>{html.escape(e.name)}</td><td>{e.time:g}</td>"
-        f"<td><code>{html.escape(e.parameter_path)}</code></td>"
-        f"<td><code>{html.escape(_state(e.state))}</code></td></tr>"
-        for e in sorted(process.events, key=lambda e: e.time)
-    )
-    return (
-        "<table class='cadetgui-table'><thead><tr><th>Event</th><th>Time / s</th>"
-        f"<th>Parameter</th><th>State</th></tr></thead><tbody>{rows}</tbody></table>"
-    )
 
 
 def parameter_paths_html(process: Any) -> str:
@@ -100,11 +87,27 @@ class ProcessWidget:
         self.cycle_time = TextField(
             label="cycle_time", value=format_value(process, "cycle_time"), units=r"\mathrm{s}"
         )
-        self._events_table = W.HTML()
         self.chart = EventTimelineChart()
+        self.event_editor = EventEditor(process, self._edited)
+        self.template_editor: Optional[TemplateEditor] = None
+        self._editor_box = W.VBox([self.event_editor.controls])
+        has_templates = isinstance(process.flow_sheet, LCFlowSheet) and bool(
+            available_templates(process.flow_sheet)
+        )
+        self.mode = W.ToggleButtons(options=["Raw events", "Template"], value="Raw events")
+        self.mode.layout.display = "" if has_templates else "none"
+        self.mode.observe(lambda _change: self._on_mode(), names="value")
+        self._editor_box.layout = W.Layout(flex="3 1 0", min_width="0")
+        self.chart.layout = W.Layout(flex="2 1 0", min_width="0")
+        self._editor_and_chart = W.HBox(
+            [self._editor_box, self.chart], layout=W.Layout(gap="16px", align_items="flex-start")
+        )
         self._paths = W.HTML()
         self._components = W.HTML()
-        self.events = _collapsible("Events", W.VBox([self._events_table, self.chart]))
+        self.events = _collapsible(
+            "Events",
+            W.VBox([self.mode, self.event_editor.table, self._editor_and_chart]),
+        )
         self.parameters = _collapsible("Parameters by path", self._paths)
         self.code_view = CodeView(self.code)
         title = html.escape(process.name)
@@ -128,7 +131,6 @@ class ProcessWidget:
         self.cycle_time.value = format_value(self.process, "cycle_time")
         n_events = len(self.process.events)
         self.events.set_title(0, f"Events ({n_events})")
-        self._events_table.value = events_table_html(self.process)
         self.chart.layout.display = "" if n_events else "none"
         data = timeline_chart_data(self.process, self.process.component_system.names, ())
         if n_events and data is not None:
@@ -137,6 +139,7 @@ class ProcessWidget:
             self.chart.markers = data["markers"]
             self.chart.series = data["series"]
         self._paths.value = parameter_paths_html(self.process)
+        self.event_editor.refresh()
         self.code_view.refresh()
 
     def _on_cycle_time(self, change: dict) -> None:
@@ -147,17 +150,34 @@ class ProcessWidget:
         self.cycle_time.error = error or ""
         if error:
             return
+        self._edited()
+
+    def _on_mode(self) -> None:
+        if self.mode.value == "Template":
+            if self.template_editor is None:
+                self.template_editor = TemplateEditor(self.process, self._edited)
+            self._editor_box.children = [self.template_editor.root]
+        else:
+            self._editor_box.children = [self.event_editor.controls]
+        self.code_view.refresh()
+
+    def _edited(self) -> None:
         self.refresh()
         changed(self.process.component_system, self)
         for fn in list(self._listeners):
             fn(self.process)
 
     def code(self) -> str:
-        """Return the CADET-Process code that creates this process, with its events."""
+        """Return the CADET-Process code that creates this process: template call or events."""
+        if self.mode.value == "Template" and self.template_editor is not None:
+            template_code = self.template_editor.code()
+            if template_code is not None:
+                return template_code
         lines = [
             "from CADETProcess.processModel import Process",
             "",
-            f'process = Process({self.process.flow_sheet.name}, "{self.process.name}")',
+            f'process = Process({self.process.flow_sheet.name or "flow_sheet"}, '
+            f'"{self.process.name}")',
         ]
         if math.isfinite(float(self.process.cycle_time)):
             lines.append(f"process.cycle_time = {code_literal(self.process, 'cycle_time')}")

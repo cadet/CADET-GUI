@@ -7,7 +7,7 @@ import traitlets as T
 
 from ._assets import css, esm
 
-__all__ = ["LineChart", "EventTimelineChart", "ChromatogramChart", "PolynomialChart"]
+__all__ = ["LineChart", "EventTimelineChart", "ChromatogramChart"]
 
 
 class LineChart(anywidget.AnyWidget):
@@ -63,20 +63,3 @@ class ChromatogramChart(LineChart):
     empty_text = T.Unicode("No solution to show").tag(sync=True)
     view_width = T.Int(720).tag(sync=True)
     view_height = T.Int(300).tag(sync=True)
-
-
-class PolynomialChart(anywidget.AnyWidget):
-    """Cubic over a section, shaped by dragging four points at 0, T/3, 2T/3 and T.
-
-    `points` are the values at those times (`duration` T, seconds); `curve` is what to
-    draw over the whole cycle, `{"times": [s], "values": [...]}`.
-    """
-
-    points = T.List(T.Float(), default_value=[0.0, 0.0, 0.0, 0.0]).tag(sync=True)
-    duration = T.Float(1.0).tag(sync=True)
-    cycle_time = T.Float(1.0).tag(sync=True)
-    curve = T.Dict(default_value={"times": [], "values": []}).tag(sync=True)
-    y_label = T.Unicode("").tag(sync=True)
-
-    _esm = esm("polynomial_chart")
-    _css = css("line_chart")
