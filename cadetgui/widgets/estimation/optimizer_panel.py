@@ -31,8 +31,8 @@ class OptimizerRunnerPanel:
     elapsed-time ticker.
 
     `build_run_spec` is called on every "Run" click and must return a
-    `cadetgui.optimizer_runner.RunSpec`, or a validation-error string (shown in `.status`,
-    run aborted). Everything problem-specific lives on the `RunSpec`.
+    `cadetgui.estimation.optimizer_runner.RunSpec`, or a validation-error string (shown in
+    `.status`, run aborted). Everything problem-specific lives on the `RunSpec`.
 
     `leading` widgets are placed between the section header and the run controls.
     """

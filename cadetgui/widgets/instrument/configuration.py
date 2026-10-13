@@ -90,7 +90,7 @@ class ConfigurationWidget(Widget):
     snapshot carries, whatever the method form holds.
 
     `starting_values` (also a checkbox, `use_starting_values`) fills the standard starting
-    values (`cadetgui.starting_values`) into freshly chosen models; off, forms keep the
+    values (`cadetgui.instrument.starting_values`) into freshly chosen models; off, forms keep the
     CADET-Process and template defaults.
     """
 

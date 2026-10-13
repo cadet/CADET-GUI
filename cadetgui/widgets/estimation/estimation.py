@@ -48,7 +48,7 @@ class ParameterEstimationWidget:
 
     One configuration, one dataset, one signal, SSE. Collects the inputs and hands
     `OptimizerRunnerPanel` a `RunSpec` built around
-    `cadetgui.parameter_estimation.build_estimation_problem`; the panel owns everything
+    `cadetgui.estimation.parameter_estimation.build_estimation_problem`; the panel owns everything
     about running it. Nests `DataImportWidget` (`.data`) as its data source.
 
     The "Preview" section simulates the base process itself (only when the bound process
