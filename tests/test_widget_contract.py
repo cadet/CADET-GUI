@@ -68,7 +68,7 @@ FACTORIES = {
 # Widgets still to be moved onto the Widget base class; remove a name once it is.
 NOT_YET_WIDGET = {
     "InstrumentWidget", "SolutionWidget", "RunHistoryWidget", "DataImportWidget",
-    "ParameterEstimationWidget", "CharacterizationSetupWidget", "StudyComponentsWidget",
+    "CharacterizationSetupWidget", "StudyComponentsWidget",
     "ComparisonsWidget", "ParameterStoreWidget", "CharacterizationGuideWidget",
     "InstrumentWorkbenchWidget", "CharacterizationWorkbenchWidget",
 }
@@ -76,7 +76,8 @@ NOT_YET_WIDGET = {
 
 @pytest.fixture(
     params=[
-        pytest.param(name, marks=pytest.mark.xfail(reason="not yet a Widget")) if name in NOT_YET_WIDGET
+        pytest.param(name, marks=pytest.mark.xfail(reason="not yet a Widget"))
+        if name in NOT_YET_WIDGET
         else name
         for name in sorted(FACTORIES)
     ]
