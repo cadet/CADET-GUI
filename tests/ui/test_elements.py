@@ -191,6 +191,14 @@ def test_field_views_commit_user_edits(mount, widget, edit, key, expected):
     assert view.last_saved()[key] == expected
 
 
+def test_compact_text_view_is_as_wide_as_its_content(mount):
+    view = mount(TextField(value="1", compact=True))
+    assert view.js("return v.q('input').classList.contains('cadetgui-field-input-compact');")
+    short = view.js("return v.q('input').size;")
+    view.js("v.change('value', '1.5e-7, 2.5e-7, 3.5e-7');")
+    assert view.js("return v.q('input').size;") > short
+
+
 def test_float_view_ignores_unparseable_input(mount):
     view = mount(FloatField(value=1.0))
     view.js("v.q('input').value = 'abc'; v.q('input').dispatchEvent(new Event('change'));")

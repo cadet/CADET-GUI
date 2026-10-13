@@ -14,7 +14,11 @@ from cadetgui.instrument.recipes import (
     recipe_with_template,
     template_options,
 )
-from cadetgui.instrument.signals import measurable_signal_options
+from cadetgui.instrument.signals import (
+    friendly_signal_options,
+    measurable_signal_options,
+    signal_label,
+)
 from cadetgui.instrument.starting_values import (
     binding_starting_values,
     starting_values,
@@ -295,3 +299,19 @@ def test_parameter_spec_has_a_stable_field_order_and_builds_the_object():
     assert next(f for f in spec.fields if f.name == "capacity").component_names == ("A", "B")
     spec.build({"capacity": "1.5, 2.5", "is_kinetic": False})
     assert list(binding.capacity) == [1.5, 2.5] and binding.is_kinetic is False
+
+
+@pytest.mark.parametrize(
+    "unit, port, label",
+    [
+        ("outlet", "inlet", "Outlet"),
+        ("waste", "inlet", "Waste outlet"),
+        ("buffer_a", "outlet", "Buffer A inlet"),
+        ("column", "outlet", "Column outlet"),
+        ("tubing_pre_column", "inlet", "Tubing (pre column) inlet"),
+        ("my_unit", "outlet", "My unit outlet"),
+    ],
+)
+def test_signal_positions_get_plain_names(unit, port, label):
+    assert signal_label(unit, port) == label
+    assert friendly_signal_options([("x", (unit, port))]) == [(label, (unit, port))]
