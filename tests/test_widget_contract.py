@@ -68,9 +68,7 @@ FACTORIES = {
 # Widgets still to be moved onto the Widget base class; remove a name once it is.
 NOT_YET_WIDGET = {
     "InstrumentWidget", "SolutionWidget", "RunHistoryWidget", "DataImportWidget",
-    "CharacterizationSetupWidget", "StudyComponentsWidget",
-    "ComparisonsWidget", "ParameterStoreWidget", "CharacterizationGuideWidget",
-    "InstrumentWorkbenchWidget", "CharacterizationWorkbenchWidget",
+    "InstrumentWorkbenchWidget",
 }
 
 
