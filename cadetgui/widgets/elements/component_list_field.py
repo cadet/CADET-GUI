@@ -32,7 +32,7 @@ class ComponentListField(Element):
         validate: Optional[Validator] = None,
         blank_rows: bool = False,
     ) -> None:
-        names: List[str] = list(value) if value or blank_rows else ["Component 1"]
+        names: List[str] = list(value or []) if value or blank_rows else ["Component 1"]
         super().__init__(
             label=label,
             value=names,

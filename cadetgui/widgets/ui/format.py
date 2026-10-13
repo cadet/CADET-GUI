@@ -45,10 +45,13 @@ def unit_html(src: str) -> str:
         nonlocal pos
         pos += 1
         end = pos
-        while end < len(src) and src[end].isalpha():
+        while end < len(src) and src[end].isascii() and src[end].isalpha():
             end += 1
+        letters = end > pos
         name = src[pos:end] or src[pos : pos + 1]
         pos += len(name)
+        while letters and pos < len(src) and src[pos] == " ":
+            pos += 1
         if name in _TEXT_COMMANDS:
             return arg()
         if name == "frac":
@@ -56,7 +59,9 @@ def unit_html(src: str) -> str:
             num = f"({num})" if "/" in _top_level(num) else num
             den = f"({den})" if any(c in _top_level(den) for c in "·×/") else den
             return f"{num}/{den}"
-        return _SYMBOLS.get(name, escape(f"\\{name}"))
+        if name in _SYMBOLS:
+            return _SYMBOLS[name]
+        return escape(f"\\{name}" if letters else name or "\\")
 
     def seq(until_brace: bool = False) -> str:
         nonlocal pos

@@ -1,48 +1,103 @@
+"""Public imports: lazy top-level and io exports, domain packages, backend versions."""
+
+import importlib
 import subprocess
 import sys
 
 import cadetgui
-import cadetgui.widgets
+import cadetgui.backend_versions as bv
+import cadetgui.process_model.simulation as simulation
+import pytest
+from cadetgui.widgets.benches.frame import backend_versions_text
 
 
-def test_benches_and_object_widgets_import_from_the_top_level():
-    from cadetgui import (
-        CharacterizationWorkbenchWidget,
-        InstrumentWorkbenchWidget,
-        ProcessWidget,
-    )
-    from cadetgui.widgets import benches, process_model
-
-    assert InstrumentWorkbenchWidget is benches.InstrumentWorkbenchWidget
-    assert CharacterizationWorkbenchWidget is benches.CharacterizationWorkbenchWidget
-    assert ProcessWidget is process_model.ProcessWidget
-
-
-def test_domain_packages_export_their_widgets():
-    from cadetgui.widgets import characterization, estimation, instrument
-
-    for package in (instrument, estimation, characterization):
-        for name in package.__all__:
-            assert getattr(package, name) is not None
+@pytest.mark.parametrize(
+    "name, module",
+    [
+        ("InstrumentWorkbenchWidget", "cadetgui.widgets.benches"),
+        ("CharacterizationWorkbenchWidget", "cadetgui.widgets.benches"),
+        ("ProcessWidget", "cadetgui.widgets.process_model"),
+    ],
+)
+def test_top_level_names_are_the_package_objects(name, module):
+    assert getattr(cadetgui, name) is getattr(importlib.import_module(module), name)
 
 
-def test_top_level_import_does_not_load_the_widgets():
-    code = "import sys, cadetgui; print('cadetgui.widgets' in sys.modules)"
-    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
-    assert out.stdout.strip() == "False"
+@pytest.mark.parametrize("package", [cadetgui, cadetgui.io], ids=lambda p: p.__name__)
+def test_unknown_lazy_attribute_raises(package):
+    with pytest.raises(AttributeError):
+        package.NotAThing  # noqa: B018
+
+
+@pytest.mark.parametrize(
+    "package",
+    [
+        "cadetgui.io",
+        "cadetgui.parameters",
+        "cadetgui.widgets",
+        "cadetgui.widgets.ui",
+        "cadetgui.widgets.elements",
+        "cadetgui.widgets.diagrams",
+        "cadetgui.widgets.instrument",
+        "cadetgui.widgets.estimation",
+        "cadetgui.widgets.characterization",
+    ],
+)
+def test_every_exported_name_resolves(package):
+    module = importlib.import_module(package)
+    for name in module.__all__:
+        assert getattr(module, name) is not None, name
 
 
 def test_bench_kit_is_exported_from_widgets():
-    for name in cadetgui.widgets.__all__:
-        assert getattr(cadetgui.widgets, name) is not None
+    import cadetgui.widgets
+
     assert {"SidebarShell", "bench_root", "status_html", "style_tag"} <= set(
         cadetgui.widgets.__all__
     )
 
 
-def test_unknown_top_level_attribute_raises():
+@pytest.mark.parametrize(
+    "code, expected",
+    [
+        ("import sys, cadetgui; print('cadetgui.widgets' in sys.modules)", "False"),
+        (
+            "import sys, cadetgui.io; cadetgui.io.ExperimentalRun; "
+            "print('cadetgui.io.configuration_store' in sys.modules)",
+            "False",
+        ),
+    ],
+    ids=["top level", "io"],
+)
+def test_imports_stay_lazy(code, expected):
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert out.stdout.strip() == expected
+
+
+class _FakeCadet:
+    calls = 0
+
+    @property
+    def version(self):
+        type(self).calls += 1
+        return "9.8.7"
+
+
+class _BrokenCadet:
+    def __init__(self):
+        raise RuntimeError("no cadet-cli")
+
+
+@pytest.mark.parametrize("cadet, expected", [(_FakeCadet, "9.8.7"), (_BrokenCadet, None)])
+def test_backend_versions_are_read_once_and_tolerate_a_missing_core(monkeypatch, cadet, expected):
+    monkeypatch.setattr(simulation, "Cadet", cadet)
+    bv.cadet_core_version.cache_clear()
+    _FakeCadet.calls = 0
     try:
-        cadetgui.NotAThing  # noqa: B018
-    except AttributeError:
-        return
-    raise AssertionError("expected AttributeError")
+        assert bv.cadet_core_version() == bv.cadet_core_version() == expected
+        assert _FakeCadet.calls == (cadet is _FakeCadet)
+        assert bv.cadet_process_version()
+        text = backend_versions_text()
+        assert ("CADET-Core not found" in text) == (expected is None)
+    finally:
+        bv.cadet_core_version.cache_clear()
