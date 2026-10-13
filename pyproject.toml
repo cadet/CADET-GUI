@@ -130,6 +130,7 @@ testpaths = [
 pythonpath = [
     "tests"
 ]
+addopts = "-m 'not slow'"
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')"
+    "slow: long simulations and fits; skipped by default, run with `pytest -m slow`"
 ]
