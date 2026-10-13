@@ -23,13 +23,26 @@ ruff format   # format
 
 ```bash
 pip install -e . --group dev
-pytest
+pytest              # fast default run, skips tests marked slow
+pytest -m slow      # only the slow ones (real simulations and fits)
+pytest -m ""        # everything, as CI does
 ```
 
-Slow tests (real optimizer runs) are marked `@pytest.mark.slow`; skip them
-locally with `pytest -m "not slow"`, but run the full suite before opening a
-pull request. CI (`.github/workflows/tests.yml`) runs the full suite,
-including headless-browser element tests, on every push to `main` and PR.
+The suite mirrors the package: `tests/<domain>/` for `process_model`, `instrument`,
+`estimation`, `characterization`, `parameters`, `io` and `ui`, plus `tests/benches/`.
+Shared fixtures are in `tests/conftest.py` (isolated configuration and run stores,
+`pulse_process`, `instrument_and_configuration`, `synchronous_threads`); each folder adds
+its own in a `conftest.py`. `tests/test_widget_contract.py` checks every top-level widget.
+
+What a test should check: that a widget builds the right CADET-Process objects, wires to
+other widgets, rejects invalid input and keeps its last valid state, round-trips through
+save/load or snapshot/apply, and that `code()` reproduces the result. Prefer
+`pytest.mark.parametrize` over one test per template or model. Layout, wording and styling
+are not tested. Mark long simulations and fits `@pytest.mark.slow`.
+
+Browser tests of the element views run in headless Chromium and are skipped when
+Playwright or its browser is missing. CI (`.github/workflows/tests.yml`) runs the full
+suite on every push to `main` and on pull requests.
 
 ### Pre-commit Hooks
 
