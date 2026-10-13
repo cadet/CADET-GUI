@@ -13,6 +13,7 @@ from ...characterization.guide import (
     GLOSSARY,
     WORKFLOW_GUIDE,
 )
+from ..base import Widget
 from ..ui.html import checklist_html, table_html
 from ..ui.theme import style_tag
 
@@ -115,10 +116,12 @@ def _lab_checks_html() -> str:
     )
 
 
-class CharacterizationGuideWidget:
+class CharacterizationGuideWidget(Widget):
     """Read-only help pane: workflow, chain, lab checks, optimizers, experiment types, glossary."""
 
     def __init__(self) -> None:
+        super().__init__()
+
         def section(title: str, body: str) -> W.HTML:
             box = W.HTML(f"<div class='cadetgui-section-title'>{html.escape(title)}</div>{body}")
             box.add_class("cadetgui-section")
@@ -150,9 +153,3 @@ class CharacterizationGuideWidget:
             self.glossary,
         ])
         self.root.add_class("cadetgui-panel")
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)

@@ -22,6 +22,7 @@ from ...characterization.step_checks import StepStatus, study_steps_status
 from ...characterization.study import Study
 from ...instrument.system import BYPASSABLE_UNITS
 from ...io.configuration_store import ConfigurationState, InstrumentState
+from ..base import Widget
 from ..diagrams.instrument import recipe_diagram_svg
 from ..ui.html import status_html, table_html
 from ..ui.theme import style_tag
@@ -170,7 +171,7 @@ def _chip(status: Optional[StepStatus]) -> str:
     return status_html("warn", "needs attention")
 
 
-class CharacterizationSetupWidget:
+class CharacterizationSetupWidget(Widget):
     """One card per step of the recommended chain (`DEFAULT_CHAIN`), in lab order.
 
     Each card says which part of the system the step characterizes (highlighted on the
@@ -185,7 +186,8 @@ class CharacterizationSetupWidget:
     `("measurements", {"step_id": guide_id})`, `("step", {"name": step_name})` and
     `("guide", {})`. `fitted_steps` names the steps with a fit result waiting for a
     choice (or is a callable returning them). With `auto_refresh=False` study changes
-    only mark the cards stale and the owner calls `refresh()`.
+    only mark the cards stale and the owner calls `refresh()`. Listeners are called after
+    a step is added.
     """
 
     def __init__(
@@ -197,6 +199,7 @@ class CharacterizationSetupWidget:
         auto_refresh: bool = True,
         system: Optional[Callable[[], Optional[ConfigurationState]]] = None,
     ) -> None:
+        super().__init__()
         self.study = study
         self._system = system
         self._system_card = W.VBox()
@@ -525,12 +528,14 @@ class CharacterizationSetupWidget:
             self.study.steps.insert(index, setup)
             self.study.notify()
         self.status.value = status_html("ok", f"Set up {guide.title}.")
+        self._notify()
         self._open(setup.name)
         return setup.name
 
     def add_step(self, name: str = "", stage: Optional[str] = None) -> str:
         """Append a step outside the chain (see `add_custom_step`) and open it."""
         name = add_custom_step(self.study, name, stage)
+        self._notify()
         self._open(name)
         return name
 
@@ -546,9 +551,3 @@ class CharacterizationSetupWidget:
             return
         self._new_step_name.value = ""
         self.custom_step_status.value = status_html("ok", f"Added {name}.")
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)

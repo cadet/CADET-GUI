@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import html
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import ipywidgets as W
 
@@ -14,6 +14,7 @@ from ....instrument.recipes import recipe_with_template
 from ....io import configuration_store
 from ....io.configuration_store import ConfigurationState
 from ....io.experimental_data import ExperimentalRun
+from ...base import Widget
 from ...ui.html import info_box_html, status_html
 from ...ui.layout import panel
 from ..help import term_html
@@ -42,7 +43,7 @@ _INTRO = (
 )
 
 
-class ComparisonsWidget:
+class ComparisonsWidget(Widget):
     """The Measurements pane: add, list, inspect and edit a study's comparisons.
 
     New measurements come from an in-pane stepper (`AddMeasurementFlow`). The list
@@ -51,7 +52,7 @@ class ComparisonsWidget:
     measured trace as the fit sees it) with a `MeasurementEditor` under Advanced. Edits
     are written through `study.replace_comparison`, so steps holding it see the new
     object. `configuration` supplies the base recipe of new measurements and can load or
-    supply a measurement's recipe.
+    supply a measurement's recipe. Listeners are called whenever the study changes.
     """
 
     def __init__(
@@ -60,6 +61,7 @@ class ComparisonsWidget:
         *,
         configuration: Optional["ConfigurationWidget"] = None,
     ) -> None:
+        super().__init__()
         self.study = study
         self.configuration = configuration
         self._loading = False
@@ -197,6 +199,7 @@ class ComparisonsWidget:
         self._btn_duplicate.disabled = self._btn_remove.disabled = self.selected is None
 
     def _on_study_change(self) -> None:
+        self._notify()
         self._refresh_table()
         editing = self._editing
         if self._committing:
@@ -486,13 +489,3 @@ class ComparisonsWidget:
             self._loading = False
         self._list.select(self._selected_name)
         self._show_card(draft)
-
-    def add_listener(self, fn: Callable[[], None]) -> None:
-        """Call `fn()` whenever the study changes."""
-        self.study.add_listener(fn)
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)

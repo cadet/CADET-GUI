@@ -87,7 +87,7 @@ pre-injection dip), which is the point — this dataset is deliberately not clea
 Also verified: rebuilding each process from its recipe, `initial_store` and the relevant step's
 `truth` (`cadetgui.instrument.process_builder.build_process` + `cadetgui.characterization.parameter_store.apply_store`)
 reproduces this file's own generation exactly, since CADET-Core is deterministic for identical
-input; see `tests/test_characterization_chain_data.py`.
+input; see `tests/characterization/test_example_data.py`.
 
 ## Regenerating
 

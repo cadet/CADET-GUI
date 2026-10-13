@@ -18,6 +18,7 @@ from ...characterization.parameter_store import (
 from ...characterization.study import Study
 from ...instrument.system import UNIT_LABELS
 from ...process_model.values import number_text
+from ..base import Widget
 from ..elements import ChoiceField, SelectableTable
 from ..ui.html import status_html
 from ..ui.theme import style_tag
@@ -85,7 +86,7 @@ def chain_warnings(study: Study) -> List[str]:
     return warnings
 
 
-class ParameterStoreWidget:
+class ParameterStoreWidget(Widget):
     """The study's parameter store after any step, with provenance, chain checks and file I/O.
 
     Loading a study replaces the shared `Study`'s contents in place and notifies its
@@ -93,8 +94,8 @@ class ParameterStoreWidget:
     """
 
     def __init__(self, study: Study) -> None:
+        super().__init__()
         self.study = study
-        self._listeners: List[Callable[[], None]] = []
 
         self._step_picker = ChoiceField(label="Show store:")
         self._step_picker.observe(lambda _c: self._refresh_table(), names="selected_index")
@@ -154,10 +155,6 @@ class ParameterStoreWidget:
         base = self.study.base_dir
         return str(base / "study.json") if base is not None else "study.json"
 
-    def add_listener(self, fn: Callable[[], None]) -> None:
-        """Call `fn()` after the shown store changes."""
-        self._listeners.append(fn)
-
     def refresh(self) -> None:
         """Re-read the study: step choices, chain warnings and the table."""
         options = [("Current (after the last accepted step)", CURRENT), ("Initial", INITIAL)]
@@ -207,8 +204,7 @@ class ParameterStoreWidget:
                 ])
                 options.append((f"{path} {species}".strip(), (path, species)))
         self._table.set_options(options, rows=rows, select_none=True)
-        for fn in list(self._listeners):
-            fn()
+        self._notify()
 
     def _file_action(self, action: Callable[[str], Path], field: W.Text) -> None:
         try:
@@ -234,9 +230,3 @@ class ParameterStoreWidget:
     def export_store(self, path: "Path | str") -> Path:
         """Write the current store (after the last accepted step) as JSON."""
         return self.study.current_store.save(path)
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)

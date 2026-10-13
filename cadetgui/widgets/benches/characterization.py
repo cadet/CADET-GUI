@@ -10,6 +10,7 @@ from ...characterization.guide import guide_for_step
 from ...characterization.step_checks import study_steps_status
 from ...characterization.study import Study
 from ...io.configuration_store import ConfigurationState
+from ..base import Widget
 from ..characterization.components import bind_study_components
 from ..characterization.guide import CharacterizationGuideWidget
 from ..characterization.measurements.comparisons import ComparisonsWidget
@@ -59,7 +60,7 @@ def step_pane(name: str) -> str:
     return f"{STEPS}: {name}"
 
 
-class CharacterizationWorkbenchWidget:
+class CharacterizationWorkbenchWidget(Widget):
     """Sidebar workbench over one characterization `Study`.
 
     Panes: "Setup" (one card per chain step with its next action; sets up steps),
@@ -82,6 +83,7 @@ class CharacterizationWorkbenchWidget:
     `experiment_type` open the add stepper, `select` shows a measurement), `"step"`
     (`name`), `"setup"`, `"system"` (`unit` expands the hardware and highlights it),
     `"parameters"`, `"guide"`. Opening a step highlights the units it characterizes.
+    Listeners are called whenever the study changes.
     """
 
     def __init__(
@@ -92,6 +94,7 @@ class CharacterizationWorkbenchWidget:
         instrument: Optional[InstrumentWidget] = None,
         configuration: Optional[ConfigurationWidget] = None,
     ) -> None:
+        super().__init__()
         if include is None:
             include = _PANES
         validate_steps(include, _PANES)
@@ -277,6 +280,7 @@ class CharacterizationWorkbenchWidget:
     def _on_study_change(self) -> None:
         self._sync_steps()
         self._refresh_status()
+        self._notify()
 
     def _set_warning(self, label: str, message: Optional[str]) -> None:
         if label in self._shell.panes:
@@ -305,9 +309,3 @@ class CharacterizationWorkbenchWidget:
         self._set_warning(PARAMETERS, "\n".join(chain_warnings(self.study)) or None)
         if self._shell.current == SETUP:
             self.setup.refresh()
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)

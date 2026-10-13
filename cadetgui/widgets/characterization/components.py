@@ -6,6 +6,7 @@ import ipywidgets as W
 
 from ...characterization.guide import COMPONENT_ROLES, SALT, SALT_ROLE
 from ...characterization.study import Study
+from ..base import Widget
 from ..ui.html import info_box_html, status_html
 from ..ui.theme import style_tag
 from .help import term_html
@@ -34,16 +35,18 @@ def _role_dropdown(**kwargs: Any) -> W.Dropdown:
     return dropdown
 
 
-class StudyComponentsWidget:
+class StudyComponentsWidget(Widget):
     """Editor over `study.components`: one row per component (name, role), add and remove.
 
     Renames, role changes and removals go through the `Study` methods, which refuse what
     would break a measurement or detach stored values; the refusal is shown in `.status`.
     The salt component's name is fixed to `SALT`: its row is read-only, and picking the
-    salt role in the add row fills in and locks that name.
+    salt role in the add row fills in and locks that name. Listeners are called after
+    each accepted change.
     """
 
     def __init__(self, study: Study) -> None:
+        super().__init__()
         self.study = study
         self.rows: Dict[str, Tuple[W.Text, W.Dropdown, W.Button]] = {}
         self._key: Any = None
@@ -168,6 +171,7 @@ class StudyComponentsWidget:
                 self._syncing = False
             return False
         self.status.value = status_html("ok", ok)
+        self._notify()
         return True
 
     def add(self, name: str, role: str) -> bool:
@@ -202,12 +206,6 @@ class StudyComponentsWidget:
     def remove(self, name: str) -> bool:
         """Remove an unused component; returns whether it was removed."""
         return self._run(lambda: self.study.remove_component(name), f"Removed {name}.")
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)
 
 
 def bind_study_components(instrument: Any, study: Study) -> StudyComponentsWidget:
