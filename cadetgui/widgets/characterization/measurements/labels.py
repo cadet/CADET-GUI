@@ -6,6 +6,8 @@ import html
 import math
 from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Tuple
 
+import numpy as np
+
 from ....characterization.comparison import Comparison
 from ....characterization.guide import (
     CHAIN_BY_ID,
@@ -27,6 +29,7 @@ if TYPE_CHECKING:
 
 
 ML_PER_MIN = 1e-6 / 60.0
+MAX_CHART_POINTS = 2000
 
 # Column-mapping dropdown options: (label, ColumnRole value).
 COLUMN_ROLE_OPTIONS = [
@@ -71,6 +74,28 @@ _ADVICE: Tuple[Tuple[str, str], ...] = (
 def number_or_blank(value: Optional[float]) -> str:
     """Return `value` as compact text for a field, "" for None."""
     return "" if value is None else number_text(value)
+
+
+def flow_rate_text(flow_rate: Optional[float]) -> str:
+    """Return a flow rate in m³/s as mL/min text for a field, "" for None."""
+    return number_or_blank(flow_rate / ML_PER_MIN if flow_rate is not None else None)
+
+
+def read_flow_rate(text: str) -> Optional[float]:
+    """Parse an optional mL/min field into m³/s."""
+    flow_rate = optional_float(text)
+    return flow_rate * ML_PER_MIN if flow_rate is not None else None
+
+
+def reference_series(name: str, x: np.ndarray, values: np.ndarray) -> dict:
+    """Return a measured chart series thinned to at most `MAX_CHART_POINTS` points."""
+    stride = max(1, math.ceil(x.size / MAX_CHART_POINTS))
+    return {
+        "name": name,
+        "times": x[::stride].tolist(),
+        "values": values[::stride].tolist(),
+        "reference": True,
+    }
 
 
 def value_text(value: Any) -> str:
