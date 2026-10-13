@@ -23,7 +23,7 @@ from ...process_model.values import (
     assign_literal,
     code_literal,
     format_value,
-    parameter_names,
+    unit_parameter_owners,
 )
 from ..base import Widget
 from ..elements import ChoiceField, TextField
@@ -32,7 +32,7 @@ from ..ui.html import status_html
 from ..ui.layout import CodeView, panel
 from .profiles import PolynomialEditor
 from .sync import changed, watch
-from .values import value_html
+from .values import MISSING_HTML, parameter_groups, value_html
 
 __all__ = [
     "UnitOperationsWidget",
@@ -44,18 +44,10 @@ __all__ = [
 ]
 
 
-def _owners(unit: Any) -> List[Tuple[str, Any]]:
-    owners = [(unit.name, unit)]
-    binding_model = getattr(unit, "binding_model", None)
-    if binding_model is not None and not isinstance(binding_model, NoBinding):
-        owners.append((f"{unit.name}.binding_model", binding_model))
-    return owners
-
-
 def parameter_code(unit: Any) -> List[str]:
     """List assignments for the set parameters of `unit` and its binding model."""
     lines = []
-    for target, owner in _owners(unit):
+    for target, owner in unit_parameter_owners(unit):
         names = list(getattr(owner, "required_parameters", []))
         if isinstance(owner, Inlet):
             names += ["c", "flow_rate"]
@@ -91,20 +83,12 @@ class UnitParametersEditor:
         self._owners: Dict[str, Tuple[Any, str]] = {}
         self._profiles = profiles
         children: List[W.Widget] = []
-        for target, owner in _owners(unit):
+        for target, owner in unit_parameter_owners(unit):
             if owner is not unit:
                 title = f"Binding model · {type(owner).__name__}"
                 children.append(W.HTML(f"<div class='cadetgui-section-title'>{title}</div>"))
-            required = set(getattr(owner, "required_parameters", []))
-            names = parameter_names(owner)
-            groups = (
-                ("Required parameters", [n for n in names if n in required]),
-                ("Initial state and options" if required else "Parameters",
-                 [n for n in names if n not in required]),
-            )
-            for group, group_names in groups:
-                if group_names:
-                    children.append(W.HTML(f"<div class='cadetgui-param-group'>{group}</div>"))
+            for group, group_names in parameter_groups(owner):
+                children.append(W.HTML(f"<div class='cadetgui-param-group'>{group}</div>"))
                 for name in group_names:
                     children += self._widgets_for(target, owner, name)
         self.status = W.HTML()
@@ -162,7 +146,7 @@ def _row(obj: Any, name: str, missing: bool) -> str:
     unit, description = describe_parameter(obj, name)
     value = value_html(obj, name)
     if missing or value is None:
-        shown = "<span class='cadetgui-param-missing'>missing</span>" if missing else "–"
+        shown = MISSING_HTML if missing else "–"
     else:
         shown = f"{value} <span class='cadetgui-param-unit'>{unit_html(unit)}</span>"
     note = f"<div class='cadetgui-param-desc'>{escape(description)}</div>" if description else ""
@@ -176,18 +160,11 @@ def _row(obj: Any, name: str, missing: bool) -> str:
 
 def parameters_html(obj: Any) -> str:
     """Read-only list of the parameters of `obj`: required ones first, then the others."""
-    required = set(getattr(obj, "required_parameters", []))
     missing = set(getattr(obj, "missing_parameters", []))
-    groups = (
-        ("Model parameters", [n for n in parameter_names(obj) if n in required]),
-        ("Initial state and options" if required else "Parameters",
-         [n for n in parameter_names(obj) if n not in required]),
-    )
     parts: List[str] = []
-    for title, names in groups:
-        if names:
-            parts.append(f"<div class='cadetgui-param-group'>{title}</div>")
-            parts += [_row(obj, name, name in missing) for name in names]
+    for title, names in parameter_groups(obj):
+        parts.append(f"<div class='cadetgui-param-group'>{title}</div>")
+        parts += [_row(obj, name, name in missing) for name in names]
     if not parts:
         return "<em>No parameters.</em>"
     return f"<div class='cadetgui-params'>{''.join(parts)}</div>"

@@ -570,7 +570,7 @@ def test_solutionwidget_plots_a_run_in_the_interactive_chart():
     sw._on_run(None)
 
     assert sw._chart.layout.display == ""
-    assert sw._plot_out.layout.display == "none"
+    assert sw.view.fallback_plot.layout.display == "none"
     assert len(sw._chart.series) == len(sw.result.process.component_system.names)
     assert sw._chart.series[0]["times"][-1] == sw.result.solution["outlet"]["inlet"].time[-1] / 60
 

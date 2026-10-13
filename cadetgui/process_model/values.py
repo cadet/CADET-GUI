@@ -14,6 +14,7 @@ from CADETProcess.processModel import NoBinding
 __all__ = [
     "parameter_names",
     "parameter_owners",
+    "unit_parameter_owners",
     "plain_value",
     "number_text",
     "format_value",
@@ -35,16 +36,23 @@ def parameter_names(obj: Any) -> List[str]:
     return required + others
 
 
+def unit_parameter_owners(unit: Any, prefix: Optional[str] = None) -> List[tuple[str, Any]]:
+    """`(path, object)` for a unit and its binding model, if any; paths start at `prefix`."""
+    prefix = unit.name if prefix is None else prefix
+    owners = [(prefix, unit)]
+    binding_model = getattr(unit, "binding_model", None)
+    if binding_model is not None and not isinstance(binding_model, NoBinding):
+        owners.append((f"{prefix}.binding_model", binding_model))
+    return owners
+
+
 def parameter_owners(process: Any) -> List[tuple[str, Any]]:
     """`(path prefix, object)` for every object below a process that holds parameters."""
-    owners = []
-    for unit in process.flow_sheet.units:
-        prefix = f"flow_sheet.{unit.name}"
-        owners.append((prefix, unit))
-        binding_model = getattr(unit, "binding_model", None)
-        if binding_model is not None and not isinstance(binding_model, NoBinding):
-            owners.append((f"{prefix}.binding_model", binding_model))
-    return owners
+    return [
+        owner
+        for unit in process.flow_sheet.units
+        for owner in unit_parameter_owners(unit, f"flow_sheet.{unit.name}")
+    ]
 
 
 def plain_value(obj: Any, name: str) -> Any:

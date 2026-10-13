@@ -1,3 +1,5 @@
+"""The event timeline of a process: its parameter timelines, phases and injections."""
+
 from __future__ import annotations
 
 from typing import Any, Optional, Sequence
@@ -7,6 +9,8 @@ from ...instrument.templates import (
     process_phase_spans,
     sample_injection_times,
 )
+
+__all__ = ["timeline_chart_data", "show_timeline"]
 
 _N_SAMPLES = 300
 _M3S_TO_ML_MIN = 6.0e7
@@ -81,3 +85,16 @@ def timeline_chart_data(
             for t in sample_injection_times(process)
         ],
     }
+
+
+def show_timeline(
+    chart: Any, process: Any, component_names: Sequence[str], phase_names: Sequence[str] = ()
+) -> bool:
+    """Draw a process's timelines on an `EventTimelineChart`; clear it if there are none."""
+    data = None if process is None else timeline_chart_data(process, component_names, phase_names)
+    chart.series = [] if data is None else data["series"]
+    chart.phases = [] if data is None else data["phases"]
+    chart.markers = [] if data is None else data["markers"]
+    if data is not None:
+        chart.y_label = data["y_label"]
+    return data is not None

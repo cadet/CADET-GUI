@@ -10,10 +10,10 @@ from ...instrument.signals import measurable_signal_options
 from ...io import configuration_store, run_store
 from ...process_model.signals import classify_signal_ports
 from ...process_model.simulation import run_process as _default_runner
-from ..elements import ChoiceField, ChromatogramChart
+from ..elements import ChoiceField
+from ..process_model.solution_view import SolutionView
 from ..ui.html import status_html
 from ..ui.layout import toggle_box
-from ..ui.plotting import solution_series
 from ..ui.theme import style_tag
 from .run_history import RunHistoryWidget, RunRecord
 
@@ -84,12 +84,10 @@ class SolutionWidget:
         )
         self._btn_delete_run = W.Button(description="Delete run", icon="trash", disabled=True)
         self._delete_pending = False
-        self._signal_picker = ChoiceField(label="Signal:", options=[])
-        self._chart = ChromatogramChart(
-            y_label=r"Concentration / \frac{\mathrm{mol}}{\mathrm{m}^{3}}"
-        )
+        self.view = SolutionView(y_label=r"Concentration / \frac{\mathrm{mol}}{\mathrm{m}^{3}}")
+        self._signal_picker = self.view.picker
+        self._chart = self.view.chart
         self._chart.layout.display = "none"
-        self._plot_out = W.Output()
         self.status = W.HTML("<em>Ready.</em>")
         self.history = RunHistoryWidget(
             on_manual_store_dir_change=self._on_history_store_dir_manually_set
@@ -125,7 +123,6 @@ class SolutionWidget:
         self._btn_delete_run.on_click(self._on_delete_run)
         self._btn_save_options.on_click(self._on_toggle_save_options)
         self._btn_confirm_save_outputs.on_click(self._on_confirm_save_outputs)
-        self._signal_picker.observe(self._on_signal_change, names="selected_index")
         self.history.add_listener(self._on_history_pick)
         self.history.picker.observe(self._on_history_selection_change, names="selected_index")
         self.status.add_class("cadetgui-status")
@@ -146,9 +143,7 @@ class SolutionWidget:
                 W.HTML("<div class='cadetgui-panel-title'>Solution</div>"),
                 toolbar,
                 history_row,
-                self._signal_picker,
-                self._chart,
-                self._plot_out,
+                self.view.root,
                 self._btn_save_options,
                 self._save_options_box,
                 self.status,
@@ -234,8 +229,8 @@ class SolutionWidget:
             return None, None
 
     def _clear_plot(self) -> None:
-        self._plot_out.clear_output()
-        self._chart.series = []
+        self.view.results = None
+        self.view.redraw()
         self._chart.layout.display = "none"
 
     def _on_run(self, _btn: Any) -> None:
@@ -387,9 +382,8 @@ class SolutionWidget:
         self.result = result
         # Saving still offers every port; only the plot picker is limited to measured ones.
         options = measurable_signal_options(result.process, classify_signal_ports(result))
-        self._signal_picker.set_options(options, keep_value=True)
+        self.view.show(result, options)
         self._rebuild_save_outputs_scope_options()
-        self._plot_selected()
         self._notify()
 
     def _clear_result(self) -> None:
@@ -403,35 +397,6 @@ class SolutionWidget:
         self._reset_delete_confirm()
         self._clear_result()
         self.status.value = "<em>Cleared.</em>"
-
-    def _on_signal_change(self, _change: dict) -> None:
-        self._plot_selected()
-
-    def _plot_selected(self) -> None:
-        if self.result is None or self._signal_picker.value is None:
-            return
-        unit, port = self._signal_picker.value
-        solution = self.result.solution[unit][port]
-
-        series = solution_series(solution)
-        if series is not None:
-            self._plot_out.clear_output()
-            self._plot_out.layout.display = "none"
-            self._chart.layout.display = ""
-            self._chart.series = series
-            return
-
-        self._chart.series = []
-        self._chart.layout.display = "none"
-        self._plot_out.layout.display = ""
-        self._plot_out.clear_output(wait=True)
-        with self._plot_out:
-            import matplotlib.pyplot as plt
-            from IPython.display import display
-
-            fig, ax = solution.plot()
-            display(fig)
-            plt.close(fig)
 
     def _rebuild_save_outputs_scope_options(self) -> None:
         if self.result is None:

@@ -6,6 +6,7 @@ from .flow_sheet import FlowSheetWidget
 from .process import ProcessWidget
 from .profiles import PolynomialEditor
 from .simulation import SimulationWidget
+from .solution_view import SolutionView
 from .unit_operations import (
     UnitOperationsWidget,
     UnitOperationWidget,
@@ -22,4 +23,5 @@ __all__ = [
     "EventEditor",
     "PolynomialEditor",
     "SimulationWidget",
+    "SolutionView",
 ]

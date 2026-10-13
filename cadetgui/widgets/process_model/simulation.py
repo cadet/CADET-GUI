@@ -10,10 +10,9 @@ from CADETProcess.solution import SolutionIO
 from ...process_model.signals import signal_positions
 from ...process_model.simulation import run_process
 from ..base import Widget
-from ..elements import ChoiceField, ChromatogramChart
 from ..ui.html import status_html
 from ..ui.layout import CodeView, panel
-from ..ui.plotting import reference_series, solution_series
+from .solution_view import SolutionView
 
 __all__ = ["SimulationWidget"]
 
@@ -49,29 +48,35 @@ class SimulationWidget(Widget):
     ) -> None:
         super().__init__()
         self.process = process
-        self.reference = reference
         self.markers = dict(markers or {})
         self.results: Optional[Any] = None
         self._btn_run = W.Button(description="Run simulation", icon="play", button_style="success")
-        self._signal = ChoiceField(label="Show:", options=[])
-        self.chart = ChromatogramChart(
-            markers=[{"name": name, "time": time / 60} for name, time in self.markers.items()]
-        )
+        self.view = SolutionView(label="Show:", reference=reference, markers=self.markers)
+        self._signal = self.view.picker
+        self.chart = self.view.chart
         self.status = W.HTML()
         self.code_view = CodeView(self.code)
         title = html.escape(process.name)
         self.root = panel(
             f"Simulation of {title}",
             self._btn_run,
-            self._signal,
-            self.chart,
+            self.view.root,
             self.status,
             self.code_view.root,
         )
         self._btn_run.on_click(lambda _btn: self.run())
-        self._signal.observe(lambda _change: self._plot(), names="selected_index")
         self._signal.observe(lambda _change: self.code_view.refresh(), names="selected_index")
-        self._plot()
+        self.view.redraw()
+
+    @property
+    def reference(self) -> Optional[Any]:
+        """The measured data drawn dashed, or None."""
+        return self.view.reference
+
+    @reference.setter
+    def reference(self, reference: Optional[Any]) -> None:
+        self.view.reference = reference
+        self.view.redraw()
 
     def run(self) -> Optional[Any]:
         """Simulate the process with CADET and show the results."""
@@ -85,31 +90,17 @@ class SimulationWidget(Widget):
         finally:
             self._btn_run.disabled = False
         self.results = results
-        first_run = self._signal.value is None
         options = _solution_options(self.process, results)
-        self._signal.set_options(options, keep_value=True)
         outlets = [
             value for _, value in options
             if isinstance(getattr(self.process.flow_sheet, value[0], None), Outlet)
         ]
-        if first_run and outlets:
-            self._signal.value = outlets[0]
-        self._plot()
+        self.view.show(results, options, default=outlets[0] if outlets else None)
         self.status.value = status_html(
             "ok", f"Simulation finished in {results.time_elapsed:.2f} s."
         )
         self._notify(results)
         return results
-
-    def _plot(self) -> None:
-        series = []
-        if self.results is not None and self._signal.value is not None:
-            unit, port = self._signal.value
-            series = solution_series(self.results.solution[unit][port]) or []
-        if self.reference is not None:
-            ref = self.reference
-            series.append(reference_series(ref.name, ref.time, ref.solution[:, 0]))
-        self.chart.series = series
 
     def code(self) -> str:
         """Return the CADET-Process code that simulates the process and plots the shown solution."""

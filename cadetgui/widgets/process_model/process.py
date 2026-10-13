@@ -24,8 +24,8 @@ from ..ui.html import table_html
 from ..ui.layout import CodeView, collapsible, panel
 from .events import EventEditor
 from .sync import changed, watch
-from .timeline import timeline_chart_data
-from .values import components_html, value_html
+from .timeline import show_timeline
+from .values import MISSING_HTML, components_html, value_html
 
 __all__ = ["ProcessWidget", "parameter_paths_html"]
 
@@ -42,7 +42,7 @@ def parameter_paths_html(process: Any) -> str:
         for name in parameter_names(owner):
             value = value_html(owner, name)
             if name in missing:
-                shown = "<span class='cadetgui-param-missing'>missing</span>"
+                shown = MISSING_HTML
             else:
                 shown = "–" if value is None else value
             rows.append([f"<code>{html.escape(prefix)}.{html.escape(name)}</code>", shown])
@@ -118,12 +118,8 @@ class ProcessWidget(Widget):
         n_events = len(self.process.events)
         self.events.set_title(0, f"Events ({n_events})")
         self.chart.layout.display = "" if n_events else "none"
-        data = timeline_chart_data(self.process, self.process.component_system.names, ())
-        if n_events and data is not None:
-            self.chart.y_label = data["y_label"]
-            self.chart.phases = data["phases"]
-            self.chart.markers = data["markers"]
-            self.chart.series = data["series"]
+        if n_events:
+            show_timeline(self.chart, self.process, self.process.component_system.names)
         self._paths.value = parameter_paths_html(self.process)
         self.event_editor.refresh()
         self.code_view.refresh()

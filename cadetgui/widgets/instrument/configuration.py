@@ -43,7 +43,7 @@ from ..elements import (
     TextField,
 )
 from ..forms import FormRenderer
-from ..process_model.timeline import timeline_chart_data
+from ..process_model.timeline import show_timeline
 from ..ui.html import status_html
 from ..ui.layout import SettingsPopover, note, section, titled_header
 from ..ui.theme import style_tag
@@ -951,12 +951,7 @@ class ConfigurationWidget:
     def _clear_event_section(self) -> None:
         self._event_sliders = {}
         self._cycle_time_minutes_element = None
-        self._clear_event_chart()
-
-    def _clear_event_chart(self) -> None:
-        self._event_chart.series = []
-        self._event_chart.phases = []
-        self._event_chart.markers = []
+        show_timeline(self._event_chart, None, ())
 
     def _rebuild_event_sliders(self) -> None:
         """Link a slider to each scalar float field; a slider move commits like typing does."""
@@ -1047,17 +1042,10 @@ class ConfigurationWidget:
         """Redraw the chart from the form's already-committed build, if there is one."""
         if self._model_form is None or self._model_form.built is None:
             return
-        data = timeline_chart_data(
-            self._model_form.built, self._components.value, self._model_form.spec.phase_names
+        show_timeline(
+            self._event_chart, self._model_form.built, self._components.value,
+            self._model_form.spec.phase_names,
         )
-        if data is None:
-            self._clear_event_chart()
-            return
-        chart = self._event_chart
-        chart.y_label = data["y_label"]
-        chart.phases = data["phases"]
-        chart.markers = data["markers"]
-        chart.series = data["series"]
 
     def export_script(self) -> str:
         """Generate an executable CADET-Process script that rebuilds the current process."""
