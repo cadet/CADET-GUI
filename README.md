@@ -27,6 +27,7 @@ pip install -e .
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for running the test suite, linting
 and versioning.
+For how the package is organised and why, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ---
 
