@@ -65,21 +65,7 @@ FACTORIES = {
 }
 
 
-# Widgets still to be moved onto the Widget base class; remove a name once it is.
-NOT_YET_WIDGET = {
-    "InstrumentWidget", "SolutionWidget", "RunHistoryWidget", "DataImportWidget",
-    "InstrumentWorkbenchWidget",
-}
-
-
-@pytest.fixture(
-    params=[
-        pytest.param(name, marks=pytest.mark.xfail(reason="not yet a Widget"))
-        if name in NOT_YET_WIDGET
-        else name
-        for name in sorted(FACTORIES)
-    ]
-)
+@pytest.fixture(params=sorted(FACTORIES))
 def widget(request, pulse_process):
     return FACTORIES[request.param](pulse_process)
 
