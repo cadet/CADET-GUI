@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import html
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import ipywidgets as W
 import numpy as np
@@ -14,7 +13,6 @@ from ....characterization.parameter_store import (
     ParameterStore,
     Step,
     missing_requirements,
-    transfer_species,
 )
 from ....characterization.runner import (
     AVERAGE_TAG,
@@ -25,27 +23,26 @@ from ....characterization.runner import (
 )
 from ....characterization.stages import STAGES, describe_stage
 from ....characterization.step_checks import (
-    CONFIRM_KNOWN,
     CONFIRMED_DEFAULT,
     KNOWN_HARDWARE,
-    RECORD_ASSUMPTIONS,
-    TRANSFER,
     StepCheck,
     confirm_known_value,
     known_value_label,
     missing_assumptions,
-    record_assumptions,
     step_checks,
 )
 from ....characterization.study import Study
-from ...ui.format import unit_html
-from ...ui.html import info_box_html, status_html, table_html
+from ...base import Widget
+from ...ui.html import status_html
+from ...ui.layout import panel_title, section, section_title
 from ...ui.theme import style_tag
-from ..help import determines_table_html, experiments_table_html, term_html
-from ..setup import step_diagrams_html
+from ..help import term_html
+from .checks_card import ChecksCard, Navigate
 from .results import CandidateResults
 from .run import StepRun
 from .setup_form import StepSetupForm
+from .step_html import best_values_html, components_html, header_html
+from .step_prior import StepPrior
 
 __all__ = ["CharacterizationStepWidget"]
 
@@ -55,68 +52,7 @@ def _missing(setup: StepSetup, store: ParameterStore) -> List[str]:
     return missing_requirements(Step(setup.name, requires=tuple(setup.requires)), store)
 
 
-def _components_html(study: Study, setup: StepSetup) -> str:
-    """Return a line naming the components this step's measurements use, with roles."""
-    names = list(dict.fromkeys(c.probe for c in setup.comparisons if c.probe))
-    if not names:
-        return ""
-    parts = []
-    for name in names:
-        component = study.component(name)
-        role = f" ({component.role})" if component is not None else " (not declared)"
-        parts.append(html.escape(name + role))
-    return (
-        "<p><b>" + term_html("component", "Components") + ":</b> " + ", ".join(parts)
-        + ". <small>Values this step fits are stored under these names; a later step "
-        "reuses them only for the same component.</small></p>"
-    )
-
-
-def _header_html(
-    guide: ChainStepGuide, setup: StepSetup, *, open: bool, components: str = ""
-) -> str:
-    """Return the step's lab-language description: purpose, experiments, advice."""
-    body = (
-        f"<p>{html.escape(guide.purpose)}</p>"
-        + components +
-        f"<b>Determines</b>{determines_table_html(guide.determines)}"
-        f"<b>Experiments that feed it</b>{experiments_table_html(guide.experiment_types)}"
-        + "<p><small>Lab checks the software cannot do for this step are in the Guide."
-        "</small></p>"
-        + info_box_html("Reading the results", f"<p>{html.escape(guide.reading_results)}</p>")
-        + step_diagrams_html(guide, setup.comparisons)
-    )
-    return info_box_html(f"About this step: {guide.title}", body, open=open)
-
-
-Navigate = Callable[[str, Dict[str, Any]], None]
-
-
-def _best_values_html(
-    names: List[str], units: Dict[str, str], candidate: Candidate, setup: StepSetup
-) -> str:
-    """Return a candidate's variable values and objectives as two tables."""
-    if len(names) != len(candidate.x):
-        names = [f"x{i + 1}" for i in range(len(candidate.x))]
-    variables = [
-        [html.escape(name), f"{value:.4g}", unit_html(units.get(name, ""))]
-        for name, value in zip(names, candidate.x)
-    ]
-    objectives = [
-        [html.escape(c.name), f"{value:.4g}", term_html(c.metric)]
-        for c, value in zip(setup.comparisons, candidate.f)
-    ]
-    info = "cadetgui-info-table"
-    return (
-        f"<div><b>{term_html('best average', 'Best average')} of the final front</b></div>"
-        "<div style='display:flex;flex-wrap:wrap;gap:24px'>"
-        + table_html(["Parameter", "Value", "Unit"], variables, css_class=info)
-        + table_html(["Measurement", "Error", "Metric"], objectives, css_class=info)
-        + "</div>"
-    )
-
-
-class CharacterizationStepWidget(StepRun):
+class CharacterizationStepWidget(StepRun, Widget):
     """Set up, run and accept one characterization step of a `Study`.
 
     Every setup edit is written to the study with `Study.upsert_step`. A chain step
@@ -129,7 +65,8 @@ class CharacterizationStepWidget(StepRun):
     once per generation. Pareto candidates are
     previewed against every comparison, and only "Accept candidate" writes a posterior
     (`Study.accept`). The setup is read-only while running or showing a result until
-    "Edit setup" is clicked.
+    "Edit setup" is clicked. Listeners are called after a setup edit, a finished run or
+    an accept.
 
     `on_navigate(target, context)` is called for fixes that lead elsewhere, with the
     targets of `CharacterizationWorkbenchWidget.navigate`: `("measurements", {"step_id"})`,
@@ -144,17 +81,15 @@ class CharacterizationStepWidget(StepRun):
         *,
         on_navigate: Optional[Navigate] = None,
     ) -> None:
+        super().__init__()
         self.study = study
         self.on_navigate = on_navigate
-        self._listeners: List[Callable[[], None]] = []
         self._committing = False
         self._run_names: List[str] = []
         self._run_units: Dict[str, str] = {}
         self.accepted = False
         self._running = False
-        self._checks_key: Optional[tuple] = None
         self.checks: List[StepCheck] = []
-        self._known_fields: Dict[str, W.FloatText] = {}
         self._init_run()
 
         existing = next((s for s in study.steps if s.name == step_name), None)
@@ -166,6 +101,7 @@ class CharacterizationStepWidget(StepRun):
             existing if any(s is existing for s in study.steps) else None
         )
 
+        self.step_prior = StepPrior(study, lambda: self._name)
         self.form = StepSetupForm(
             study, self._on_form_change,
             on_add_measurement=(
@@ -174,15 +110,14 @@ class CharacterizationStepWidget(StepRun):
             ),
         )
         self.results = CandidateResults(self._accept)
+        self.checks_card = ChecksCard(
+            self._transfer_clicked, self.record_assumptions, self._confirm_known_clicked
+        )
+        self._checks_box = self.checks_card.box
+        self._gaps = self.checks_card.gaps
+        self._btn_transfer = self.checks_card.btn_transfer
 
         self._warnings = W.HTML()
-        self._checks_box = W.VBox()
-        self._gaps = W.HTML()
-        self._btn_transfer = W.Button(
-            description="Transfer to this step's species", icon="share",
-            layout=W.Layout(display="none", width="auto"),
-        )
-        self._btn_transfer.on_click(lambda _b: self._transfer_clicked())
         self._btn_edit = W.Button(
             description="Edit setup", icon="pencil", layout=W.Layout(display="none")
         )
@@ -200,28 +135,22 @@ class CharacterizationStepWidget(StepRun):
         self.status.add_class("cadetgui-status")
 
         self.header = W.HTML()
-        header_box = W.VBox([self.header])
-        header_box.add_class("cadetgui-panel")
-        header_box.add_class("cadetgui-section")
-        self._header_box = header_box
-        setup_box = W.VBox([
-            W.HBox([
-                W.HTML("<div class='cadetgui-panel-title'>Setup</div>"), self._btn_edit,
-            ], layout=W.Layout(justify_content="space-between", align_items="center")),
+        self._header_box = section([self.header], "cadetgui-panel")
+        setup_box = section([
+            W.HBox([panel_title("Setup"), self._btn_edit],
+                   layout=W.Layout(justify_content="space-between", align_items="center")),
             self._lock_note,
             W.HTML(
                 f"<small>The fit starts from this step's {term_html('prior')}: the values "
                 "accepted before it.</small>"
             ),
-            W.HTML("<div class='cadetgui-section-title'>Before you run</div>"),
+            section_title("Before you run"),
             self._checks_box,
             self.form.root,
             self._warnings,
-        ])
-        setup_box.add_class("cadetgui-panel")
-        setup_box.add_class("cadetgui-section")
-        run_box = W.VBox([
-            W.HTML("<div class='cadetgui-panel-title'>Run</div>"),
+        ], "cadetgui-panel")
+        run_box = section([
+            panel_title("Run"),
             W.HBox(
                 [self._btn_run, self._btn_cancel, self.live_plot, self._progress_label],
                 layout=W.Layout(flex_flow="row wrap", align_items="center"),
@@ -229,21 +158,19 @@ class CharacterizationStepWidget(StepRun):
             self._progress_box,
             self._live_note,
             self.status,
-        ])
-        run_box.add_class("cadetgui-panel")
-        run_box.add_class("cadetgui-section")
-        results_box = W.VBox([
-            W.HTML("<div class='cadetgui-panel-title'>Results</div>"),
+        ], "cadetgui-panel")
+        results_box = section([
+            panel_title("Results"),
             W.HTML(
                 "<small>Accepting a candidate writes its values as this step's "
                 f"{term_html('posterior')} into the parameter store.</small>"
             ),
             self._best_values,
             self.results.root,
+        ], "cadetgui-panel")
+        self.root = W.VBox([
+            W.HTML(style_tag()), self._header_box, setup_box, run_box, results_box,
         ])
-        results_box.add_class("cadetgui-panel")
-        results_box.add_class("cadetgui-section")
-        self.root = W.VBox([W.HTML(style_tag()), header_box, setup_box, run_box, results_box])
 
         self.form.set_setup(existing)
         self._refresh_warnings()
@@ -276,17 +203,13 @@ class CharacterizationStepWidget(StepRun):
         """Candidates offered from the last run."""
         return self.results.candidates
 
-    def add_listener(self, fn: Callable[[], None]) -> None:
-        """Call `fn()` after a setup edit, a finished run or an accept."""
-        self._listeners.append(fn)
+    @property
+    def _known_fields(self) -> Dict[str, W.FloatText]:
+        return self.checks_card.known_fields
 
     def close(self) -> None:
         """Stop following the study; call when the widget is discarded."""
         self.study.remove_listener(self._on_study_change)
-
-    def _notify(self) -> None:
-        for fn in list(self._listeners):
-            fn()
 
     def _navigate(self, target: str, context: Dict[str, Any]) -> None:
         if self.on_navigate is not None:
@@ -359,10 +282,6 @@ class CharacterizationStepWidget(StepRun):
             self.form.set_locked(True)
         self._refresh_warnings()
 
-    def _prior(self) -> ParameterStore:
-        names = [s.name for s in self.study.steps]
-        return self.study.prior_for(self._name) if self._name in names else self.study.current_store
-
     def _setup_problems(self, setup: StepSetup) -> List[str]:
         problems = []
         if not setup.comparisons:
@@ -399,75 +318,15 @@ class CharacterizationStepWidget(StepRun):
             checks = step_checks(self.study, setup)
         except Exception as exc:  # noqa: BLE001 -- shown instead of the checks
             checks = [StepCheck("error", "warn", f"The checks could not run: {exc}")]
-        editable = self._editable
-        key = (tuple(checks), editable, self.on_navigate is not None)
         self.checks = checks
-        if key == self._checks_key:
-            return
-        self._checks_key = key
-        gaps = next((c for c in checks if c.id == "species_gaps"), None)
-        self._gaps.value = "" if gaps is None else (
-            status_html("warn", gaps.text) + " "
-            + term_html("species transfer", "(species transfer)")
+        self.checks_card.show(
+            checks, editable=self._editable,
+            navigate=self._navigate if self.on_navigate is not None else None,
         )
-        self._btn_transfer.layout.display = "" if gaps is not None and editable else "none"
-        self._known_fields = {}
-        rows = []
-        for check in checks:
-            if any(action.target == TRANSFER for action in check.actions):
-                rows.append(W.HBox(
-                    [self._gaps, self._btn_transfer],
-                    layout=W.Layout(align_items="center", flex_flow="row wrap"),
-                ))
-                continue
-            controls: List[W.Widget] = [W.HTML(status_html(check.status, check.text))]
-            for action in check.actions:
-                if action.target == CONFIRM_KNOWN and editable:
-                    controls += self._known_value_field(action.context)
-                button = self._action_button(action, editable)
-                if button is not None:
-                    controls.append(button)
-            rows.append(W.HBox(
-                controls, layout=W.Layout(align_items="center", flex_flow="row wrap"),
-            ))
-        self._checks_box.children = rows
-
-    def _known_value_field(self, context: Any) -> List[W.Widget]:
-        """Return an editable hardware value prefilled with the default, and its unit."""
-        field = W.FloatText(
-            value=float(f"{context['value'] / context['scale']:.6g}"),
-            tooltip="Your hardware value; the default is prefilled.",
-            layout=W.Layout(width="110px"),
-        )
-        self._known_fields[context["path"]] = field
-        return [field, W.HTML(html.escape(context["unit"]))]
-
-    def _action_button(self, action: Any, editable: bool) -> Optional[W.Button]:
-        local = {
-            RECORD_ASSUMPTIONS: self._record_assumptions_clicked,
-            CONFIRM_KNOWN: lambda: self._confirm_known_clicked(action.context),
-        }
-        if action.target in local:
-            if not editable:
-                return None
-            callback = local[action.target]
-        elif self.on_navigate is None:
-            return None
-        else:
-            def callback(action: Any = action) -> None:
-                self._navigate(action.target, dict(action.context))
-        button = W.Button(description=action.label, layout=W.Layout(width="auto"))
-        button.on_click(lambda _b: callback())
-        return button
 
     def check_buttons(self) -> Dict[str, W.Button]:
         """Buttons of the open checks by label, for scripting and tests."""
-        buttons = {}
-        for row in self._checks_box.children:
-            for child in row.children:
-                if isinstance(child, W.Button) and child.layout.display != "none":
-                    buttons[child.description] = child
-        return buttons
+        return self.checks_card.buttons()
 
     @property
     def guide(self) -> Optional[ChainStepGuide]:
@@ -483,36 +342,17 @@ class CharacterizationStepWidget(StepRun):
         not_run = (
             self.result is None and not self.running and setup.name not in self.study.posteriors
         )
-        value = _header_html(
-            guide, setup, open=not_run, components=_components_html(self.study, setup)
+        value = header_html(
+            guide, setup, open=not_run, components=components_html(self.study, setup)
         )
         if self.header.value != value:
             self.header.value = value
-
-    def _species_gaps(self, setup: StepSetup) -> Dict[str, List[str]]:
-        """Gaps left once the experiment types' assumed values are recorded."""
-        prior = self._prior()
-        try:
-            gaps = runner.species_gaps(setup, record_assumptions(setup, prior))
-        except Exception:  # noqa: BLE001 -- an unbuildable recipe is reported by problems()
-            return {}
-        return {path: names for path, names in gaps.items() if path in prior}
 
     def _transfer_clicked(self) -> None:
         try:
             self.transfer_species_gaps()
         except KeyError as exc:
             self.status.value = status_html("error", str(exc.args[0]))
-
-    def _replace_prior(self, store: ParameterStore) -> str:
-        """Make `store` the store this step starts from; return where it was written."""
-        source = self._prior_step_name()
-        if source is None:
-            self.study.initial_store = store
-            self.study.notify()
-        else:
-            self.study.accept(source, store)
-        return "initial store" if source is None else source
 
     def transfer_species_gaps(self, note: Optional[str] = None) -> ParameterStore:
         """Copy single-probe species values onto this step's missing species in its prior.
@@ -521,23 +361,12 @@ class CharacterizationStepWidget(StepRun):
         transferred store replaces the posterior this step starts from (or the initial
         store when no earlier step is accepted), so `Study.prior_for` returns it.
         """
-        setup = self.form.get_setup()
-        prior = self._prior()
-        gaps = self._species_gaps(setup)
-        species = list(dict.fromkeys(name for names in gaps.values() for name in names))
-        transferred = transfer_species(prior, list(gaps), species, note=note)
-        where = self._replace_prior(transferred)
-        self.status.value = status_html(
-            "ok", f"Transferred {', '.join(gaps)} to {', '.join(species)} ({where}).",
-        )
-        return transferred
-
-    def _record_assumptions_clicked(self) -> None:
-        self.record_assumptions()
+        store, message = self.step_prior.transfer_species(self.form.get_setup(), note)
+        self.status.value = status_html("ok", message)
+        return store
 
     def _confirm_known_clicked(self, context: Any) -> None:
-        field = self._known_fields.get(context["path"])
-        value = context["value"] if field is None else field.value * context["scale"]
+        value = self.checks_card.entered_value(context)
         if not np.isfinite(value) or value <= 0:
             self.status.value = status_html("error", "Enter a positive hardware value.")
             return
@@ -563,17 +392,9 @@ class CharacterizationStepWidget(StepRun):
 
     def record_assumptions(self) -> ParameterStore:
         """Write the values this step's experiment types assume into the store it starts from."""
-        store = record_assumptions(self.form.get_setup(), self._prior())
-        where = self._replace_prior(store)
-        self.status.value = status_html("ok", f"Recorded the assumed values ({where}).")
+        store, message = self.step_prior.record_assumptions(self.form.get_setup())
+        self.status.value = status_html("ok", message)
         return store
-
-    def _prior_step_name(self) -> Optional[str]:
-        """Return the accepted step whose posterior `_prior()` is, or None (initial store)."""
-        names = [s.name for s in self.study.steps]
-        before = names[: names.index(self._name)] if self._name in names else names
-        accepted = [n for n in before if n in self.study.posteriors]
-        return accepted[-1] if accepted else None
 
     def _show_edit(self, shown: bool) -> None:
         self._btn_edit.layout.display = self._lock_note.layout.display = "" if shown else "none"
@@ -602,13 +423,13 @@ class CharacterizationStepWidget(StepRun):
         error = self._commit(setup)
         if error:
             problems.insert(0, error)
-        prior = self._prior()
+        prior = self.step_prior.store()
         missing = _missing(setup, prior)
         if missing:
             problems.append(f"Missing requirements: {', '.join(missing)}.")
         if missing_assumptions(setup, prior):
             problems.append("Record the values the experiment types assume first.")
-        if self._species_gaps(setup):
+        if self.step_prior.species_gaps(setup):
             problems.append("Stored values lack this step's species; transfer them first.")
         if problems:
             self.status.value = status_html("error", " ".join(problems))
@@ -680,7 +501,7 @@ class CharacterizationStepWidget(StepRun):
         best = next((c for c in self.results.candidates if AVERAGE_TAG in c.tags), None)
         if best is None:
             return
-        self._best_values.value = _best_values_html(
+        self._best_values.value = best_values_html(
             self._run_names, self._run_units, best, self._run_setup
         )
         previews = self.results.previews_of(best)
@@ -713,9 +534,3 @@ class CharacterizationStepWidget(StepRun):
     def export_candidates_csv(self, path: "Path | str") -> Path:
         """Write the current run's candidates to a CSV file."""
         return self.results.export_csv(path)
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)
