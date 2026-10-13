@@ -14,7 +14,8 @@ import pytest
 from cadetgui.characterization.parameter_store import Provenance
 from cadetgui.characterization.runner import AVERAGE_TAG, StepResult, build
 from cadetgui.characterization.study import Study
-from cadetgui.widgets.composite import CharacterizationStepWidget, ParameterStoreWidget
+from cadetgui.widgets.characterization.parameter_store import ParameterStoreWidget
+from cadetgui.widgets.characterization.step.widget import CharacterizationStepWidget
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -406,7 +407,7 @@ class TestHeader:
 
     def test_old_frozen_term_resolves_to_the_fixed_entry(self):
         from cadetgui.characterization.guide import GLOSSARY
-        from cadetgui.widgets._help import term_html
+        from cadetgui.widgets.characterization.help import term_html
 
         assert term_html("frozen variable") == term_html("fixed variable", "frozen variable")
         assert "cadetgui-term" in term_html("frozen variable")
@@ -896,7 +897,9 @@ class TestLiveChecks:
         assert all("marker" not in item for item in CHAIN_BY_ID["system_periphery"].advice)
 
     def test_the_workbench_wires_navigation_and_selects_measurements(self, study):
-        from cadetgui.widgets.composite import CharacterizationWorkbenchWidget
+        from cadetgui.widgets.benches.characterization import (
+            CharacterizationWorkbenchWidget,
+        )
 
         workbench = CharacterizationWorkbenchWidget(study=study)
         step = workbench.steps["Extra-column volume"]
@@ -1090,7 +1093,9 @@ def test_hardware_values_read_in_lab_units():
 
 
 def test_removing_a_measurement_from_measurements_discards_the_shown_fit(periphery, study):
-    from cadetgui.widgets.composite import ComparisonsWidget
+    from cadetgui.widgets.characterization.measurements.comparisons import (
+        ComparisonsWidget,
+    )
 
     show_result(periphery, fake_result(periphery))
     assert periphery._lock_note.layout.display == ""

@@ -8,7 +8,7 @@ from cadetgui.characterization.guide import DEFAULT_CHAIN
 from cadetgui.characterization.parameter_store import Provenance
 from cadetgui.characterization.runner import StepSetup
 from cadetgui.characterization.study import Study
-from cadetgui.widgets.composite.characterization_setup import (
+from cadetgui.widgets.characterization.setup import (
     ADD_ANOTHER,
     ADD_MEASUREMENT,
     OPEN_STEP,

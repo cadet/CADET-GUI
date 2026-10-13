@@ -3,7 +3,7 @@ from __future__ import annotations
 import warnings
 
 import pytest
-from cadetgui.widgets.composite import InstrumentWidget
+from cadetgui.widgets.instrument.instrument import InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
 

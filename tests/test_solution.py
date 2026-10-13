@@ -11,11 +11,9 @@ import cadetgui.io.configuration_store as configuration_store
 from cadetgui.instrument.templates import INSTRUMENT_TEMPLATES
 from cadetgui.process_model.signals import classify_signal_ports
 from cadetgui.process_model.simulation import run_process as _default_runner
-from cadetgui.widgets.composite import (
-    ConfigurationWidget,
-    InstrumentWidget,
-    SolutionWidget,
-)
+from cadetgui.widgets.instrument.configuration import ConfigurationWidget
+from cadetgui.widgets.instrument.instrument import InstrumentWidget
+from cadetgui.widgets.instrument.solution import SolutionWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
 

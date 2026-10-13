@@ -4,7 +4,7 @@ import datetime as dt
 
 import ipywidgets as W
 import pytest
-from cadetgui.widgets.composite import DataImportWidget
+from cadetgui.widgets.instrument.data_import import DataImportWidget
 
 _MULTI_CHANNEL_CSV = (
     "Time [s],Conductivity [mS/cm],Absorbance [mAU]\n0,1.9,0\n10,1.9,5\n20,1.9,10\n"

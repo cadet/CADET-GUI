@@ -104,7 +104,8 @@ def test_binding_experiment_types_get_starting_values():
 
 def test_configuration_fills_starting_values_into_a_fresh_sma_setup(tmp_path, monkeypatch):
     import cadetgui.io.configuration_store as configuration_store
-    from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
+    from cadetgui.widgets.instrument.configuration import ConfigurationWidget
+    from cadetgui.widgets.instrument.instrument import InstrumentWidget
 
     monkeypatch.setattr(configuration_store, "default_store_dir", lambda: tmp_path)
 
@@ -137,7 +138,8 @@ def test_optional_binding_values_replace_defaults_only_on_an_untouched_model():
 
 def test_starting_values_can_be_switched_off(tmp_path, monkeypatch):
     import cadetgui.io.configuration_store as configuration_store
-    from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
+    from cadetgui.widgets.instrument.configuration import ConfigurationWidget
+    from cadetgui.widgets.instrument.instrument import InstrumentWidget
 
     monkeypatch.setattr(configuration_store, "default_store_dir", lambda: tmp_path)
 
@@ -158,19 +160,20 @@ def test_starting_values_can_be_switched_off(tmp_path, monkeypatch):
 
 def test_workbench_passes_the_starting_values_switch_on(tmp_path, monkeypatch):
     import cadetgui.io.configuration_store as configuration_store
-    from cadetgui.widgets.composite import WorkbenchWidget
+    from cadetgui.widgets.benches.instrument import InstrumentWorkbenchWidget
 
     monkeypatch.setattr(configuration_store, "default_store_dir", lambda: tmp_path)
 
     steps = ["System", "Process configuration"]
-    assert WorkbenchWidget(include=steps).configuration.use_starting_values
-    off = WorkbenchWidget(include=steps, starting_values=False)
+    assert InstrumentWorkbenchWidget(include=steps).configuration.use_starting_values
+    off = InstrumentWorkbenchWidget(include=steps, starting_values=False)
     assert not off.configuration.use_starting_values
 
 
 def test_reset_restores_standard_starting_values_or_plain_defaults(tmp_path, monkeypatch):
     import cadetgui.io.configuration_store as configuration_store
-    from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
+    from cadetgui.widgets.instrument.configuration import ConfigurationWidget
+    from cadetgui.widgets.instrument.instrument import InstrumentWidget
 
     monkeypatch.setattr(configuration_store, "default_store_dir", lambda: tmp_path)
 

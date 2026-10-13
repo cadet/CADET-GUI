@@ -5,12 +5,25 @@ import cadetgui
 import cadetgui.widgets
 
 
-def test_benches_import_from_the_top_level():
-    from cadetgui import CharacterizationWorkbenchWidget, WorkbenchWidget
-    from cadetgui.widgets import composite
+def test_benches_and_object_widgets_import_from_the_top_level():
+    from cadetgui import (
+        CharacterizationWorkbenchWidget,
+        InstrumentWorkbenchWidget,
+        ProcessWidget,
+    )
+    from cadetgui.widgets import benches, process_model
 
-    assert WorkbenchWidget is composite.WorkbenchWidget
-    assert CharacterizationWorkbenchWidget is composite.CharacterizationWorkbenchWidget
+    assert InstrumentWorkbenchWidget is benches.InstrumentWorkbenchWidget
+    assert CharacterizationWorkbenchWidget is benches.CharacterizationWorkbenchWidget
+    assert ProcessWidget is process_model.ProcessWidget
+
+
+def test_domain_packages_export_their_widgets():
+    from cadetgui.widgets import characterization, estimation, instrument
+
+    for package in (instrument, estimation, characterization):
+        for name in package.__all__:
+            assert getattr(package, name) is not None
 
 
 def test_top_level_import_does_not_load_the_widgets():

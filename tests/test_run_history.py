@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import cadetgui.io.run_store as run_store
-from cadetgui.widgets.composite import RunHistoryWidget
+from cadetgui.widgets.instrument.run_history import RunHistoryWidget
 
 
 def test_record_appends_and_selects_newest():

@@ -10,14 +10,14 @@ from cadetgui.characterization.guide import guide_for_step
 from cadetgui.characterization.parameter_store import Provenance
 from cadetgui.characterization.study import Study
 from cadetgui.instrument import process_builder
-from cadetgui.widgets.composite import (
-    CharacterizationStepWidget,
+from cadetgui.widgets.benches.characterization import (
+    CONFIGURATION_INTRO,
     CharacterizationWorkbenchWidget,
-    ConfigurationWidget,
-    InstrumentWidget,
 )
-from cadetgui.widgets.composite.characterization_workbench import CONFIGURATION_INTRO
-from cadetgui.widgets.composite.parameter_store_view import chain_warnings
+from cadetgui.widgets.characterization.parameter_store import chain_warnings
+from cadetgui.widgets.characterization.step.widget import CharacterizationStepWidget
+from cadetgui.widgets.instrument.configuration import ConfigurationWidget
+from cadetgui.widgets.instrument.instrument import InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -121,7 +121,7 @@ def test_include_narrows_the_panes():
 
 
 def test_excluded_panes_are_not_constructed(monkeypatch):
-    import cadetgui.widgets.composite.characterization_workbench as module
+    import cadetgui.widgets.benches.characterization as module
 
     def refuse(*_args, **_kwargs):
         raise AssertionError("an excluded pane was built")

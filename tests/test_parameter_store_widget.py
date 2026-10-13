@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 from cadetgui.characterization.parameter_store import ParameterStore, Provenance
 from cadetgui.characterization.study import Study
-from cadetgui.widgets.composite import ParameterStoreWidget
-from cadetgui.widgets.composite.parameter_store_view import (
+from cadetgui.widgets.characterization.parameter_store import (
+    ParameterStoreWidget,
     chain_warnings,
     parameter_label,
 )
@@ -153,7 +153,7 @@ def test_exports_the_current_store(view, study, tmp_path):
 
 def test_implied_values_are_labelled_as_assumed_by_the_experiment_type(study):
     from cadetgui.characterization.guide import EXPERIMENT_TYPES, with_implied_values
-    from cadetgui.widgets.composite.parameter_store_view import set_by_label
+    from cadetgui.widgets.characterization.parameter_store import set_by_label
 
     study.initial_store = with_implied_values(
         study.initial_store, EXPERIMENT_TYPES["column_pulse_large_tracer"], "Dextran"

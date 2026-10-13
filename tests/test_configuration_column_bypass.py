@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import warnings
 
-from cadetgui.widgets.composite import (
-    ConfigurationWidget,
-    InstrumentWidget,
-    WorkbenchWidget,
-)
+from cadetgui.widgets.benches.instrument import InstrumentWorkbenchWidget
+from cadetgui.widgets.instrument.configuration import ConfigurationWidget
+from cadetgui.widgets.instrument.instrument import InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -157,7 +155,7 @@ def test_loading_a_column_state_re_enables_a_bypassed_widget():
 
 
 def test_workbench_wiring():
-    wb = WorkbenchWidget()
+    wb = InstrumentWorkbenchWidget()
     wb.instrument._unit_checkboxes["column"].value = False
     assert wb.configuration._column_picker.disabled
     assert wb.configuration._binding_picker.disabled

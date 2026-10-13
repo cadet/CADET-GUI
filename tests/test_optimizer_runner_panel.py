@@ -5,10 +5,10 @@ import threading
 import time
 from typing import Any, Mapping, Sequence
 
-import cadetgui.widgets.composite._optimizer_runner_panel as panel_module
+import cadetgui.widgets.estimation.optimizer_panel as panel_module
 import pytest
 from cadetgui.estimation.optimizer_runner import OptimizerRunResult, RunSpec
-from cadetgui.widgets.composite._optimizer_runner_panel import OptimizerRunnerPanel
+from cadetgui.widgets.estimation.optimizer_panel import OptimizerRunnerPanel
 from CADETProcess.optimization import OptimizationProblem
 
 

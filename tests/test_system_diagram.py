@@ -11,13 +11,14 @@ from cadetgui.instrument.signals import friendly_signal_options, signal_label
 from cadetgui.instrument.system import BYPASSABLE_UNITS, active_inlets, inlet_contents
 from cadetgui.instrument.templates import INSTRUMENT_TEMPLATES
 from cadetgui.io.configuration_store import ConfigurationState, InstrumentState
-from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
-from cadetgui.widgets.composite.system_diagram import (
+from cadetgui.widgets.diagrams.instrument import (
     HARDWARE_ONLY_NOTE,
     SystemDiagram,
     recipe_diagram_svg,
     render_system_svg,
 )
+from cadetgui.widgets.instrument.configuration import ConfigurationWidget
+from cadetgui.widgets.instrument.instrument import InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -393,7 +394,7 @@ def test_bypassed_mixer_is_dimmed_and_marked():
 
 
 def test_symbol_files_reduce_to_plain_theme_aware_svg():
-    from cadetgui.widgets.composite._pid_symbols import load_symbol
+    from cadetgui.widgets.diagrams.symbols import load_symbol
 
     for name in ("Column", "Mixer", "SampleLoop", "Inlet", "UVSensor", "CondSensor"):
         sym = load_symbol(name)
@@ -474,7 +475,9 @@ def test_system_dropdown_pick_builds_the_process_once():
 
 
 def test_characterization_workbench_shows_hardware_only_without_a_template_picker():
-    from cadetgui.widgets.composite import CharacterizationWorkbenchWidget
+    from cadetgui.widgets.benches.characterization import (
+        CharacterizationWorkbenchWidget,
+    )
 
     wb = CharacterizationWorkbenchWidget()
     html = wb.instrument._diagram.root.value

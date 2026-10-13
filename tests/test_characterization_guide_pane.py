@@ -3,7 +3,7 @@ from __future__ import annotations
 import html
 
 from cadetgui.characterization.guide import DEFAULT_CHAIN, EXPERIMENT_TYPES, GLOSSARY
-from cadetgui.widgets.composite.characterization_guide_pane import (
+from cadetgui.widgets.characterization.guide import (
     CharacterizationGuideWidget,
     markdown_html,
 )
@@ -35,7 +35,7 @@ def test_renders_the_workflow_the_glossary_and_every_experiment_type():
 
 
 def test_lab_checks_are_listed_per_step_in_the_guide():
-    from cadetgui.widgets.composite import CharacterizationGuideWidget
+    from cadetgui.widgets.characterization.guide import CharacterizationGuideWidget
 
     text = CharacterizationGuideWidget().lab_checks.value
     assert "Lab checks the software cannot do" in text

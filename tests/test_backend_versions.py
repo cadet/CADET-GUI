@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import cadetgui.backend_versions as bv
 import cadetgui.process_model.simulation as simulation
-import cadetgui.widgets.composite.backend_versions as widget_module
+import cadetgui.widgets.benches.frame as widget_module
 import pytest
-from cadetgui.widgets.composite import BackendVersionsWidget
-from cadetgui.widgets.composite.backend_versions import backend_versions_text
+from cadetgui.widgets.benches.frame import BackendVersionsWidget, backend_versions_text
 
 
 @pytest.fixture(autouse=True)

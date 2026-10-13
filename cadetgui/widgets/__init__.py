@@ -1,27 +1,19 @@
-"""Composable widgets for CADET-GUI.
+"""Widgets for CADET-GUI.
 
-This subpackage provides:
-- base: `Widget`, the base class of every composite widget
-- ui: shared building blocks (theme, layout, HTML snippets, formatting, plots, shell)
-- elements: atomic anywidget input controls
-- forms: FormRenderer, rendering a ModelSpec into elements
-- composite: task widgets assembled from elements + forms
+- `Widget` (base): the base class of every composite widget
+- `ui`: shared building blocks (theme, layout, HTML snippets, formatting, plots, shell)
+- `elements`: atomic anywidget inputs and charts
+- `forms`: FormRenderer, rendering a ModelSpec into elements
+- `diagrams`: P&ID-style SVG diagrams
+- `process_model`, `instrument`, `estimation`, `characterization`: widgets per domain
+- `benches`: the ready-made workbenches and their frame
 
-At this level: the most common composite widgets, the kit for building a bench
-(`SidebarShell`, `bench_root` and the step/pane helpers) and the HTML helpers
-the built-in widgets use for status lines, glossary terms and info boxes.
+At this level: `Widget` and the kit for building a bench of your own.
 """
-from ._help import term_html
 from .base import Widget
-from .composite import (
-    ConfigurationWidget,
-    ParameterEstimationWidget,
-    RunHistoryWidget,
-    RunRecord,
-    SolutionWidget,
-)
-from .composite.bench import bench_root
-from .ui.html import StatusKind, checklist_html, info_box_html, status_html
+from .benches.frame import bench_root
+from .ui.html import StatusKind, checklist_html, info_box_html, status_html, table_html
+from .ui.layout import CodeView, SettingsPopover, collapsible, note, panel, row, section
 from .ui.shell import (
     SYSTEM_GROUP,
     SidebarShell,
@@ -34,11 +26,6 @@ from .ui.theme import style_tag
 
 __all__ = [
     "Widget",
-    "ConfigurationWidget",
-    "SolutionWidget",
-    "RunHistoryWidget",
-    "RunRecord",
-    "ParameterEstimationWidget",
     "SidebarShell",
     "bench_root",
     "SYSTEM_GROUP",
@@ -46,9 +33,16 @@ __all__ = [
     "resolve_step",
     "validate_steps",
     "collect_panes",
+    "panel",
+    "section",
+    "row",
+    "note",
+    "collapsible",
+    "SettingsPopover",
+    "CodeView",
     "StatusKind",
     "status_html",
-    "term_html",
+    "table_html",
     "info_box_html",
     "checklist_html",
     "style_tag",

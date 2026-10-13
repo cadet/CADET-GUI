@@ -2,7 +2,7 @@
 
 `app.ipynb` renders `InstrumentWidget`, `ConfigurationWidget`, `SolutionWidget`
 (with its built-in run history), and `ParameterEstimationWidget` — the same widgets
-used in `examples/configuration_and_solution.ipynb` — composed into four tabs
+used in `examples/instrument_widgets.ipynb` — composed into four tabs
 (**Instrument** / **Configuration** / **Solution** / **Parameter Estimation**), served via
 [Voilà](https://voila.readthedocs.io/). Comparison against measured data lives
 under **Parameter Estimation**, not alongside Solution — that's a deliberate
@@ -37,7 +37,7 @@ browser. Voilà gives us that backend (one Jupyter kernel per visitor session) f
 free, using the exact same widget-sync protocol our anywidget elements already
 speak for Jupyter. So "the same widget code, unmodified, works in a notebook and
 on a website" isn't a promise — `app.ipynb` and
-`examples/configuration_and_solution.ipynb` import and use `ConfigurationWidget`/
+`examples/instrument_widgets.ipynb` import and use `ConfigurationWidget`/
 `SolutionWidget` identically; only the composition/layout code differs.
 
 ## If you get `ModuleNotFoundError: No module named 'cadetgui'`

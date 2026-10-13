@@ -5,13 +5,13 @@ import warnings
 import numpy as np
 import pytest
 from cadetgui import FlowSheetWidget, ProcessWidget, SimulationWidget
-from cadetgui.widgets.composite import UnitOperationWidget
-from cadetgui.widgets.composite._parameter_values import (
+from cadetgui.widgets.process_model.flow_sheet import render_flow_sheet_svg
+from cadetgui.widgets.process_model.unit_operations import UnitOperationWidget
+from cadetgui.widgets.process_model.values import (
     assign_literal,
     format_value,
     value_html,
 )
-from cadetgui.widgets.composite.flow_sheet_widget import render_flow_sheet_svg
 from cadetgui.widgets.ui.format import unit_html
 from CADETProcess.processModel import (
     ComponentSystem,
@@ -333,7 +333,7 @@ def test_unit_operations_widget_edits_parameters_of_the_selected_unit():
 
 
 def test_inlet_profile_editor_names_and_explains_the_terms():
-    from cadetgui.widgets.composite._polynomial_editor import PolynomialEditor
+    from cadetgui.widgets.process_model.profiles import PolynomialEditor
 
     inlet = Inlet(ComponentSystem(["Tracer"]), "inlet")
     inlet.c = [[1, 0, 0, 0]]
@@ -345,7 +345,7 @@ def test_inlet_profile_editor_names_and_explains_the_terms():
 
 
 def test_inlet_profile_editor_draws_the_profile_over_the_process_sections(process):
-    from cadetgui.widgets.composite._polynomial_editor import PolynomialEditor
+    from cadetgui.widgets.process_model.profiles import PolynomialEditor
 
     inlet = process.flow_sheet.inlet
     inlet.c = [[0, 0.01, 0, 0]]

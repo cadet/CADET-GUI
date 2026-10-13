@@ -1,6 +1,6 @@
 """Import experimental chromatography runs: generic header CSVs and Äkta/Unicorn exports.
 
-Headless (no ipywidgets); `cadetgui/widgets/composite/data_import.py` is the UI over this.
+Headless (no ipywidgets); `cadetgui/widgets/instrument/data_import.py` is the UI over this.
 """
 
 from __future__ import annotations

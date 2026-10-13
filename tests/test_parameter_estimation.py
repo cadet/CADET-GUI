@@ -5,16 +5,14 @@ import threading
 import warnings
 
 import cadetgui.io.configuration_store as configuration_store
-import cadetgui.widgets.composite._optimizer_runner_panel as runner_panel
+import cadetgui.widgets.estimation.optimizer_panel as runner_panel
 import pytest
 from cadetgui.estimation.optimizer_runner import OptimizerRunResult
 from cadetgui.process_model.simulation import run_process
-from cadetgui.widgets.composite import (
-    ConfigurationWidget,
-    DataImportWidget,
-    InstrumentWidget,
-    ParameterEstimationWidget,
-)
+from cadetgui.widgets.estimation.estimation import ParameterEstimationWidget
+from cadetgui.widgets.instrument.configuration import ConfigurationWidget
+from cadetgui.widgets.instrument.data_import import DataImportWidget
+from cadetgui.widgets.instrument.instrument import InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -223,7 +221,7 @@ def _small_measurement() -> str:
 
 
 def _count_simulations(monkeypatch) -> list[int]:
-    import cadetgui.widgets.composite.parameter_estimation as pe_widget
+    import cadetgui.widgets.estimation.estimation as pe_widget
 
     calls: list[int] = []
 
@@ -277,7 +275,7 @@ def test_dataset_change_updates_the_overlay_without_simulating(monkeypatch):
 
 
 def test_a_failing_preview_simulation_shows_an_error_instead_of_crashing(monkeypatch):
-    import cadetgui.widgets.composite.parameter_estimation as pe_widget
+    import cadetgui.widgets.estimation.estimation as pe_widget
 
     cw, pw = _bound_widgets()
 
@@ -294,7 +292,7 @@ def test_a_failing_preview_simulation_shows_an_error_instead_of_crashing(monkeyp
 
 
 def test_the_preview_shows_a_running_status_while_simulating(monkeypatch):
-    import cadetgui.widgets.composite.parameter_estimation as pe_widget
+    import cadetgui.widgets.estimation.estimation as pe_widget
 
     cw, pw = _bound_widgets()
     seen: list[str] = []
@@ -323,7 +321,7 @@ def test_overlay_adds_the_measured_dataset_as_a_dashed_reference_series():
 
 
 def test_overlay_falls_back_to_the_matplotlib_plot_for_non_time_series_signals(monkeypatch):
-    import cadetgui.widgets.composite.parameter_estimation as pe_widget
+    import cadetgui.widgets.estimation.estimation as pe_widget
 
     monkeypatch.setattr(pe_widget, "solution_series", lambda *_a, **_k: None)
     pw = ParameterEstimationWidget()

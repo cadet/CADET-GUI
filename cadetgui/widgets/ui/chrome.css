@@ -413,7 +413,7 @@
   padding: 10px;
 }
 
-/* ---- WorkbenchWidget: top bar + sidebar shell ---- */
+/* ---- InstrumentWorkbenchWidget: top bar + sidebar shell ---- */
 
 .cadetgui-workbench {
   gap: 0 !important;

@@ -6,16 +6,14 @@ from pathlib import Path
 import cadetgui.io.configuration_store as configuration_store
 import pytest
 from cadetgui.characterization.study import Study, StudyComponent
-from cadetgui.widgets.composite import (
-    CharacterizationWorkbenchWidget,
-    ComparisonsWidget,
-    ConfigurationWidget,
-    InstrumentWidget,
-    StudyComponentsWidget,
-)
-from cadetgui.widgets.composite.characterization_setup import (
+from cadetgui.widgets.benches.characterization import CharacterizationWorkbenchWidget
+from cadetgui.widgets.characterization.components import StudyComponentsWidget
+from cadetgui.widgets.characterization.measurements.comparisons import ComparisonsWidget
+from cadetgui.widgets.characterization.setup import (
     CharacterizationSetupWidget,
 )
+from cadetgui.widgets.instrument.configuration import ConfigurationWidget
+from cadetgui.widgets.instrument.instrument import InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -210,7 +208,7 @@ def test_overview_system_card_lists_the_components(study):
 
 
 def test_step_header_names_the_components(study):
-    from cadetgui.widgets.composite import CharacterizationStepWidget
+    from cadetgui.widgets.characterization.step.widget import CharacterizationStepWidget
 
     widget = CharacterizationStepWidget(study, "Column packing")
     assert "SmallTracer (small tracer), LargeTracer (large tracer)" in widget.header.value

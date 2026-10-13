@@ -10,11 +10,9 @@ from cadetgui.characterization.parameter_store import ParameterStore, apply_stor
 from cadetgui.instrument.process_builder import build_process
 from cadetgui.instrument.templates import INSTRUMENT_TEMPLATES
 from cadetgui.process_model.simulation import run_process
-from cadetgui.widgets.composite import (
-    CharacterizationWorkbenchWidget,
-    ConfigurationWidget,
-    InstrumentWidget,
-)
+from cadetgui.widgets.benches.characterization import CharacterizationWorkbenchWidget
+from cadetgui.widgets.instrument.configuration import ConfigurationWidget
+from cadetgui.widgets.instrument.instrument import InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
 

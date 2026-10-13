@@ -40,31 +40,34 @@ keep using its Python attributes from other cells.
 
 | Import from | What it holds |
 | --- | --- |
-| `cadetgui` | the ready-made benches: `WorkbenchWidget`, `CharacterizationWorkbenchWidget` |
-| `cadetgui.widgets.composite` | task widgets (configuration, simulation, measurements, steps, ...) |
+| `cadetgui` | the ready-made benches (`InstrumentWorkbenchWidget`, `CharacterizationWorkbenchWidget`) and one widget per CADET-Process object (`ComponentSystemWidget`, `UnitOperationsWidget`, `FlowSheetWidget`, `ProcessWidget`, `SimulationWidget`) |
+| `cadetgui.widgets.process_model` | widgets for plain `CADETProcess.processModel` objects, and their parts (`EventEditor`, `PolynomialEditor`, ...) |
+| `cadetgui.widgets.instrument` | LC system, process configuration from a template, simulation results, data import |
+| `cadetgui.widgets.estimation` | parameter estimation |
+| `cadetgui.widgets.characterization` | characterization study: setup, measurements, steps, parameters, guide |
 | `cadetgui.widgets.elements` | atomic input controls and charts |
-| `cadetgui.widgets` | the bench kit (`SidebarShell`, `bench_root`, `resolve_step`, `validate_steps`, `collect_panes`, `system_pane_label`, `SYSTEM_GROUP`) and HTML helpers (`status_html`, `term_html`, `info_box_html`, `checklist_html`, `style_tag`) |
-| `cadetgui.characterization` | headless characterization core: `Study`, `Comparison`, `ParameterStore`, step setups and fits |
+| `cadetgui.widgets` | `Widget` (base class), layout helpers and the bench kit (`SidebarShell`, `bench_root`, ...) |
+| `cadetgui.process_model`, `cadetgui.instrument`, `cadetgui.estimation`, `cadetgui.characterization` | the same domains without widgets |
 | `cadetgui.io` | file I/O: measured data, saved configurations, simulation runs |
 
 ### The workbench
 
-`WorkbenchWidget` is a sidebar with four steps (System Configuration, Process
+`InstrumentWorkbenchWidget` is a sidebar with four steps (System Configuration, Process
 Configuration, Simulation, Parameter Estimation), each also reachable as its
 own attribute: `.instrument`, `.configuration`, `.solution`,
 `.parameter_estimation`.
 
 ```python
-from cadetgui import WorkbenchWidget
+from cadetgui import InstrumentWorkbenchWidget
 
-workbench = WorkbenchWidget()
+workbench = InstrumentWorkbenchWidget()
 workbench.display()
 ```
 
-See [`examples/workbench.ipynb`](examples/workbench.ipynb).
-Standard starting values (`cadetgui/parameters/starting_values.json`) are filled
+See [`examples/instrument_workbench.ipynb`](examples/instrument_workbench.ipynb).
+Standard starting values (`cadetgui/instrument/starting_values.json`) are filled
 into freshly chosen models; the "Use standard starting values" checkbox in the
-process configuration, or `WorkbenchWidget(starting_values=False)`, turns that off.
+process configuration, or `InstrumentWorkbenchWidget(starting_values=False)`, turns that off.
 
 ### The characterization workbench
 
@@ -85,7 +88,7 @@ Build and wire the same widgets by hand for a custom layout or a subset of
 steps:
 
 ```python
-from cadetgui.widgets.composite import ConfigurationWidget, SolutionWidget
+from cadetgui.widgets.instrument import ConfigurationWidget, SolutionWidget
 
 config = ConfigurationWidget()
 solution = SolutionWidget()
@@ -98,8 +101,8 @@ solution.display()
 To frame your own selection as a bench, hand `(label, widget)` panes to
 `cadetgui.widgets.SidebarShell` and wrap it with `cadetgui.widgets.bench_root`.
 
-See [`examples/configuration_and_solution.ipynb`](examples/configuration_and_solution.ipynb)
-and [`examples/custom_sidebar.ipynb`](examples/custom_sidebar.ipynb).
+See [`examples/instrument_widgets.ipynb`](examples/instrument_widgets.ipynb)
+and [`examples/build_your_own_bench.ipynb`](examples/build_your_own_bench.ipynb).
 
 ### Example data
 

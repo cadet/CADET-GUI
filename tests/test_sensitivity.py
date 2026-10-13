@@ -11,7 +11,8 @@ from cadetgui.estimation.sensitivity import (
     perturb_parameters,
     response_matrix,
 )
-from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
+from cadetgui.widgets.instrument.configuration import ConfigurationWidget
+from cadetgui.widgets.instrument.instrument import InstrumentWidget
 
 
 class _FakeSolution:

@@ -9,7 +9,7 @@ import pytest
 from cadetgui.characterization.study import Study
 from cadetgui.instrument.templates import PARAMS
 from cadetgui.io import configuration_store
-from cadetgui.widgets.composite import ComparisonsWidget
+from cadetgui.widgets.characterization.measurements.comparisons import ComparisonsWidget
 
 MANIFEST = (
     Path(__file__).parent.parent / "examples" / "data" / "characterization_akta" / "manifest.json"
@@ -420,7 +420,9 @@ def test_other_type_offers_a_process_template_that_sets_the_new_recipe(widget, s
 def test_recipe_with_template_uses_defaults_keeps_flow_rate_and_adds_the_loop(study):
     import dataclasses
 
-    from cadetgui.widgets.composite._measurement_common import recipe_with_template
+    from cadetgui.widgets.characterization.measurements.labels import (
+        recipe_with_template,
+    )
 
     base = study.comparison("System pulse 1 (UV)").recipe
     no_loop = dataclasses.replace(

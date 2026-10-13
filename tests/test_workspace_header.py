@@ -8,11 +8,9 @@ import pytest
 matplotlib.use("Agg")
 
 import cadetgui.io.configuration_store as configuration_store
-from cadetgui.widgets.composite import (
-    ConfigurationWidget,
-    InstrumentWidget,
-    WorkspaceHeader,
-)
+from cadetgui.widgets.benches.frame import WorkspaceHeader
+from cadetgui.widgets.instrument.configuration import ConfigurationWidget
+from cadetgui.widgets.instrument.instrument import InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -100,7 +98,7 @@ def test_workspace_header_false_keeps_it_out_of_the_root():
 
 
 def test_run_count_refreshes_after_a_run_and_a_failed_run():
-    from cadetgui.widgets.composite import SolutionWidget
+    from cadetgui.widgets.instrument.solution import SolutionWidget
 
     config = ConfigurationWidget(instrument=InstrumentWidget())
     outcomes = iter([RuntimeError("boom"), None])
@@ -121,9 +119,9 @@ def test_run_count_refreshes_after_a_run_and_a_failed_run():
 
 
 def test_workbench_places_the_header_between_top_bar_and_sidebar():
-    from cadetgui.widgets.composite import WorkbenchWidget
+    from cadetgui.widgets.benches.instrument import InstrumentWorkbenchWidget
 
-    wb = WorkbenchWidget()
+    wb = InstrumentWorkbenchWidget()
     header = wb.configuration.workspace_header
     assert not wb.configuration.workspace_header_embedded
     assert wb.root.children[2] is header.root
@@ -133,27 +131,27 @@ def test_workbench_places_the_header_between_top_bar_and_sidebar():
 
 
 def test_workbench_without_process_configuration_has_no_header():
-    from cadetgui.widgets.composite import WorkbenchWidget
+    from cadetgui.widgets.benches.instrument import InstrumentWorkbenchWidget
 
-    wb = WorkbenchWidget(include=("System", "Simulation"))
+    wb = InstrumentWorkbenchWidget(include=("System", "Simulation"))
     assert wb.configuration is None
     assert len(wb.root.children) == 3
 
 
 def test_workbench_leaves_an_embedded_configuration_header_alone():
-    from cadetgui.widgets.composite import WorkbenchWidget
+    from cadetgui.widgets.benches.instrument import InstrumentWorkbenchWidget
 
     config = ConfigurationWidget(instrument=InstrumentWidget())
-    wb = WorkbenchWidget(configuration=config)
+    wb = InstrumentWorkbenchWidget(configuration=config)
     assert contains(config.root, config.workspace_header.root)
     assert wb.root.children[2] is wb._shell.body
     assert len(wb.root.children) == 3
 
 
 def test_workbench_simulation_follows_the_shared_headers_store_dir(tmp_path):
-    from cadetgui.widgets.composite import WorkbenchWidget
+    from cadetgui.widgets.benches.instrument import InstrumentWorkbenchWidget
 
-    wb = WorkbenchWidget()
+    wb = InstrumentWorkbenchWidget()
     other = tmp_path / "elsewhere"
     persistence = wb.configuration.workspace_header.persistence
     persistence._store_dir_field.value = str(other)
@@ -163,7 +161,9 @@ def test_workbench_simulation_follows_the_shared_headers_store_dir(tmp_path):
 
 
 def test_characterization_workbench_places_the_same_header_above_the_sidebar():
-    from cadetgui.widgets.composite import CharacterizationWorkbenchWidget
+    from cadetgui.widgets.benches.characterization import (
+        CharacterizationWorkbenchWidget,
+    )
 
     wb = CharacterizationWorkbenchWidget()
     header = wb.configuration.workspace_header
@@ -176,7 +176,9 @@ def test_characterization_workbench_places_the_same_header_above_the_sidebar():
 
 
 def test_characterization_workbench_with_configuration_given_keeps_its_own_header():
-    from cadetgui.widgets.composite import CharacterizationWorkbenchWidget
+    from cadetgui.widgets.benches.characterization import (
+        CharacterizationWorkbenchWidget,
+    )
 
     iw = InstrumentWidget()
     config = ConfigurationWidget(instrument=iw)

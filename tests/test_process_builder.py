@@ -10,7 +10,8 @@ from cadetgui.instrument.process_builder import build_process, check_recipe
 from cadetgui.instrument.system import BINDING_MODELS
 from cadetgui.instrument.templates import INSTRUMENT_TEMPLATES
 from cadetgui.process_model.simulation import run_process
-from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
+from cadetgui.widgets.instrument.configuration import ConfigurationWidget
+from cadetgui.widgets.instrument.instrument import InstrumentWidget
 from CADETProcess.simulator import Cadet
 
 warnings.filterwarnings("ignore", category=UserWarning)
