@@ -15,6 +15,7 @@ from ...estimation.parameter_estimation import (
 )
 from ...io import configuration_store
 from ...process_model.simulation import run_process
+from ..base import Widget
 from ..elements import ChoiceField, ChromatogramChart
 from ..instrument.data_import import DataImportWidget
 from ..ui.html import status_html
@@ -43,7 +44,7 @@ def _plot_reference(ax: Any, reference: Any, label: str) -> None:
     ax.legend()
 
 
-class ParameterEstimationWidget:
+class ParameterEstimationWidget(Widget):
     """Fit a bound configuration's column/binding parameters against experimental data.
 
     One configuration, one dataset, one signal, SSE. Collects the inputs and hands
@@ -53,9 +54,11 @@ class ParameterEstimationWidget:
 
     The "Preview" section simulates the base process itself (only when the bound process
     changes) to show the reference-vs-simulated overlay, independent of `SolutionWidget`.
+    Listeners receive the `EstimationResult` of each successful fit.
     """
 
     def __init__(self, *, data: Optional[DataImportWidget] = None) -> None:
+        super().__init__()
         self.data = data or DataImportWidget()
         self._config_widget: Optional[Any] = None
         self.param_space = ParameterSpaceEditor()
@@ -181,6 +184,11 @@ class ParameterEstimationWidget:
             ]
         )
         self.root.add_class("cadetgui-panel")
+
+    @property
+    def result(self) -> Optional[EstimationResult]:
+        """The last successful fit, or None."""
+        return self._last_result
 
     def clear(self) -> None:
         """Remove the datasets, added parameters and fit results; ignored while a fit runs."""
@@ -413,6 +421,7 @@ class ParameterEstimationWidget:
             # Show the fitted (still detached) process's curve until the base process changes.
             self._display_result = run_process(working_process)
             self._redraw_overlay()
+            self._notify(self._last_result)
 
         return RunSpec(
             problem, starts, render_preview,
@@ -446,9 +455,3 @@ class ParameterEstimationWidget:
                 values[param.component_index] = value
                 element.value = values
         self.status.value = "<em>Applied fitted parameters to the configuration.</em>"
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)
