@@ -7,10 +7,10 @@ import ipywidgets as W
 import numpy as np
 from CADETProcess import CADETProcessError
 
+from ...process_model.values import number_text
 from ..elements import ChoiceField, SelectableTable, TextField
 from ..ui.html import status_html
 from .profiles import PolynomialEditor
-from .values import _number_text
 
 __all__ = ["EventEditor", "compact_state", "event_paths", "rounded_state", "state_text"]
 
@@ -63,7 +63,7 @@ def rounded_state(state: Any) -> Any:
 def _polynomial_text(coefficients: Any) -> str:
     terms = ["", "·Δt", "·Δt²", "·Δt³"]
     parts = [
-        (value, f"{_number_text(abs(_round(value)))}{term}")
+        (value, f"{number_text(abs(_round(value)))}{term}")
         for value, term in zip(coefficients, terms)
         if value != 0
     ]
@@ -87,7 +87,7 @@ def state_text(process: Any, event: Any) -> str:
         unit = process.flow_sheet[parameter]
         destinations = process.flow_sheet.connections[unit]["destinations"][None]
         return ", ".join(
-            f"{destination.name}: {_number_text(_round(share))}"
+            f"{destination.name}: {number_text(_round(share))}"
             for destination, share in zip(destinations, event.full_state)
         )
     unit = process.flow_sheet[owner]
@@ -142,7 +142,7 @@ class EventEditor:
         names = [e.name for e in events]
         selected = select if select is not None else self.table.value
         rows = [
-            [_number_text(e.time), e.name, *_where(e.parameter_path), state_text(self.process, e)]
+            [number_text(e.time), e.name, *_where(e.parameter_path), state_text(self.process, e)]
             for e in events
         ]
         self.table.set_options([(name, name) for name in names], rows=rows, select_none=True)
@@ -170,7 +170,7 @@ class EventEditor:
             self.time.value = "0"
         else:
             self.name.value = event.name
-            self.time.value = _number_text(event.time)
+            self.time.value = number_text(event.time)
             self.path.value = event.parameter_path
         self._show_state()
 

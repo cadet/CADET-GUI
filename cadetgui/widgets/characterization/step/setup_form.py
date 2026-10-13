@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import html
 import inspect
-import re
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, Optional
 
@@ -37,6 +36,7 @@ from ....estimation.optimizer_runner import OPTIMIZERS
 from ....instrument import process_builder
 from ....instrument.system import UNIT_LABELS
 from ...elements import BoolField, ChoiceField
+from ...ui.format import unit_html
 from ...ui.html import status_html
 from ..help import term_html
 from ..measurements.labels import measurement_caption
@@ -70,25 +70,6 @@ _FIT_TOOLTIP = (
 )
 
 
-def _unit_html(latex: str) -> str:
-    """Render a CADET-Process LaTeX unit (fractions, powers, subscripts) as HTML."""
-    if not latex:
-        return ""
-    text = re.sub(r"\\mathrm\{([^{}]*)\}", r"\1", latex)
-    text = re.sub(r"\^\{([^{}]*)\}", r"<sup>\1</sup>", text)
-    text = re.sub(r"_\{([^{}]*)\}", r"<sub>\1</sub>", text)
-    text = text.replace("\\cdot", "·").replace(" ", "")
-
-    def fraction(match: "re.Match[str]") -> str:
-        numerator, denominator = match.group(1), match.group(2)
-        if "·" in denominator:
-            denominator = f"({denominator})"
-        return f"{numerator}/{denominator}"
-
-    text = re.sub(r"\\frac\{([^{}]*)\}\{([^{}]*)\}", fraction, text)
-    return text.replace("{", "").replace("}", "").replace("\\", "")
-
-
 def _is_bool(param: inspect.Parameter) -> bool:
     return param.annotation in (bool, "bool") or isinstance(param.default, bool)
 
@@ -110,7 +91,7 @@ def _tubing_units(comparison: Comparison) -> list[str]:
     return [u for u in check.units if u.startswith("tubing_")]
 
 
-class _StepSetupForm:
+class StepSetupForm:
     """Controls for one `StepSetup` plus the optimizer choice; `on_change()` fires on user edits."""
 
     def __init__(
@@ -418,7 +399,7 @@ class _StepSetupForm:
             if start is None:
                 text = "—"
             else:
-                unit = _unit_html(start.unit)
+                unit = unit_html(start.unit)
                 text = (
                     f"{html.escape(start.text)}{' ' + unit if unit else ''}"
                     f"<br><small>{html.escape(start.source)}</small>"
@@ -556,6 +537,7 @@ class _StepSetupForm:
         ) if self.guided else ""
 
     def selected_names(self) -> List[str]:
+        """Return the names of the ticked measurements."""
         return [name for name, box in self._comparison_boxes.items() if box.value]
 
     def _selected(self) -> List[Comparison]:
@@ -563,6 +545,7 @@ class _StepSetupForm:
         return [by_name[n] for n in self.selected_names() if n in by_name]
 
     def problems_of_selected(self) -> Dict[str, List[str]]:
+        """Return the open problems of each ticked measurement that has any."""
         found = {c.name: self._study.measurement_problems(c) for c in self._selected()}
         return {name: problems for name, problems in found.items() if problems}
 

@@ -17,7 +17,8 @@ from ....io.experimental_data import (
 )
 from ...elements import ChoiceField
 from ...ui.html import status_html
-from .labels import COLUMN_ROLE_OPTIONS, _note, _row
+from ...ui.layout import note, row
+from .labels import COLUMN_ROLE_OPTIONS
 
 
 def _upload_items(value: Any) -> List[dict]:
@@ -27,7 +28,7 @@ def _upload_items(value: Any) -> List[dict]:
     return list(value)
 
 
-class _RunUpload:
+class RunUpload:
     """Upload page of `AddMeasurementFlow`; sets `run` and `data_file`.
 
     The host provides `_runs()` and `_loading`.
@@ -57,13 +58,13 @@ class _RunUpload:
         self._loaded.observe(self._on_pick_loaded, names="selected_index")
         self._btn_roles.on_click(lambda _b: self._apply_roles())
         return W.VBox([
-            _note("Upload the run's export (CSV, TXT or TSV). ÄKTA/Unicorn exports are "
+            note("Upload the run's export (CSV, TXT or TSV). ÄKTA/Unicorn exports are "
                   "recognized automatically. Other tables work too: comma, semicolon or "
                   "tab separated, decimal commas, lines above the header row are skipped; "
                   "you say which column is time or volume."),
-            _row(self._upload, self._time_unit),
+            row(self._upload, self._time_unit),
             self._roles_box,
-            _row(self._loaded),
+            row(self._loaded),
             self._run_note,
         ])
 
@@ -102,7 +103,7 @@ class _RunUpload:
             for header, role in zip(headers, detect_column_roles(headers))
         ]
         self._roles_box.children = (
-            _note(f"Say what each column of {html.escape(name)} holds:"),
+            note(f"Say what each column of {html.escape(name)} holds:"),
             *self._role_dropdowns,
             self._btn_roles,
         )

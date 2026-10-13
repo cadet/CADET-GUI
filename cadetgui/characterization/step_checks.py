@@ -31,6 +31,7 @@ from .guide import (
     parameter_unit,
     record_assumptions,
     species_gap_messages,
+    step_title,
 )
 from .parameter_store import (
     ParameterSpec,
@@ -522,18 +523,13 @@ class StepStatus:
         return {}
 
 
-def _step_title(step: StepSetup) -> str:
-    guide = guide_for_step(step)
-    return guide.title if guide is not None else step.name
-
-
 def _next_action(
     study: Any, position: int, open_checks: Sequence[StepCheck], fitted: bool, accepted: bool
 ) -> str:
     if accepted:
         later = study.steps[position + 1:]
         return (
-            f"Accepted. Continue with {_step_title(later[0])}." if later
+            f"Accepted. Continue with {step_title(later[0])}." if later
             else "Accepted. The chain is complete."
         )
     if open_checks:

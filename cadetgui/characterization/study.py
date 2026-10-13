@@ -168,6 +168,16 @@ class Study:
         """Return the declared component called `name`, or None."""
         return next((c for c in self.components if c.name == name), None)
 
+    def unique_comparison_name(self, base: str) -> str:
+        """Return `base`, or `base 2`, `base 3`, ... if a comparison already has that name."""
+        names = {c.name for c in self.comparisons}
+        if base not in names:
+            return base
+        i = 2
+        while f"{base} {i}" in names:
+            i += 1
+        return f"{base} {i}"
+
     def measurements_using(self, name: str) -> List[str]:
         """Return the names of the measurements whose probe or recipe uses component `name`."""
         return [

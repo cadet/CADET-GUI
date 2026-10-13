@@ -18,6 +18,9 @@ from typing import Any, Iterable, Mapping, Optional, Sequence
 from CADETProcess.dataStructure import Sized
 from CADETProcess.processModel import ComponentSystem
 
+from ..parameters.metadata import parameter_descriptor
+from ..process_model.values import resolve_path
+
 __all__ = [
     "ParameterSpec",
     "Provenance",
@@ -26,7 +29,6 @@ __all__ = [
     "species_index",
     "spec_for",
     "apply_store",
-    "has_parameter",
     "read_process",
     "Step",
     "ChainError",
@@ -291,43 +293,6 @@ class ParameterStore:
         return cls.from_dict(raw, specs)
 
 
-def has_parameter(process: Any, path: str) -> bool:
-    """Return whether `process` carries the parameter at `path` (bypassed units don't)."""
-    target, _, attribute = path.rpartition(".")
-    obj = _resolve(process, target)
-    return obj is not None and hasattr(obj, attribute)
-
-
-def _resolve(root: Any, path: str) -> Any:
-    """Walk a dotted path from `root`; return `None` if any step is absent."""
-    obj = root
-    for part in path.split("."):
-        if not part:
-            continue
-        try:
-            obj = obj[part] if _is_indexable(obj, part) else getattr(obj, part)
-        except (AttributeError, KeyError):
-            return None
-    return obj
-
-
-def _is_indexable(obj: Any, key: str) -> bool:
-    """Return whether `key` should be looked up by item rather than by attribute."""
-    return hasattr(obj, "__getitem__") and not hasattr(obj, key)
-
-
-def _descriptor(cls: type, name: str) -> Any | None:
-    """Return the CADET-Process parameter descriptor backing `name` on `cls`, or `None`.
-
-    Some parameters are properties over a differently named private
-    descriptor (e.g. binding-model `q`, `cp`); fall back to `_name`.
-    """
-    desc = getattr(cls, name, None)
-    if isinstance(desc, property):
-        desc = getattr(cls, f"_{name}", None)
-    return desc if hasattr(desc, "default") else None
-
-
 def spec_for(process: Any, path: str) -> ParameterSpec:
     """Infer a `ParameterSpec` for `path` from the CADET-Process descriptor it targets.
 
@@ -340,11 +305,11 @@ def spec_for(process: Any, path: str) -> ParameterSpec:
         If `path` does not resolve to a described parameter on `process`.
     """
     target, _, attribute = path.rpartition(".")
-    obj = _resolve(process, target)
+    obj = resolve_path(process, target)
     if obj is None or not hasattr(obj, attribute):
         raise KeyError(f"'{path}' is not a parameter on {process!r}.")
 
-    descriptor = _descriptor(type(obj), attribute)
+    descriptor = parameter_descriptor(type(obj), attribute)
     if descriptor is None:
         raise KeyError(f"'{path}' has no CADET-Process descriptor to read.")
 
@@ -365,7 +330,7 @@ def apply_store(process: Any, store: ParameterStore) -> list[str]:
 
     for path in store.entries:
         target, _, attribute = path.rpartition(".")
-        obj = _resolve(process, target)
+        obj = resolve_path(process, target)
         if obj is None or not hasattr(obj, attribute):
             continue
         setattr(obj, attribute, store.to_cadet(path, component_system))
@@ -386,7 +351,7 @@ def read_process(process: Any, paths: Iterable[str], store: ParameterStore) -> d
     values = {}
     for path in paths:
         target, _, attribute = path.rpartition(".")
-        obj = _resolve(process, target)
+        obj = resolve_path(process, target)
         if obj is None or not hasattr(obj, attribute):
             raise KeyError(f"'{path}' is not a parameter on {process!r}.")
         values[path] = store.from_cadet(path, getattr(obj, attribute), component_system)

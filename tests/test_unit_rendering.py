@@ -50,7 +50,7 @@ RENDER_CASES = [
 def browser_page(chromium):
     page = chromium.new_page()
     page.set_content("<html><body></body></html>")
-    for name in ("_unit_parser", "_unit_dom"):
+    for name in ("shared/unit_parser", "shared/unit_dom"):
         page.add_script_tag(content=(ELEMENTS_DIR / f"{name}.js").read_text())
     chart_src = (ELEMENTS_DIR / "line_chart.js").read_text()
     svg_renderer = chart_src[

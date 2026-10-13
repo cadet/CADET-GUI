@@ -1,3 +1,5 @@
+"""P&ID symbols and the SVG drawing primitives the diagrams share."""
+
 from __future__ import annotations
 
 import re
@@ -5,6 +7,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from html import escape, unescape
 from importlib import resources
+from typing import Sequence
 
 FG = "var(--cg-fg, #1f2937)"
 MUTED = "var(--cg-muted, #5b6370)"
@@ -94,3 +97,86 @@ def load_symbol(name: str) -> Symbol:
         body,
         unescape(texts[0]) if texts else "",
     )
+
+
+# Port geometry inside each symbol: (x of the left port, x of the right port, y of the flow line).
+PORTS = {
+    "Mixer": (0.5, 60.5, 57.5),
+    "Column": (0.5, 320.5, 40.5),
+    "SampleLoop": (50.5, 100.5, 195.5),
+    "Outlet": (0.5, 0.5, 50.5),
+    "Inlet": (80.5, 80.5, 50.5),
+}
+TUBE_WIDTH = 3
+LINE_WIDTH = 1.5
+CAPTION_FONT = 14
+CAPTION_LEAD = 16
+
+
+def num(value: float) -> str:
+    """Format a coordinate with at most one decimal."""
+    return f"{value:.1f}".rstrip("0").rstrip(".")
+
+
+def place_symbol(name: str, x: float, y: float) -> str:
+    """Place P&ID symbol `name` with its top left corner at (x, y)."""
+    sym = load_symbol(name)
+    return (
+        f'<svg data-symbol="{name}" x="{num(x)}" y="{num(y)}" width="{num(sym.width)}" '
+        f'height="{num(sym.height)}" viewBox="0 0 {num(sym.width)} {num(sym.height)}">'
+        f"{sym.body}</svg>"
+    )
+
+
+def text_block(
+    lines: Sequence[str],
+    cx: float,
+    y: float,
+    *,
+    italic: bool = False,
+    start: bool = False,
+    strong: bool = False,
+) -> str:
+    """Return a text block of `lines` centred on (or starting at) `cx`."""
+    style = ' font-style="italic"' if italic else ""
+    anchor = "start" if start else "middle"
+    weight = ' font-weight="bold"' if strong else ""
+    tspans = "".join(
+        f'<tspan x="{num(cx)}" y="{num(y + i * CAPTION_LEAD)}">{escape(line)}</tspan>'
+        for i, line in enumerate(lines)
+    )
+    return (
+        f'<text text-anchor="{anchor}" font-size="{CAPTION_FONT}"{style}{weight} '
+        f'style="fill: {FG if strong else MUTED}">{tspans}</text>'
+    )
+
+
+def arrow_marker(marker_id: str, color: str) -> str:
+    """Return an arrow-head marker definition."""
+    return (
+        f'<marker id="{marker_id}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" '
+        f'markerHeight="7" orient="auto">'
+        f'<path d="M0 0 L8 4 L0 8 z" style="fill: {color}"/></marker>'
+    )
+
+
+def flow_line(
+    d: str, *, muted: bool = False, arrow: bool = True, width: float = LINE_WIDTH
+) -> str:
+    """Return a flow line along path `d`; muted ones are dashed."""
+    color = MUTED_STROKE if muted else FG
+    dash = ' stroke-dasharray="5 4"' if muted else ""
+    end = (
+        f' marker-end="url(#{"cg-arrow-muted" if muted else "cg-arrow"})"'
+        if arrow
+        else ""
+    )
+    return (
+        f'<path d="{d}" fill="none" style="stroke: {color}" '
+        f'stroke-width="{width:g}"{dash}{end}/>'
+    )
+
+
+def tube_segment(x1: float, x2: float, y: float) -> str:
+    """Return a horizontal tubing segment from x1 to x2."""
+    return flow_line(f"M{num(x1)} {num(y)} H{num(x2)}", arrow=False, width=TUBE_WIDTH)

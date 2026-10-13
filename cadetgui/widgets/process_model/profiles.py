@@ -8,9 +8,9 @@ import ipywidgets as W
 import numpy as np
 
 from ...parameters import describe_parameter
+from ...process_model.values import number_text
 from ..elements import TextField
 from ..ui.format import unit_html
-from .values import _number_text
 
 __all__ = ["PolynomialEditor", "profile_svg"]
 
@@ -46,7 +46,7 @@ def profile_svg(times: Sequence[float], values: Sequence[float], symbol: str, un
     label = f'fill="{_AXIS}" font-size="13"'
     peak = (
         f'<text x="{left - 8}" y="{y(top_value) + 4:.1f}" text-anchor="end" font-size="13">'
-        f"{escape(_number_text(top_value))}</text>"
+        f"{escape(number_text(top_value))}</text>"
         f'<line x1="{left - 4}" y1="{y(top_value):.1f}" x2="{left}" '
         f'y2="{y(top_value):.1f}" {axis}/>'
         if top_value > 0 else ""
@@ -63,7 +63,7 @@ def profile_svg(times: Sequence[float], values: Sequence[float], symbol: str, un
         f'<text x="{left - 8}" y="{y(0) + 4:.1f}" text-anchor="end" font-size="13">0</text>'
         f'<text x="{left}" y="{height - 12}" text-anchor="middle" {label}>0</text>'
         f'<text x="{x(end):.1f}" y="{height - 12}" text-anchor="middle" {label}>'
-        f"{escape(_number_text(end))} s</text>"
+        f"{escape(number_text(end))} s</text>"
         f'<text x="{width - right + 16}" y="{height - bottom + 4}" font-style="italic" '
         f"{label}>t</text>"
         f'<text x="{left - 8}" y="{top - 12}" text-anchor="end" font-style="italic" '
@@ -158,7 +158,7 @@ class PolynomialEditor:
     def _show(self) -> None:
         coefficients = self.coefficients()
         for field, value in zip(self.fields, coefficients):
-            field.value = _number_text(float(value) + 0.0)
+            field.value = number_text(float(value) + 0.0)
             field.error = ""
         cycle_time = self.duration if self.process is None else float(self.process.cycle_time)
         if not math.isfinite(cycle_time) or cycle_time <= 0:

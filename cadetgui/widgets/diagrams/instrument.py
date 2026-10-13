@@ -8,7 +8,22 @@ import ipywidgets as W
 
 from ...instrument.system import BYPASSABLE_UNITS, UNIT_LABELS
 from ...io.configuration_store import ConfigurationState, InstrumentState
-from .symbols import FG, MUTED, MUTED_STROKE, SURFACE, load_symbol
+from .svg import (
+    CAPTION_FONT,
+    CAPTION_LEAD,
+    FG,
+    MUTED,
+    MUTED_STROKE,
+    PORTS,
+    SURFACE,
+    arrow_marker,
+    flow_line,
+    load_symbol,
+    num,
+    place_symbol,
+    text_block,
+    tube_segment,
+)
 
 __all__ = ["SystemDiagram", "render_system_svg", "recipe_diagram_svg", "HARDWARE_ONLY_NOTE"]
 
@@ -46,97 +61,26 @@ _SYMBOL_OF = {
     "waste": "Outlet",
 }
 
-# Port geometry inside each symbol: (x of the left port, x of the right port, y of the flow line).
-_PORTS = {
-    "Mixer": (0.5, 60.5, 57.5),
-    "Column": (0.5, 320.5, 40.5),
-    "SampleLoop": (50.5, 100.5, 195.5),
-    "Outlet": (0.5, 0.5, 50.5),
-    "Inlet": (80.5, 80.5, 50.5),
-}
 _LOOP_IN_Y = 145.5
 _LOOP_SAMPLE_PORT = (152.8, 80.5)
 _STEM = (30.5, 95.5)
-_FEED_RISE = _PORTS["SampleLoop"][2] - _LOOP_SAMPLE_PORT[1] + _PORTS["Inlet"][2]
+_FEED_RISE = PORTS["SampleLoop"][2] - _LOOP_SAMPLE_PORT[1] + PORTS["Inlet"][2]
 
 _GAP = 28
 _TUBE = 80
-_TUBE_WIDTH = 3
-_LINE_WIDTH = 1.5
 _MARGIN = 16
 _BUS = 30
 _INLET_GAP = 40
 _ROW_DROP = 40
-_CAPTION_FONT = 14
-_CAPTION_LEAD = 16
 _HALO_PAD = 5
 _OBSERVE_STEM = 14
 _OBSERVE_GAP = 6
 _COMPACT_MAX_WIDTH = 560
 
 
-def _num(value: float) -> str:
-    return f"{value:.1f}".rstrip("0").rstrip(".")
-
-
-def _symbol(name: str, x: float, y: float) -> str:
-    sym = load_symbol(name)
-    return (
-        f'<svg data-symbol="{name}" x="{_num(x)}" y="{_num(y)}" width="{_num(sym.width)}" '
-        f'height="{_num(sym.height)}" viewBox="0 0 {_num(sym.width)} {_num(sym.height)}">'
-        f"{sym.body}</svg>"
-    )
-
-
 def _lines(label: str) -> List[str]:
     head, sep, tail = label.partition(" (")
     return [head, f"({tail}"] if sep else [label]
-
-
-def _caption(
-    lines: Sequence[str],
-    cx: float,
-    y: float,
-    *,
-    italic: bool = False,
-    start: bool = False,
-    strong: bool = False,
-) -> str:
-    style = ' font-style="italic"' if italic else ""
-    anchor = "start" if start else "middle"
-    weight = ' font-weight="bold"' if strong else ""
-    tspans = "".join(
-        f'<tspan x="{_num(cx)}" y="{_num(y + i * _CAPTION_LEAD)}">{escape(line)}</tspan>'
-        for i, line in enumerate(lines)
-    )
-    return (
-        f'<text text-anchor="{anchor}" font-size="{_CAPTION_FONT}"{style}{weight} '
-        f'style="fill: {FG if strong else MUTED}">{tspans}</text>'
-    )
-
-
-def _marker(marker_id: str, color: str) -> str:
-    return (
-        f'<marker id="{marker_id}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" '
-        f'markerHeight="7" orient="auto">'
-        f'<path d="M0 0 L8 4 L0 8 z" style="fill: {color}"/></marker>'
-    )
-
-
-def _wire(
-    d: str, *, muted: bool = False, arrow: bool = True, width: float = _LINE_WIDTH
-) -> str:
-    color = MUTED_STROKE if muted else FG
-    dash = ' stroke-dasharray="5 4"' if muted else ""
-    end = (
-        f' marker-end="url(#{"cg-arrow-muted" if muted else "cg-arrow"})"'
-        if arrow
-        else ""
-    )
-    return (
-        f'<path d="{d}" fill="none" style="stroke: {color}" '
-        f'stroke-width="{width:g}"{dash}{end}/>'
-    )
 
 
 @dataclass
@@ -160,7 +104,7 @@ def _item(unit: str, x: float, state: str) -> _Item:
         return _Item(unit, state, x, _TUBE, 0, _TUBE, 0, 0, None)
     name = _SYMBOL_OF[unit]
     sym = load_symbol(name)
-    in_x, out_x, port_y = _PORTS[name]
+    in_x, out_x, port_y = PORTS[name]
     return _Item(
         unit, state, x, sym.width, in_x, out_x, port_y, sym.height - port_y, name
     )
@@ -174,21 +118,17 @@ def _extent(it: _Item, note: str, sub: Sequence[str] = ()) -> Tuple[float, float
     """Return how far the item, captions included, reaches above and below the flow line."""
     label_lines = len(_lines(_label_of(it.unit)))
     if it.unit == "tubing_detectors":
-        return it.up, 20 + (label_lines - 1) * _CAPTION_LEAD + 6
+        return it.up, 20 + (label_lines - 1) * CAPTION_LEAD + 6
     if it.symbol is None:
-        return 12 + label_lines * _CAPTION_LEAD, 0
+        return 12 + label_lines * CAPTION_LEAD, 0
     up, down = it.up, it.down
     if note:
-        up += 6 + _CAPTION_FONT
+        up += 6 + CAPTION_FONT
     if _label_of(it.unit) != load_symbol(it.symbol).text:
-        down += 8 + label_lines * _CAPTION_LEAD
+        down += 8 + label_lines * CAPTION_LEAD
     if sub:
-        down += len(sub) * _CAPTION_LEAD + (0 if down > it.down else 8)
+        down += len(sub) * CAPTION_LEAD + (0 if down > it.down else 8)
     return up, down
-
-
-def _tube(x1: float, x2: float, y: float) -> str:
-    return _wire(f"M{_num(x1)} {_num(y)} H{_num(x2)}", arrow=False, width=_TUBE_WIDTH)
 
 
 def _draw_item(it: _Item, my: float, note: str, sub: Sequence[str] = ()) -> str:
@@ -198,40 +138,40 @@ def _draw_item(it: _Item, my: float, note: str, sub: Sequence[str] = ()) -> str:
 
     if it.unit == "tubing_detectors":
         sensor_w = load_symbol("UVSensor").width
-        parts = [_tube(it.x, it.x + it.width, my)]
+        parts = [tube_segment(it.x, it.x + it.width, my)]
         for name, dx in (("UVSensor", 20), ("CondSensor", 40 + sensor_w)):
-            parts.append(_symbol(name, it.x + dx, my - _STEM[1]))
+            parts.append(place_symbol(name, it.x + dx, my - _STEM[1]))
             parts.append(
-                f'<circle cx="{_num(it.x + dx + _STEM[0])}" cy="{_num(my)}" r="4" '
+                f'<circle cx="{num(it.x + dx + _STEM[0])}" cy="{num(my)}" r="4" '
                 f'style="fill: {SURFACE}; stroke: {FG}" stroke-width="1"/>'
             )
-        parts.append(_caption(lines, cx, my + 20))
+        parts.append(text_block(lines, cx, my + 20))
         return "".join(parts)
 
     if it.symbol is None:
-        first = my - 12 - (len(lines) - 1) * _CAPTION_LEAD
-        return _tube(it.x, it.x + it.width, my) + _caption(lines, cx, first)
+        first = my - 12 - (len(lines) - 1) * CAPTION_LEAD
+        return tube_segment(it.x, it.x + it.width, my) + text_block(lines, cx, first)
 
     sym = load_symbol(it.symbol)
-    sy = my - _PORTS[it.symbol][2]
-    inner = _symbol(it.symbol, it.x, sy)
+    sy = my - PORTS[it.symbol][2]
+    inner = place_symbol(it.symbol, it.x, sy)
     if it.state == "bypassed":
         parts = [
             f'<g opacity="0.4">{inner}</g>',
-            f'<rect x="{_num(it.x)}" y="{_num(sy)}" width="{_num(sym.width)}" '
-            f'height="{_num(sym.height)}" rx="4" fill="none" style="stroke: {MUTED_STROKE}" '
+            f'<rect x="{num(it.x)}" y="{num(sy)}" width="{num(sym.width)}" '
+            f'height="{num(sym.height)}" rx="4" fill="none" style="stroke: {MUTED_STROKE}" '
             f'stroke-width="1.5" stroke-dasharray="5 4"/>',
         ]
     else:
         parts = [inner]
     if note:
-        parts.append(_caption([note], cx, sy - 6, italic=True))
+        parts.append(text_block([note], cx, sy - 6, italic=True))
     below = sy + sym.height + 16
     if label != sym.text:
-        parts.append(_caption(lines, cx, below))
-        below += len(lines) * _CAPTION_LEAD
+        parts.append(text_block(lines, cx, below))
+        below += len(lines) * CAPTION_LEAD
     if sub:
-        parts.append(_caption(list(sub), cx, below))
+        parts.append(text_block(list(sub), cx, below))
     return "".join(parts)
 
 
@@ -245,7 +185,7 @@ def _halo_box(it: _Item, my: float) -> Tuple[float, float, float, float]:
     pad = _HALO_PAD
     if it.symbol is not None:
         sym = load_symbol(it.symbol)
-        sy = my - _PORTS[it.symbol][2]
+        sy = my - PORTS[it.symbol][2]
         return it.x - pad, sy - pad, sym.width + 2 * pad, sym.height + 2 * pad
     if it.unit == "tubing_detectors":
         top = my - it.up
@@ -256,25 +196,25 @@ def _halo_box(it: _Item, my: float) -> Tuple[float, float, float, float]:
 def _halo(it: _Item, my: float) -> str:
     x, y, w, h = _halo_box(it, my)
     return (
-        f'<rect x="{_num(x)}" y="{_num(y)}" width="{_num(w)}" height="{_num(h)}" rx="8" '
+        f'<rect x="{num(x)}" y="{num(y)}" width="{num(w)}" height="{num(h)}" rx="8" '
         f'fill="none" style="stroke: {ACCENT}" stroke-width="3"/>'
     )
 
 
 def _observe_extent() -> float:
     """Height of the lane above the drawing that holds the "measured here" label."""
-    return _OBSERVE_GAP + _CAPTION_FONT + 8
+    return _OBSERVE_GAP + CAPTION_FONT + 8
 
 
 def _observe_marker(x: float, y: float, tip: float, label_x: float) -> str:
     """Pin from the outlet at (`x`, `y`) up to `tip`, labelled in the lane above it."""
     dot = (
-        f'<circle cx="{_num(x)}" cy="{_num(tip)}" r="4.5" '
+        f'<circle cx="{num(x)}" cy="{num(tip)}" r="4.5" '
         f'style="fill: {ACCENT}; stroke: {SURFACE}" stroke-width="1.5"/>'
     )
     return (
-        f'<path d="M{_num(x)} {_num(y)} V{_num(tip)}" style="stroke: {ACCENT}" stroke-width="2"/>'
-        f"{dot}" + _caption(["measured here"], label_x, tip - _OBSERVE_GAP - 2, italic=True)
+        f'<path d="M{num(x)} {num(y)} V{num(tip)}" style="stroke: {ACCENT}" stroke-width="2"/>'
+        f"{dot}" + text_block(["measured here"], label_x, tip - _OBSERVE_GAP - 2, italic=True)
     )
 
 
@@ -428,7 +368,7 @@ def render_system_svg(
     feed_on = feed_shown and "feed_inlet" in active
     inlet_sym = load_symbol("Inlet")
     feed_lines = _inlet_lines("feed_inlet", feed_on, carries if known else None)
-    feed_extra = (len(feed_lines) - 1) * _CAPTION_LEAD
+    feed_extra = (len(feed_lines) - 1) * CAPTION_LEAD
     feed_width = _text_width(feed_lines)
 
     buffer_lines = {
@@ -436,7 +376,7 @@ def render_system_svg(
         for b in buffers
     }
     pitches = [
-        inlet_sym.height + max(_INLET_GAP, 8 + len(buffer_lines[b]) * _CAPTION_LEAD)
+        inlet_sym.height + max(_INLET_GAP, 8 + len(buffer_lines[b]) * CAPTION_LEAD)
         for b in buffers
     ]
     stack_h = max(sum(pitches) - _INLET_GAP, 0)
@@ -457,7 +397,7 @@ def render_system_svg(
 
     up_max = stack_h / 2 + 4 + heading
     if feed_shown and has_loop:
-        up_max = max(up_max, _FEED_RISE + 6 + feed_extra + _CAPTION_FONT)
+        up_max = max(up_max, _FEED_RISE + 6 + feed_extra + CAPTION_FONT)
 
     def sub_lines(unit: str) -> List[str]:
         if unit == "column" and column_model:
@@ -477,7 +417,7 @@ def render_system_svg(
     junction = next((it for it in reversed(items) if it.unit in _JUNCTIONS), None)
     target = next((it for it in items if it.unit not in _JUNCTIONS), None)
     row2_y = my + item_down + _ROW_DROP
-    parts = [_marker("cg-arrow", FG), _marker("cg-arrow-muted", MUTED_STROKE)]
+    parts = [arrow_marker("cg-arrow", FG), arrow_marker("cg-arrow-muted", MUTED_STROKE)]
     right = x - _GAP
 
     first = items[0] if items else None
@@ -485,7 +425,7 @@ def render_system_svg(
     if buffers and first is not None:
         top = my - stack_h / 2
         if known:
-            head = _caption(
+            head = text_block(
                 ["Buffers via mixer"], _MARGIN, top - 12, start=True, strong=bool(active_buffers)
             )
             parts.append(head)
@@ -493,17 +433,17 @@ def render_system_svg(
         for i, buf in enumerate(buffers):
             y = top + sum(pitches[:i])
             on = buf in active_buffers
-            content = _dim(_symbol(_SYMBOL_OF[buf], symbol_x, y), on)
+            content = _dim(place_symbol(_SYMBOL_OF[buf], symbol_x, y), on)
             lines = buffer_lines[buf]
             if known or _label_of(buf) != load_symbol(_SYMBOL_OF[buf]).text:
-                content += _caption(
+                content += text_block(
                     lines, symbol_x + inlet_sym.width / 2, y + inlet_sym.height + 16
                 )
             parts.append(_unit_group(buf, "active" if on else "unused", content))
-            ys[buf] = y + _PORTS["Inlet"][2]
+            ys[buf] = y + PORTS["Inlet"][2]
             parts.append(
-                _wire(
-                    f"M{_num(symbol_x + inlet_sym.width - 0.5)} {_num(ys[buf])} H{_num(bus_x)}",
+                flow_line(
+                    f"M{num(symbol_x + inlet_sym.width - 0.5)} {num(ys[buf])} H{num(bus_x)}",
                     arrow=False,
                     muted=not on,
                 )
@@ -512,16 +452,16 @@ def render_system_svg(
         all_ys = list(ys.values()) + [my]
         if max(all_ys) > min(all_ys) and len(active_buffers) < len(buffers):
             parts.append(
-                _wire(f"M{_num(bus_x)} {_num(min(all_ys))} V{_num(max(all_ys))}",
+                flow_line(f"M{num(bus_x)} {num(min(all_ys))} V{num(max(all_ys))}",
                       arrow=False, muted=True)
             )
         if active_buffers and max(on_ys) > min(on_ys):
             parts.append(
-                _wire(f"M{_num(bus_x)} {_num(min(on_ys))} V{_num(max(on_ys))}", arrow=False)
+                flow_line(f"M{num(bus_x)} {num(min(on_ys))} V{num(max(on_ys))}", arrow=False)
             )
         parts.append(
-            _wire(
-                f"M{_num(bus_x)} {_num(my)} H{_num(first.x + first.in_x)}",
+            flow_line(
+                f"M{num(bus_x)} {num(my)} H{num(first.x + first.in_x)}",
                 muted=not active_buffers,
             )
         )
@@ -530,11 +470,11 @@ def render_system_svg(
         x1 = a.x + a.out_x
         if b.unit == "sample_loop":
             x2 = b.x + b.in_x
-            y2 = my - (_PORTS["SampleLoop"][2] - _LOOP_IN_Y)
-            d = f"M{_num(x1)} {_num(my)} H{_num(x2)} V{_num(y2)}"
+            y2 = my - (PORTS["SampleLoop"][2] - _LOOP_IN_Y)
+            d = f"M{num(x1)} {num(my)} H{num(x2)} V{num(y2)}"
         else:
-            d = f"M{_num(x1)} {_num(my)} H{_num(b.x + b.in_x)}"
-        parts.append(_wire(d, arrow=b.symbol is not None))
+            d = f"M{num(x1)} {num(my)} H{num(b.x + b.in_x)}"
+        parts.append(flow_line(d, arrow=b.symbol is not None))
 
     observe_drawn = False
     for it in items:
@@ -557,10 +497,10 @@ def render_system_svg(
         cx = junction.x + junction.width / 2
         start = my + junction.down
         wx = cx - inlet_sym.width / 2
-        content = _symbol("Outlet", wx, row2_y)
+        content = place_symbol("Outlet", wx, row2_y)
         label = _label_of("waste")
-        content += _caption([label], cx, row2_y + inlet_sym.height + 16)
-        parts.append(_wire(f"M{_num(cx)} {_num(start)} V{_num(row2_y)}", muted=True))
+        content += text_block([label], cx, row2_y + inlet_sym.height + 16)
+        parts.append(flow_line(f"M{num(cx)} {num(start)} V{num(row2_y)}", muted=True))
         parts.append(_unit_group("waste", "idle", content))
         right = max(right, wx + inlet_sym.width)
 
@@ -569,12 +509,12 @@ def render_system_svg(
         loop = next(it for it in items if it.unit == "sample_loop")
         fx = loop.x + loop.width + _GAP
         fy = my - _FEED_RISE
-        content = _dim(_symbol("Inlet", fx, fy), feed_on)
-        content += _caption(feed_lines, fx + inlet_sym.width / 2, fy - 6 - feed_extra)
+        content = _dim(place_symbol("Inlet", fx, fy), feed_on)
+        content += text_block(feed_lines, fx + inlet_sym.width / 2, fy - 6 - feed_extra)
         sample_x = loop.x + _LOOP_SAMPLE_PORT[0]
         parts.append(
-            _wire(
-                f"M{_num(fx + 0.5)} {_num(fy + _PORTS['Inlet'][2])} H{_num(sample_x)}",
+            flow_line(
+                f"M{num(fx + 0.5)} {num(fy + PORTS['Inlet'][2])} H{num(sample_x)}",
                 arrow=False,
                 muted=not feed_on,
             )
@@ -587,12 +527,12 @@ def render_system_svg(
         fx = cx - inlet_sym.width / 2
         merge_x = column_in - _GAP / 2
         jog_y = row2_y - _ROW_DROP / 2
-        content = _dim(_symbol("Inlet", fx, row2_y), feed_on)
-        content += _caption(feed_lines, cx, row2_y + inlet_sym.height + 16)
+        content = _dim(place_symbol("Inlet", fx, row2_y), feed_on)
+        content += text_block(feed_lines, cx, row2_y + inlet_sym.height + 16)
         parts.append(
-            _wire(
-                f"M{_num(cx)} {_num(row2_y)} V{_num(jog_y)} H{_num(merge_x)} "
-                f"V{_num(my)} H{_num(column_in)}",
+            flow_line(
+                f"M{num(cx)} {num(row2_y)} V{num(jog_y)} H{num(merge_x)} "
+                f"V{num(my)} H{num(column_in)}",
                 muted=not feed_on,
             )
         )
@@ -600,7 +540,7 @@ def render_system_svg(
         right = max(right, fx + inlet_sym.width, cx + feed_width / 2)
 
     width = right + _MARGIN
-    bottom = max(my + item_down, my + stack_h / 2 + 24 + (_CAPTION_LEAD if known else 0))
+    bottom = max(my + item_down, my + stack_h / 2 + 24 + (CAPTION_LEAD if known else 0))
     if ("waste" in units and junction is not None and not compact) or (
         feed_shown and not has_loop
     ):

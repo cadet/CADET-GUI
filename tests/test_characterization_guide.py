@@ -30,12 +30,11 @@ from cadetgui.characterization.guide import (  # noqa: E402
     new_step_setup,
     with_implied_values,
 )
-from cadetgui.characterization.parameter_store import (  # noqa: E402
+from cadetgui.characterization.parameter_store import (
     ChainError,
     ParameterStore,
     Provenance,
     check_chain,
-    has_parameter,
     spec_for,
 )
 from cadetgui.characterization.stages import describe_stage  # noqa: E402
@@ -48,6 +47,7 @@ from cadetgui.io.configuration_store import (  # noqa: E402
     InstrumentState,
 )
 from cadetgui.io.experimental_data import Channel, ExperimentalRun  # noqa: E402
+from cadetgui.process_model.values import has_parameter
 
 DATA_DIR = Path(__file__).parents[1] / "examples" / "data" / "characterization_akta"
 

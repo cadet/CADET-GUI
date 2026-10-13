@@ -394,7 +394,7 @@ def test_bypassed_mixer_is_dimmed_and_marked():
 
 
 def test_symbol_files_reduce_to_plain_theme_aware_svg():
-    from cadetgui.widgets.diagrams.symbols import load_symbol
+    from cadetgui.widgets.diagrams.svg import load_symbol
 
     for name in ("Column", "Mixer", "SampleLoop", "Inlet", "UVSensor", "CondSensor"):
         sym = load_symbol(name)

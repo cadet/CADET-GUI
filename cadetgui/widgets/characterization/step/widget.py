@@ -38,13 +38,14 @@ from ....characterization.step_checks import (
     step_checks,
 )
 from ....characterization.study import Study
-from ...ui.html import info_box_html, status_html
+from ...ui.format import unit_html
+from ...ui.html import info_box_html, status_html, table_html
 from ...ui.theme import style_tag
 from ..help import determines_table_html, experiments_table_html, term_html
 from ..setup import step_diagrams_html
-from .results import _CandidateResults
-from .run import _StepRun
-from .setup_form import _StepSetupForm, _unit_html
+from .results import CandidateResults
+from .run import StepRun
+from .setup_form import StepSetupForm
 
 __all__ = ["CharacterizationStepWidget"]
 
@@ -97,27 +98,25 @@ def _best_values_html(
     """Return a candidate's variable values and objectives as two tables."""
     if len(names) != len(candidate.x):
         names = [f"x{i + 1}" for i in range(len(candidate.x))]
-    variables = "".join(
-        f"<tr><td>{html.escape(name)}</td><td>{value:.4g}</td>"
-        f"<td>{_unit_html(units.get(name, ''))}</td></tr>"
+    variables = [
+        [html.escape(name), f"{value:.4g}", unit_html(units.get(name, ""))]
         for name, value in zip(names, candidate.x)
-    )
-    objectives = "".join(
-        f"<tr><td>{html.escape(c.name)}</td><td>{value:.4g}</td>"
-        f"<td>{term_html(c.metric)}</td></tr>"
+    ]
+    objectives = [
+        [html.escape(c.name), f"{value:.4g}", term_html(c.metric)]
         for c, value in zip(setup.comparisons, candidate.f)
-    )
+    ]
+    info = "cadetgui-info-table"
     return (
         f"<div><b>{term_html('best average', 'Best average')} of the final front</b></div>"
         "<div style='display:flex;flex-wrap:wrap;gap:24px'>"
-        "<table class='cadetgui-info-table'><tr><th>Parameter</th><th>Value</th>"
-        f"<th>Unit</th></tr>{variables}</table>"
-        "<table class='cadetgui-info-table'><tr><th>Measurement</th><th>Error</th>"
-        f"<th>Metric</th></tr>{objectives}</table></div>"
+        + table_html(["Parameter", "Value", "Unit"], variables, css_class=info)
+        + table_html(["Measurement", "Error", "Metric"], objectives, css_class=info)
+        + "</div>"
     )
 
 
-class CharacterizationStepWidget(_StepRun):
+class CharacterizationStepWidget(StepRun):
     """Set up, run and accept one characterization step of a `Study`.
 
     Every setup edit is written to the study with `Study.upsert_step`. A chain step
@@ -167,14 +166,14 @@ class CharacterizationStepWidget(_StepRun):
             existing if any(s is existing for s in study.steps) else None
         )
 
-        self.form = _StepSetupForm(
+        self.form = StepSetupForm(
             study, self._on_form_change,
             on_add_measurement=(
                 (lambda step_id: self._navigate("measurements", {"step_id": step_id}))
                 if on_navigate is not None else None
             ),
         )
-        self.results = _CandidateResults(self._accept)
+        self.results = CandidateResults(self._accept)
 
         self._warnings = W.HTML()
         self._checks_box = W.VBox()

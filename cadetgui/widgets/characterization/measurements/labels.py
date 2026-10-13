@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import copy
-import dataclasses
 import html
 import math
-from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
-
-import ipywidgets as W
+from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Tuple
 
 from ....characterization.comparison import Comparison
 from ....characterization.guide import (
@@ -18,15 +13,12 @@ from ....characterization.guide import (
     SALT_ROLE,
 )
 from ....characterization.study import Study
+from ....instrument.recipes import recipe_flow_rate
 from ....instrument.signals import signal_label
 from ....instrument.system import BYPASSABLE_UNITS, UNIT_LABELS
-from ....instrument.templates import (
-    INSTRUMENT_TEMPLATES,
-    STANDALONE_TEMPLATES,
-    template_required_units,
-)
 from ....io.configuration_store import ConfigurationState
-from ....parameters.specs import FieldSpec, parse_float_list
+from ....parameters.specs import parse_float_list
+from ....process_model.values import number_text
 from ...ui.html import status_html
 from ..help import term_html
 
@@ -76,30 +68,35 @@ _ADVICE: Tuple[Tuple[str, str], ...] = (
 )
 
 
-def _format(value: Optional[float]) -> str:
-    return "" if value is None else f"{value:g}"
+def number_or_blank(value: Optional[float]) -> str:
+    """Return `value` as compact text for a field, "" for None."""
+    return "" if value is None else number_text(value)
 
 
-def _format_value(value: Any) -> str:
+def value_text(value: Any) -> str:
+    """Return a value, or a list of them, as compact comma-separated text."""
     if isinstance(value, (list, tuple)):
-        return ", ".join(_format_value(v) for v in value)
-    return f"{value:g}" if isinstance(value, float) else str(value)
+        return ", ".join(value_text(v) for v in value)
+    return number_text(value) if isinstance(value, float) else str(value)
 
 
-def _optional_float(text: str) -> Optional[float]:
+def optional_float(text: str) -> Optional[float]:
+    """Parse an optional number: blank gives None."""
     text = text.strip()
     return float(text) if text else None
 
 
-def _check_float(text: str) -> Optional[str]:
+def check_float(text: str) -> Optional[str]:
+    """Return an error if `text` is neither a number nor blank."""
     try:
-        _optional_float(text)
+        optional_float(text)
     except ValueError:
         return "Enter a number or leave blank."
     return None
 
 
-def _check_float_list(text: str) -> Optional[str]:
+def check_float_list(text: str) -> Optional[str]:
+    """Return an error if `text` is neither comma-separated numbers nor blank."""
     try:
         parse_float_list(text)
     except ValueError:
@@ -107,48 +104,7 @@ def _check_float_list(text: str) -> Optional[str]:
     return None
 
 
-def _template_fields(recipe: ConfigurationState) -> List[FieldSpec]:
-    """Return the recipe's process-template fields (the values `overrides` may replace)."""
-    registry = INSTRUMENT_TEMPLATES if recipe.instrument is not None else STANDALONE_TEMPLATES
-    factory = registry.get(recipe.template_key)
-    if factory is None:
-        return []
-    # The template factories only read `component_system.names` before `build` is called.
-    stub = SimpleNamespace(component_system=SimpleNamespace(names=list(recipe.components)))
-    return [f for f in factory(stub).fields if f.kind in ("float", "float_list", "choice")]
-
-
-def _template_registry(recipe: ConfigurationState) -> Dict[str, Callable[..., Any]]:
-    return INSTRUMENT_TEMPLATES if recipe.instrument is not None else STANDALONE_TEMPLATES
-
-
-def recipe_with_template(recipe: ConfigurationState, template_key: str) -> ConfigurationState:
-    """Return `recipe` running process template `template_key` with its default method values.
-
-    The flow rate is kept; the sample loop is put in the flow path if the template needs it.
-    """
-    factory = _template_registry(recipe)[template_key]
-    changed = dataclasses.replace(recipe, template_key=template_key)
-    values = {f.name: copy.deepcopy(f.default) for f in _template_fields(changed)}
-    flow_rate = _recipe_flow_rate(recipe)
-    if flow_rate is not None:
-        for key in ("flow_rate", "flow_rate_wash"):
-            if key in values:
-                values[key] = flow_rate
-    instrument = recipe.instrument
-    if instrument is not None and "sample_loop" in template_required_units(factory):
-        instrument = dataclasses.replace(instrument, include_sample_loop=True)
-    return dataclasses.replace(changed, model_values=values, instrument=instrument)
-
-
-def _template_options(recipe: ConfigurationState) -> List[Tuple[str, str]]:
-    options = [(key, key) for key in _template_registry(recipe)]
-    if recipe.template_key not in dict(options).values():
-        options.append((f"{recipe.template_key} (not available)", recipe.template_key))
-    return options
-
-
-def _step_of(comparison: Comparison) -> Optional[str]:
+def step_of(comparison: Comparison) -> Optional[str]:
     """Return the id of the chain step `comparison`'s experiment type feeds, if any."""
     experiment_type = EXPERIMENT_TYPES.get(comparison.experiment_type or "")
     if experiment_type is None or experiment_type.step_id not in CHAIN_BY_ID:
@@ -156,13 +112,9 @@ def _step_of(comparison: Comparison) -> Optional[str]:
     return experiment_type.step_id
 
 
-def _recipe_flow_rate(recipe: ConfigurationState) -> Optional[float]:
-    value = recipe.model_values.get("flow_rate", recipe.model_values.get("flow_rate_wash"))
-    return float(value) if value is not None else None
-
-
-def _observed_unit(solution_path: str) -> str:
-    return solution_path.partition(".")[0]
+def observed_unit(solution_path: Optional[str]) -> Optional[str]:
+    """Return the unit a solution path such as `column.outlet` is read at."""
+    return solution_path.partition(".")[0] if solution_path else None
 
 
 def observation_label(solution_path: str) -> str:
@@ -217,7 +169,7 @@ def recipe_summary_html(comparison: Comparison) -> str:
     """Return a plain-language table of `comparison`'s recipe and observation point."""
     recipe = comparison.recipe
     experiment_type = EXPERIMENT_TYPES.get(comparison.experiment_type or "")
-    flow_rate = comparison.resolved_flow_rate or _recipe_flow_rate(recipe)
+    flow_rate = comparison.resolved_flow_rate or recipe_flow_rate(recipe)
     if flow_rate is None:
         flow_text = "not set"
     else:
@@ -280,7 +232,7 @@ def system_summary_html(recipe: ConfigurationState) -> str:
     that seed each measurement; the process template is left out, since each measurement
     gets its own from its experiment type.
     """
-    flow_rate = _recipe_flow_rate(recipe)
+    flow_rate = recipe_flow_rate(recipe)
     in_line, bypassed = _flow_path_units(recipe)
     rows: List[Tuple[str, str]] = [
         (term_html("flow path", "Flow path"),
@@ -323,7 +275,8 @@ def problems_html(problems: Sequence[str]) -> str:
     return "".join(f"<div>{line}</div>" for line in lines)
 
 
-def _detector_hint(channel: str) -> Optional[str]:
+def detector_hint(channel: str) -> Optional[str]:
+    """Return the detector a channel name suggests ("UV", "conductivity"), or None."""
     lower = channel.lower()
     if "cond" in lower:
         return "conductivity"
@@ -351,21 +304,6 @@ def component_options(
     ]
 
 
-def _title(text_html: str) -> W.HTML:
-    return W.HTML(f"<div class='cadetgui-section-title'>{text_html}</div>")
-
-
-def _row(*children: W.Widget) -> W.HBox:
-    row = W.HBox(list(children), layout=W.Layout(flex_flow="row wrap"))
-    row.add_class("cadetgui-row")
-    return row
-
-
-def _note(text_html: str = "") -> W.HTML:
-    note = W.HTML(text_html)
-    note.add_class("cadetgui-note")
-    return note
-
-
-def _same(a: Optional[float], b: Optional[float]) -> bool:
+def same_value(a: Optional[float], b: Optional[float]) -> bool:
+    """Return whether `b` matches `a`, or `a` is unset."""
     return a is None or (b is not None and math.isclose(a, float(b), rel_tol=1e-9))

@@ -7,6 +7,7 @@ import ipywidgets as W
 from CADETProcess.processModel import Inlet, Outlet
 from CADETProcess.solution import SolutionIO
 
+from ...process_model.signals import signal_positions
 from ...process_model.simulation import run_process
 from ..base import Widget
 from ..elements import ChoiceField, ChromatogramChart
@@ -18,22 +19,16 @@ __all__ = ["SimulationWidget"]
 
 
 def _solution_options(process: Any, results: Any) -> List[Tuple[str, Tuple[str, str]]]:
-    """Inlets by their outlet and outlets by their inlet, named after the unit; others by port."""
-    options = []
-    for unit, ports in results.solution.items():
-        model = getattr(process.flow_sheet, unit, None)
-        for port, solution in ports.items():
-            if not isinstance(solution, SolutionIO):
-                continue
-            if isinstance(model, Inlet):
-                if port == "outlet":
-                    options.append((unit, (unit, port)))
-            elif isinstance(model, Outlet):
-                if port == "inlet":
-                    options.append((unit, (unit, port)))
-            else:
-                options.append((f"{unit}.{port}", (unit, port)))
-    return options
+    """Inlets and outlets by their unit name, other units by port, e.g. `column.outlet`."""
+    units = process.flow_sheet.units_dict
+    ports = {
+        unit: [port for port, solution in by_port.items() if isinstance(solution, SolutionIO)]
+        for unit, by_port in results.solution.items()
+    }
+    return [
+        (unit if isinstance(units.get(unit), (Inlet, Outlet)) else f"{unit}.{port}", (unit, port))
+        for unit, port in signal_positions(units, ports)
+    ]
 
 
 class SimulationWidget(Widget):

@@ -13,14 +13,13 @@ from ...characterization.guide import (
     GLOSSARY,
     WORKFLOW_GUIDE,
 )
-from ..ui.html import checklist_html
+from ..ui.html import checklist_html, table_html
 from ..ui.theme import style_tag
 
 __all__ = ["CharacterizationGuideWidget", "markdown_html"]
 
 _ORDERED = re.compile(r"^\d+\.\s+")
 _BULLET = re.compile(r"^[-*]\s+")
-_CELL = "padding:4px 8px;border-bottom:1px solid var(--cg-border);vertical-align:top"
 
 
 def _inline(text: str) -> str:
@@ -81,15 +80,6 @@ def _glossary_html() -> str:
     return f"<dl class='cadetgui-glossary'>{rows}</dl>"
 
 
-def _table(header: List[str], rows: List[List[str]]) -> str:
-    head = "".join(f"<th style='{_CELL};text-align:left'>{h}</th>" for h in header)
-    body = "".join(
-        "<tr>" + "".join(f"<td style='{_CELL}'>{cell}</td>" for cell in row) + "</tr>"
-        for row in rows
-    )
-    return f"<table style='border-collapse:collapse;width:100%'><tr>{head}</tr>{body}</table>"
-
-
 def _experiment_types_html() -> str:
     rows = [
         [
@@ -100,7 +90,10 @@ def _experiment_types_html() -> str:
         ]
         for t in EXPERIMENT_TYPES.values()
     ]
-    return _table(["Experiment type", "Feeds step", "What you run", "Detector"], rows)
+    return table_html(
+        ["Experiment type", "Feeds step", "What you run", "Detector"], rows,
+        css_class="cadetgui-info-table",
+    )
 
 
 def _chain_html() -> str:
@@ -112,7 +105,7 @@ def _chain_html() -> str:
         ]
         for i, g in enumerate(DEFAULT_CHAIN, start=1)
     ]
-    return _table(["Step", "Purpose", "Determines"], rows)
+    return table_html(["Step", "Purpose", "Determines"], rows, css_class="cadetgui-info-table")
 
 
 def _lab_checks_html() -> str:

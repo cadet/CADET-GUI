@@ -6,6 +6,8 @@ from typing import Any, Mapping, Sequence
 
 from CADETProcess.processModel import Inlet, Outlet
 
+__all__ = ["classify_signal_ports", "list_signal_ports", "signal_positions"]
+
 
 def classify_signal_ports(result: Any) -> list[tuple[str, tuple[str, str]]]:
     """List the simulated `(label, (unit, port))` signals, with sinks first.
@@ -34,21 +36,36 @@ def list_signal_ports(process: Any) -> list[tuple[str, tuple[str, str]]]:
     return _order_signal_ports(units, ports_by_unit)
 
 
+def signal_positions(
+    units: Mapping[str, Any], ports_by_unit: Mapping[str, Sequence[str]]
+) -> list[tuple[str, str]]:
+    """List the `(unit, port)` positions with a meaningful solution, in the given order.
+
+    An Inlet is read at its outlet and an Outlet at its inlet (their other ports are
+    bookkeeping); every port of other units is kept.
+    """
+    positions = []
+    for unit_name, ports in ports_by_unit.items():
+        unit = units.get(unit_name)
+        only = (
+            "outlet" if isinstance(unit, Inlet) else "inlet" if isinstance(unit, Outlet) else None
+        )
+        positions += [(unit_name, port) for port in ports if only in (None, port)]
+    return positions
+
+
 def _order_signal_ports(
     units: Mapping[str, Any], ports_by_unit: Mapping[str, Sequence[str]]
 ) -> list[tuple[str, tuple[str, str]]]:
     sinks: list[tuple[str, str, tuple[str, str]]] = []
     others: list[tuple[str, tuple[str, str]]] = []
-    for unit_name, ports in ports_by_unit.items():
+    for unit_name, port in signal_positions(units, ports_by_unit):
         unit = units.get(unit_name)
         if isinstance(unit, Inlet):
-            if "outlet" in ports:
-                others.append((f"{unit_name}: Source", (unit_name, "outlet")))
+            others.append((f"{unit_name}: Source", (unit_name, port)))
         elif isinstance(unit, Outlet):
-            if "inlet" in ports:
-                sinks.append((unit_name, f"{unit_name}: Sink", (unit_name, "inlet")))
+            sinks.append((unit_name, f"{unit_name}: Sink", (unit_name, port)))
         else:
-            for port in ports:
-                others.append((f"{unit_name}: {port}", (unit_name, port)))
+            others.append((f"{unit_name}: {port}", (unit_name, port)))
     sinks.sort(key=lambda entry: entry[0] != "outlet")
     return [(label, value) for _, label, value in sinks] + others

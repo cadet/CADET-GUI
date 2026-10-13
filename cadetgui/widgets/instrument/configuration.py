@@ -45,7 +45,7 @@ from ..elements import (
 from ..forms import FormRenderer
 from ..process_model.timeline import timeline_chart_data
 from ..ui.html import status_html
-from ..ui.layout import SettingsPopover
+from ..ui.layout import SettingsPopover, note, section, titled_header
 from ..ui.theme import style_tag
 from .instrument import InstrumentWidget
 from .persistence import ConfigurationPersistence
@@ -151,26 +151,6 @@ def _checkbox(description: str, on_change: Callable[[dict], None]) -> W.Checkbox
     return checkbox
 
 
-def _note(text: str = "") -> W.HTML:
-    note = W.HTML(text, layout=W.Layout(display="none"))
-    note.add_class("cadetgui-note")
-    return note
-
-
-def _section(children: list, *classes: str) -> W.VBox:
-    box = W.VBox(children)
-    for cls in ("cadetgui-section", *classes):
-        box.add_class(cls)
-    return box
-
-
-def _titled_header(title: str, settings: SettingsPopover) -> W.HBox:
-    return W.HBox(
-        [W.HTML(f"<div class='cadetgui-section-title'>{title}</div>"), settings.button],
-        layout=W.Layout(justify_content="space-between", align_items="center"),
-    )
-
-
 class ConfigurationWidget:
     """Pick a component system, column/binding model, and process template; build a process.
 
@@ -269,9 +249,9 @@ class ConfigurationWidget:
         )
 
         self._components = ComponentListField(label="Components:")
-        self._component_note = _note()
-        self._column_bypass_note = _note(_BYPASS_NOTE)
-        self._binding_bypass_note = _note(_BYPASS_NOTE)
+        self._component_note = note(hidden=True)
+        self._column_bypass_note = note(_BYPASS_NOTE, hidden=True)
+        self._binding_bypass_note = note(_BYPASS_NOTE, hidden=True)
 
         self._column_picker = ChoiceField(
             label="Column Model:",
@@ -309,7 +289,7 @@ class ConfigurationWidget:
         self.workspace_header = WorkspaceHeader(self.persistence)
         self.workspace_header_embedded = workspace_header
 
-        components_section = _section(
+        components_section = section(
             [
                 W.HTML("<div class='cadetgui-section-title'>Component System</div>"),
                 self._components,
@@ -318,9 +298,9 @@ class ConfigurationWidget:
         )
         self._components_section = components_section
         self._pulling_components = False
-        column_section = _section(
+        column_section = section(
             [
-                _titled_header("Column Model", self._column_settings),
+                titled_header("Column Model", self._column_settings.button),
                 self._column_settings.box,
                 self._column_bypass_note,
                 self._column_picker,
@@ -328,9 +308,9 @@ class ConfigurationWidget:
             ],
             "cadetgui-section-half",
         )
-        binding_section = _section(
+        binding_section = section(
             [
-                _titled_header("Binding Model", self._binding_settings),
+                titled_header("Binding Model", self._binding_settings.button),
                 self._binding_settings.box,
                 self._binding_bypass_note,
                 self._binding_picker,
@@ -347,9 +327,9 @@ class ConfigurationWidget:
         event_chart_column.add_class("cadetgui-section-half")
         process_columns = W.HBox([model_form_column, event_chart_column])
         process_columns.add_class("cadetgui-row")
-        process_section = _section(
+        process_section = section(
             [
-                _titled_header("Process", self._process_settings),
+                titled_header("Process", self._process_settings.button),
                 self._process_settings.box,
                 self._model_picker,
                 process_columns,

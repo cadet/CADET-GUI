@@ -20,7 +20,8 @@ from ...ui.plotting import decimate_minmax, reference_series
 from ..help import term_html
 
 
-def _preview_series(preview: Any) -> list:
+def preview_series(preview: Any) -> list:
+    """Return the simulated and the measured curve of a comparison preview as chart series."""
     times, values = decimate_minmax(
         np.asarray(preview.simulated_time, dtype=float) / 60.0,
         np.asarray(preview.simulated_values, dtype=float),
@@ -31,11 +32,12 @@ def _preview_series(preview: Any) -> list:
     ]
 
 
-def _preview_title(preview: Any) -> str:
+def preview_title(preview: Any) -> str:
+    """Return a preview's title: comparison name and metric value."""
     return f"<b>{html.escape(preview.name)}: {term_html(preview.metric)} = {preview.value:.4g}</b>"
 
 
-class _CandidateResults:
+class CandidateResults:
     """Front candidates of one run, per-comparison previews, Accept and CSV export."""
 
     def __init__(self, on_accept: Callable[[Candidate], None]) -> None:
@@ -102,6 +104,7 @@ class _CandidateResults:
             self.table.value = 0
 
     def clear(self) -> None:
+        """Forget the shown run and hide the results."""
         self.result, self.candidates, self._previews = None, [], {}
         self.table.set_options([], rows=[])
         self._charts.children = []
@@ -110,6 +113,7 @@ class _CandidateResults:
 
     @property
     def selected(self) -> Optional[Candidate]:
+        """The candidate picked in the table, or None."""
         index = self.table.value
         return self.candidates[index] if index is not None else None
 
@@ -138,9 +142,9 @@ class _CandidateResults:
     @staticmethod
     def _chart(preview: Any) -> W.VBox:
         chart = ChromatogramChart(
-            series=_preview_series(preview), view_width=420, view_height=240, y_label="Signal",
+            series=preview_series(preview), view_width=420, view_height=240, y_label="Signal",
         )
-        return W.VBox([W.HTML(_preview_title(preview)), chart])
+        return W.VBox([W.HTML(preview_title(preview)), chart])
 
     def previews_of(self, candidate: Candidate) -> Optional[list]:
         """Return the simulated previews of `candidate` if it has been previewed."""

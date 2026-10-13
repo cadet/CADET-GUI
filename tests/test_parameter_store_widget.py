@@ -11,7 +11,7 @@ from cadetgui.characterization.study import Study
 from cadetgui.widgets.characterization.parameter_store import (
     ParameterStoreWidget,
     chain_warnings,
-    parameter_label,
+    parameter_row_label,
 )
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -56,14 +56,14 @@ def rows_by_label(view: ParameterStoreWidget) -> dict:
 
 
 def test_friendly_labels():
-    assert parameter_label(LENGTH) == "Tubing (pre column) · length"
-    assert parameter_label("flow_sheet.unknown.x") == "flow_sheet.unknown.x"
+    assert parameter_row_label(LENGTH) == "Tubing (pre column) · length"
+    assert parameter_row_label("flow_sheet.unknown.x") == "flow_sheet.unknown.x"
 
 
 def test_lists_the_initial_store_one_row_per_species(view):
     rows = rows_by_label(view)
     assert rows[f"{FILM} SmallTracer"][:5] == [
-        "Column · film diffusion", FILM, "SmallTracer", "8e-05", "initial",
+        "Column · film diffusion", FILM, "SmallTracer", "8e-5", "initial",
     ]
     assert f"{FILM} LargeTracer" in rows
     assert rows["flow_sheet.column.particle_radius"][2] == ""

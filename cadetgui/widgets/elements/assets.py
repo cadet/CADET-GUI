@@ -1,3 +1,5 @@
+"""Load the elements' JS views and stylesheets, inlining the shared parts."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,7 +14,7 @@ def css(*names: str) -> str:
     return with_tokens(*(_DIR / f"{name}.css" for name in names))
 
 
-FIELD_CSS = css("_error", "_shared")
+FIELD_CSS = css("shared/error", "shared/field")
 
 
 def esm(name: str, *shared: str) -> str:
@@ -25,5 +27,5 @@ def esm(name: str, *shared: str) -> str:
 
 def field_esm(name: str, *, units: bool = True) -> str:
     """ESM source of a form-field view with the field helpers (and unit renderer)."""
-    shared = ("_unit_parser", "_unit_dom", "_field") if units else ("_field",)
-    return esm(name, *shared)
+    units_js = ("shared/unit_parser", "shared/unit_dom") if units else ()
+    return esm(name, *units_js, "shared/field")

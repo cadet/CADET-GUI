@@ -1,11 +1,15 @@
-"""Units in the LaTeX subset CADET-Process uses, rendered as HTML."""
+"""Numbers and units as HTML."""
 
 from __future__ import annotations
 
+import math
 import re
 from html import escape
+from typing import Any
 
-__all__ = ["unit_html"]
+from ...process_model.values import number_text
+
+__all__ = ["number_html", "unit_html"]
 
 _SYMBOLS = {"cdot": "·", "times": "×", ",": " ", " ": " "}
 _TEXT_COMMANDS = ("mathrm", "text", "textrm")
@@ -19,7 +23,7 @@ def _top_level(html: str) -> str:
 def unit_html(src: str) -> str:
     r"""Render a unit in the LaTeX subset CADET-Process uses (`\frac`, `^`, `_`) as HTML.
 
-    Mirrors `elements/_unit_parser.js`, so units read the same in tables and fields.
+    Mirrors `elements/shared/unit_parser.js`, so units read the same in tables and fields.
     """
     pos = 0
 
@@ -77,3 +81,15 @@ def unit_html(src: str) -> str:
         return "".join(out)
 
     return seq()
+
+
+def number_html(x: Any) -> str:
+    """Render a number for reading: plain when moderate, else as `a × 10<sup>n</sup>`."""
+    if isinstance(x, bool) or not isinstance(x, (int, float)):
+        return escape(str(x))
+    if x == 0 or 1e-3 <= abs(x) < 1e4:
+        return number_text(x)
+    exponent = math.floor(math.log10(abs(x)))
+    mantissa = number_text(round(x / 10**exponent, 6))
+    power = f"10<sup>{exponent}</sup>".replace("-", "−")
+    return power if mantissa == "1" else f"{mantissa} × {power}"

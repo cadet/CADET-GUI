@@ -19,6 +19,11 @@ from ....characterization.guide import (
 )
 from ....characterization.study import Study
 from ....instrument.process_builder import check_recipe
+from ....instrument.recipes import (
+    recipe_template_fields,
+    recipe_with_template,
+    template_options,
+)
 from ....io import configuration_store
 from ....io.configuration_store import ConfigurationState
 from ....io.experimental_data import (
@@ -35,27 +40,22 @@ from ...elements import (
     TextField,
 )
 from ...ui.html import info_box_html, status_html
+from ...ui.layout import note, row, section_title
 from ...ui.theme import style_tag
 from ..help import term_html
 from .labels import (
     ML_PER_MIN,
-    _check_float,
-    _check_float_list,
-    _format,
-    _format_value,
-    _note,
-    _observed_unit,
-    _optional_float,
-    _row,
-    _step_of,
-    _template_fields,
-    _template_options,
-    _title,
     channel_label,
+    check_float,
+    check_float_list,
     component_options,
+    number_or_blank,
+    observed_unit,
+    optional_float,
     problems_html,
     recipe_summary_html,
-    recipe_with_template,
+    step_of,
+    value_text,
 )
 
 if TYPE_CHECKING:
@@ -101,7 +101,7 @@ _MEASURED_HINT = (
 def _subsection(title: str, when: str, children: Sequence[W.Widget]) -> W.VBox:
     box = W.VBox([
         W.HTML(f"<div class='cadetgui-section-title'>{html.escape(title)}</div>"),
-        _note(f"<small>{html.escape(when)}</small>"),
+        note(f"<small>{html.escape(when)}</small>"),
         *children,
     ])
     box.add_class("cadetgui-subsection")
@@ -173,11 +173,11 @@ class ComparisonsWidget:
         self._run = ChoiceField(label="Data run:")
         self._channel = ChoiceField(label="Channel:")
         self._data_file = W.HTML()
-        self._flow_rate = TextField(label="Run flow rate:", units="mL/min", validate=_check_float)
-        self._flow_rate_note = _note()
+        self._flow_rate = TextField(label="Run flow rate:", units="mL/min", validate=check_float)
+        self._flow_rate_note = note()
 
         self._template = ChoiceField(label="Process template:")
-        self._template_note = _note(
+        self._template_note = note(
             "Changing the process template changes this measurement's method: its timing "
             "and concentrations go back to the new template's defaults (the flow rate is "
             "kept). Experiment types set their template for you; change it only if the run "
@@ -188,24 +188,24 @@ class ComparisonsWidget:
         self._overrides_box = W.HBox(layout=W.Layout(flex_flow="row wrap"))
 
         self._marker = ChoiceField(label="Injection marker:")
-        self._injection_x = TextField(label="Injection at:", validate=_check_float)
-        self._baseline_start = TextField(label="Baseline from:", validate=_check_float)
-        self._baseline_end = TextField(label="to:", validate=_check_float)
+        self._injection_x = TextField(label="Injection at:", validate=check_float)
+        self._baseline_start = TextField(label="Baseline from:", validate=check_float)
+        self._baseline_end = TextField(label="to:", validate=check_float)
         self._normalization = ChoiceField(
             label="Normalization:", options=[("None", "none"), ("Area", "area")]
         )
-        self._target_area = TextField(label="Target area:", validate=_check_float)
+        self._target_area = TextField(label="Target area:", validate=check_float)
 
         self._solution_path = ChoiceField(label="Observation point:")
         self._components_box = W.HBox(layout=W.Layout(flex_flow="row wrap"))
         self._metric = ChoiceField(label="Metric:", options=[(m, m) for m in METRICS])
-        self._window_start = TextField(label="Compare from:", units="s", validate=_check_float)
-        self._window_end = TextField(label="to:", units="s", validate=_check_float)
+        self._window_start = TextField(label="Compare from:", units="s", validate=check_float)
+        self._window_end = TextField(label="to:", units="s", validate=check_float)
 
         self._measured_chart = ChromatogramChart(
             view_width=480, view_height=240, y_label="Signal", x_label="Time / min"
         )
-        self._measured_note = _note()
+        self._measured_note = note()
 
         self._remove_note = W.HTML()
         self._btn_remove_confirm = W.Button(
@@ -241,10 +241,10 @@ class ComparisonsWidget:
                     "Change when the wrong run or detector channel is used, or the measured "
                     "trace is shifted in time against the simulation.",
                     [
-                        _row(self._run, self._channel, self._data_file),
-                        _row(self._flow_rate, self._flow_rate_note),
-                        _title(term_html("injection marker", "Injection marker")),
-                        _row(self._marker, self._injection_x),
+                        row(self._run, self._channel, self._data_file),
+                        row(self._flow_rate, self._flow_rate_note),
+                        section_title(term_html("injection marker", "Injection marker")),
+                        row(self._marker, self._injection_x),
                     ],
                 ),
                 (
@@ -252,10 +252,10 @@ class ComparisonsWidget:
                     "Change when the measured baseline drifts or the trace needs another "
                     "scale, e.g. to match the injected amount.",
                     [
-                        _title(term_html("baseline window", "Baseline window")),
-                        _row(self._baseline_start, self._baseline_end),
-                        _title(term_html("normalization", "Normalization")),
-                        _row(self._normalization, self._target_area),
+                        section_title(term_html("baseline window", "Baseline window")),
+                        row(self._baseline_start, self._baseline_end),
+                        section_title(term_html("normalization", "Normalization")),
+                        row(self._normalization, self._target_area),
                     ],
                 ),
                 (
@@ -263,10 +263,10 @@ class ComparisonsWidget:
                     "Change when the detector sits elsewhere in the flow path or another "
                     "component should be compared.",
                     [
-                        _title(term_html("observation point", "Observation point")
+                        section_title(term_html("observation point", "Observation point")
                                + " (solution path) and component"),
-                        _row(self._solution_path, self._probe),
-                        _row(self._probe_role_fix, self._btn_probe_role_fix),
+                        row(self._solution_path, self._probe),
+                        row(self._probe_role_fix, self._btn_probe_role_fix),
                         self._components_box,
                     ],
                 ),
@@ -274,17 +274,19 @@ class ComparisonsWidget:
                     "Comparison",
                     "Change to use another error measure, or to compare only part of the "
                     "run (e.g. leave out a noisy tail).",
-                    [_row(self._metric), _row(self._window_start, self._window_end)],
+                    [row(self._metric), row(self._window_start, self._window_end)],
                 ),
                 (
                     "Process",
                     "Change only if the run followed another method than its experiment "
                     "type assumes.",
                     [
-                        _row(self._template),
+                        row(self._template),
                         self._template_note,
-                        _title(term_html("recipe", "Recipe") + " source and method overrides"),
-                        _row(self._recipe_source, self._btn_use_recipe),
+                        section_title(
+                            term_html("recipe", "Recipe") + " source and method overrides"
+                        ),
+                        row(self._recipe_source, self._btn_use_recipe),
                         self._overrides_box,
                     ],
                 ),
@@ -292,8 +294,8 @@ class ComparisonsWidget:
                     "Name and type",
                     "Change to rename the measurement or give it another experiment type.",
                     [
-                        _row(self._name, self._experiment_type),
-                        _note("Changing the experiment type moves the measurement to another "
+                        row(self._name, self._experiment_type),
+                        note("Changing the experiment type moves the measurement to another "
                               "step's group; it does not rebuild the recipe (add the run "
                               "again for that)."),
                     ],
@@ -309,10 +311,10 @@ class ComparisonsWidget:
                 self._card_title,
                 self._recipe_summary,
                 self._diagram,
-                _title("Problems"),
+                section_title("Problems"),
                 self._problems_html,
-                _title("Measured trace"),
-                _note(_MEASURED_HINT),
+                section_title("Measured trace"),
+                note(_MEASURED_HINT),
                 self._measured_chart,
                 self._measured_note,
                 self._advanced,
@@ -386,7 +388,7 @@ class ComparisonsWidget:
             self._selected_name = names[0] if names else None
         groups: Dict[Optional[str], List[Comparison]] = {}
         for c in self.study.comparisons:
-            groups.setdefault(_step_of(c), []).append(c)
+            groups.setdefault(step_of(c), []).append(c)
         children: List[W.Widget] = []
         order = self._group_order(groups)
         target = self._flow.target_step if self._flow.is_open else None
@@ -405,11 +407,11 @@ class ComparisonsWidget:
                 guide = CHAIN_BY_ID.get(key) if key is not None else None
                 if guide is not None:
                     labels = ", ".join(EXPERIMENT_TYPES[t].label for t in guide.experiment_types)
-                    heading = _title(f"{html.escape(guide.title)} "
+                    heading = section_title(f"{html.escape(guide.title)} "
                                      f"<span class='cadetgui-note'>· {len(members)} "
                                      f"measurement(s) · expects: {html.escape(labels)}</span>")
                 else:
-                    heading = _title(
+                    heading = section_title(
                         "Not assigned to a step <span class='cadetgui-note'>· set an "
                         "experiment type under Advanced to assign one</span>"
                     )
@@ -479,15 +481,6 @@ class ComparisonsWidget:
                 self._loading = False
             self._show_card(editing)
 
-    def _unique_name(self, base: str) -> str:
-        names = {c.name for c in self.study.comparisons}
-        if base not in names:
-            return base
-        i = 2
-        while f"{base} {i}" in names:
-            i += 1
-        return f"{base} {i}"
-
     def _base_recipe(self) -> Tuple[Optional[ConfigurationState], str]:
         """Return the recipe new measurements start from and where it comes from."""
         if self.configuration is not None:
@@ -527,7 +520,7 @@ class ComparisonsWidget:
     def _on_added(self, comparison: Comparison, notes: List[str]) -> None:
         self._refresh_runs()
         self.select(comparison.name)
-        guide = CHAIN_BY_ID.get(_step_of(comparison) or "")
+        guide = CHAIN_BY_ID.get(step_of(comparison) or "")
         text = f"Added {comparison.name}." + (
             f" It feeds the step {guide.title!r}; attach it there." if guide else ""
         )
@@ -541,7 +534,7 @@ class ComparisonsWidget:
             return
         comparison = dataclasses.replace(
             source,
-            name=self._unique_name(f"{source.name} copy"),
+            name=self.study.unique_comparison_name(f"{source.name} copy"),
             recipe=copy.deepcopy(source.recipe),
             overrides=copy.deepcopy(source.overrides),
             normalization=dict(source.normalization),
@@ -681,21 +674,21 @@ class ComparisonsWidget:
             self._refresh_runs()
             self._run.value = comparison.data_file
             self._flow_rate.value = (
-                _format(comparison.flow_rate / ML_PER_MIN)
+                number_or_blank(comparison.flow_rate / ML_PER_MIN)
                 if comparison.flow_rate is not None else ""
             )
             baseline = comparison.baseline_window or (None, None)
-            self._baseline_start.value = _format(baseline[0])
-            self._baseline_end.value = _format(baseline[1])
-            self._injection_x.value = _format(comparison.measured_injection)
+            self._baseline_start.value = number_or_blank(baseline[0])
+            self._baseline_end.value = number_or_blank(baseline[1])
+            self._injection_x.value = number_or_blank(comparison.measured_injection)
             self._normalization.value = comparison.normalization.get("kind", "none")
-            self._target_area.value = _format(comparison.normalization.get("target_area"))
+            self._target_area.value = number_or_blank(comparison.normalization.get("target_area"))
             self._metric.set_options(
                 [(m, m) for m in dict.fromkeys((*METRICS, comparison.metric))], keep_value=False
             )
             self._metric.value = comparison.metric
-            self._window_start.value = _format(comparison.window[0])
-            self._window_end.value = _format(comparison.window[1])
+            self._window_start.value = number_or_blank(comparison.window[0])
+            self._window_end.value = number_or_blank(comparison.window[1])
             self._load_run_dependents(comparison.run, comparison)
             self._load_recipe(comparison.recipe, comparison)
         finally:
@@ -760,7 +753,7 @@ class ComparisonsWidget:
 
     def _load_recipe(self, recipe: ConfigurationState, comparison: Comparison) -> None:
         self._recipe = recipe
-        self._template.set_options(_template_options(recipe), keep_value=False)
+        self._template.set_options(template_options(recipe), keep_value=False)
         self._template.value = recipe.template_key
         recipe_flow = recipe.model_values.get("flow_rate")
         self._flow_rate_note.value = (
@@ -769,11 +762,11 @@ class ComparisonsWidget:
         )
 
         self._override_fields = {}
-        children = [_note("Overrides (blank = recipe value)")]
-        for spec in _template_fields(recipe):
+        children = [note("Overrides (blank = recipe value)")]
+        for spec in recipe_template_fields(recipe):
             current = comparison.overrides.get(spec.name)
             recipe_value = recipe.model_values.get(spec.name, spec.default)
-            label = f"{spec.label or spec.name} [recipe {_format_value(recipe_value)}]:"
+            label = f"{spec.label or spec.name} [recipe {value_text(recipe_value)}]:"
             if spec.kind == "choice":
                 element: Any = ChoiceField(
                     label=label,
@@ -784,13 +777,13 @@ class ComparisonsWidget:
             else:
                 shown = (
                     ", ".join(f"{v:g}" for v in current) if spec.kind == "float_list" and current
-                    else _format(current)
+                    else number_or_blank(current)
                 )
                 element = TextField(
                     label=label,
                     value=shown,
                     units=spec.units,
-                    validate=_check_float_list if spec.kind == "float_list" else _check_float,
+                    validate=check_float_list if spec.kind == "float_list" else check_float,
                 )
                 element.observe(self._on_edit, names="value")
             self._override_fields[spec.name] = (spec, element)
@@ -803,7 +796,7 @@ class ComparisonsWidget:
             box.observe(self._on_edit, names="value")
             self._component_fields[name] = box
         self._components_box.children = [
-            _note("Components (none = total):"),
+            note("Components (none = total):"),
             *self._component_fields.values(),
         ]
 
@@ -820,7 +813,7 @@ class ComparisonsWidget:
         )
         self._recipe_summary.value = recipe_summary_html(comparison)
         self._diagram.value = recipe_diagram_svg(
-            comparison.recipe, observe=_observed_unit(comparison.solution_path), compact=True
+            comparison.recipe, observe=observed_unit(comparison.solution_path), compact=True
         )
         problems = self.study.measurement_problems(comparison)
         unprepared = self._show_measured(comparison)
@@ -936,13 +929,13 @@ class ComparisonsWidget:
     def _draft(self) -> Comparison:
         """Return the comparison the editor fields describe."""
         assert self._editing is not None and self._recipe is not None
-        flow_rate = _optional_float(self._flow_rate.value)
-        start, end = _optional_float(self._baseline_start.value), _optional_float(
+        flow_rate = optional_float(self._flow_rate.value)
+        start, end = optional_float(self._baseline_start.value), optional_float(
             self._baseline_end.value
         )
         normalization: dict = {"kind": self._normalization.value}
         if self._normalization.value == "area":
-            normalization["target_area"] = _optional_float(self._target_area.value)
+            normalization["target_area"] = optional_float(self._target_area.value)
         components = [n for n, box in self._component_fields.items() if box.value]
         recipe = self._recipe
         probe, old = self._probe.value, self._editing.probe
@@ -964,7 +957,7 @@ class ComparisonsWidget:
             overrides=self._read_overrides(),
             injection_marker=self._marker.value,
             measured_injection=(
-                _optional_float(self._injection_x.value) if self._marker.value is None else None
+                optional_float(self._injection_x.value) if self._marker.value is None else None
             ),
             baseline_window=None if start is None and end is None else (start, end),
             normalization=normalization,
@@ -972,8 +965,8 @@ class ComparisonsWidget:
             components=components or None,
             metric=self._metric.value,
             window=(
-                _optional_float(self._window_start.value),
-                _optional_float(self._window_end.value),
+                optional_float(self._window_start.value),
+                optional_float(self._window_end.value),
             ),
         )
 

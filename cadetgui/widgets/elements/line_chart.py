@@ -5,7 +5,7 @@ from typing import Any, Optional, Sequence
 import anywidget
 import traitlets as T
 
-from ._assets import css, esm
+from .assets import css, esm
 
 __all__ = ["LineChart", "EventTimelineChart", "ChromatogramChart"]
 
@@ -27,7 +27,7 @@ class LineChart(anywidget.AnyWidget):
     view_width = T.Int(480).tag(sync=True)
     view_height = T.Int(220).tag(sync=True)
 
-    _esm = esm("line_chart", "_unit_parser")
+    _esm = esm("line_chart", "shared/unit_parser")
     _css = css("line_chart")
 
     def __init__(

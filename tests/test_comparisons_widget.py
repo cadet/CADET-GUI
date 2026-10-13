@@ -420,9 +420,7 @@ def test_other_type_offers_a_process_template_that_sets_the_new_recipe(widget, s
 def test_recipe_with_template_uses_defaults_keeps_flow_rate_and_adds_the_loop(study):
     import dataclasses
 
-    from cadetgui.widgets.characterization.measurements.labels import (
-        recipe_with_template,
-    )
+    from cadetgui.instrument.recipes import recipe_with_template
 
     base = study.comparison("System pulse 1 (UV)").recipe
     no_loop = dataclasses.replace(

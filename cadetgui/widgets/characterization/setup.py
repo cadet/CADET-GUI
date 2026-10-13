@@ -23,10 +23,10 @@ from ...characterization.study import Study
 from ...instrument.system import BYPASSABLE_UNITS
 from ...io.configuration_store import ConfigurationState, InstrumentState
 from ..diagrams.instrument import recipe_diagram_svg
-from ..ui.html import status_html
+from ..ui.html import status_html, table_html
 from ..ui.theme import style_tag
 from .help import determines_table_html, experiments_table_html, term_html
-from .measurements.labels import observation_label, system_summary_html
+from .measurements.labels import observation_label, observed_unit, system_summary_html
 
 __all__ = [
     "CharacterizationSetupWidget",
@@ -74,10 +74,6 @@ def _runs_use_html(type_ids: Sequence[str]) -> str:
     return "".join(lines)
 
 
-def _observed_unit(solution_path: Optional[str]) -> Optional[str]:
-    return solution_path.split(".")[0] if solution_path else None
-
-
 def _type_recipe(type_id: str) -> ConfigurationState:
     """Return a recipe carrying only the flow path of experiment type `type_id`, for drawing."""
     experiment = EXPERIMENT_TYPES[type_id]
@@ -101,7 +97,7 @@ def step_diagrams_html(guide: ChainStepGuide, comparisons: Sequence[Comparison] 
     """
     drawn: Dict[tuple, tuple] = {}
     for comparison in comparisons:
-        unit = _observed_unit(comparison.solution_path)
+        unit = observed_unit(comparison.solution_path)
         instrument = comparison.recipe.instrument
         key = (unit, tuple(sorted(instrument.bypass_units)) if instrument else None)
         if key in drawn:
@@ -116,7 +112,7 @@ def step_diagrams_html(guide: ChainStepGuide, comparisons: Sequence[Comparison] 
             experiment = EXPERIMENT_TYPES[type_id]
             drawn[(type_id,)] = (experiment.label, recipe_diagram_svg(
                 _type_recipe(type_id), highlight=guide.system_units,
-                observe=_observed_unit(experiment.solution_path), compact=True,
+                observe=observed_unit(experiment.solution_path), compact=True,
             ))
     cells = "".join(
         f"<div style='flex:1 1 260px;min-width:0'><small>{html.escape(label)}</small>{svg}</div>"
@@ -132,15 +128,13 @@ def components_table_html(study: Study) -> str:
             "<p><em>No " + term_html("component", "components") + " declared yet; add them "
             "under System → Components.</em></p>"
         )
-    rows = "".join(
-        f"<tr><td><b>{html.escape(c.name)}</b></td><td>{term_html(c.role)}</td>"
-        f"<td>{len(study.measurements_using(c.name))}</td></tr>"
+    rows = [
+        [f"<b>{html.escape(c.name)}</b>", term_html(c.role),
+         str(len(study.measurements_using(c.name)))]
         for c in study.components
-    )
-    return (
-        "<b>" + term_html("component", "Components") + "</b>"
-        "<table class='cadetgui-info-table'><tr><th>Name</th><th>Role</th>"
-        f"<th>Used by measurements</th></tr>{rows}</table>"
+    ]
+    return "<b>" + term_html("component", "Components") + "</b>" + table_html(
+        ["Name", "Role", "Used by measurements"], rows, css_class="cadetgui-info-table"
     )
 
 

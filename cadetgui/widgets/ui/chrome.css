@@ -285,7 +285,7 @@
 }
 
 /* Toggle switch for plain ipywidgets Checkboxes; same geometry as
-   elements/_shared.css's .cadetgui-field-bool. The real <input> stays clickable
+   elements/shared/field.css's .cadetgui-field-bool. The real <input> stays clickable
    but invisible, over a track and knob drawn on the wrapping label. */
 .cadetgui-panel .widget-checkbox .widget-label-basic {
   position: relative;

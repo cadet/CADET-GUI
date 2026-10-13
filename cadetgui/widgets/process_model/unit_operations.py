@@ -19,6 +19,12 @@ from CADETProcess.processModel import (
 from CADETProcess.processModel.unitOperation import ChromatographicColumnBase
 
 from ...parameters import describe_parameter
+from ...process_model.values import (
+    assign_literal,
+    code_literal,
+    format_value,
+    parameter_names,
+)
 from ..base import Widget
 from ..elements import ChoiceField, TextField
 from ..ui.format import unit_html
@@ -26,13 +32,7 @@ from ..ui.html import status_html
 from ..ui.layout import CodeView, panel
 from .profiles import PolynomialEditor
 from .sync import changed, watch
-from .values import (
-    assign_literal,
-    code_literal,
-    format_value,
-    parameter_names,
-    value_html,
-)
+from .values import value_html
 
 __all__ = [
     "UnitOperationsWidget",

@@ -10,25 +10,23 @@ from __future__ import annotations
 
 import inspect
 from dataclasses import dataclass, replace
-from types import SimpleNamespace
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from CADETProcess.processModel import ComponentSystem
-
 from ..instrument.process_builder import check_recipe
+from ..instrument.recipes import template_fields
 from ..instrument.starting_values import with_starting_values
 from ..instrument.system import BYPASSABLE_UNITS, UNIT_LABELS
-from ..instrument.templates import INSTRUMENT_TEMPLATES, PARAMS
+from ..instrument.templates import PARAMS
 from ..io.configuration_store import ConfigurationState, InstrumentState
 from ..io.experimental_data import ExperimentalRun
 from ..parameters import get_parameters
+from ..process_model.values import has_parameter
 from .comparison import Comparison
 from .parameter_store import (
     Entry,
     ParameterSpec,
     ParameterStore,
     Provenance,
-    has_parameter,
     read_process,
     spec_for,
 )
@@ -63,6 +61,7 @@ __all__ = [
     "find_injection_marker",
     "guide_for_step",
     "parameter_label",
+    "step_title",
     "species_gap_messages",
     "guide_measurements",
     "role_fix",
@@ -190,7 +189,7 @@ class ExperimentType:
         if "flow_rate_wash" in base_values:
             base_values.setdefault("flow_rate", base_values["flow_rate_wash"])
 
-        fields = {f.name: f for f in _template_fields(self.template_key, components)}
+        fields = {f.name: f for f in template_fields(self.template_key, components)}
         values = {k: v for k, v in base_values.items() if k in fields and not _is_list(v)}
         probe = components[-1]
 
@@ -230,12 +229,6 @@ class ExperimentType:
 
 def _is_list(value: Any) -> bool:
     return isinstance(value, (list, tuple))
-
-
-def _template_fields(template_key: str, components: Sequence[str]) -> list:
-    """Return the instrument template's form fields for `components`, without a flow sheet."""
-    stub = SimpleNamespace(component_system=ComponentSystem(list(components)))
-    return INSTRUMENT_TEMPLATES[template_key](stub).fields
 
 
 def _species_value(base: ConfigurationState, key: str, name: str, fallback: float) -> float:
@@ -867,7 +860,8 @@ def guide_for_step(step: StepSetup) -> Optional[ChainStepGuide]:
     return None
 
 
-def _step_title(step: StepSetup) -> str:
+def step_title(step: StepSetup) -> str:
+    """Return a step's chain title, or its own name for a custom step."""
     guide = guide_for_step(step)
     return guide.title if guide is not None else step.name
 
@@ -889,7 +883,7 @@ def _source_text(study: Any, step: Optional[str]) -> str:
         return f"{experiment.label if experiment else step} assumes it"
     setup = next((s for s in study.steps if s.name == step), None)
     if setup is not None:
-        return f"{_step_title(setup)} fitted it"
+        return f"{step_title(setup)} fitted it"
     return f"step {step} set it"
 
 
@@ -901,7 +895,7 @@ def species_gap_messages(
     E.g. "Binding needs film diffusion (Column) for IgG; Particle transport fitted it for
     BSA", without a closing period.
     """
-    title = _step_title(step)
+    title = step_title(step)
     lines = []
     for path, names in gaps.items():
         entry = store.entries[path]
@@ -1148,7 +1142,7 @@ def _provenance_source(study: Any, step: Optional[str]) -> str:
     if step.startswith("assumed: "):
         return ASSUMED_BY_TYPE
     setup = next((s for s in study.steps if s.name == step), None)
-    return f"from {_step_title(setup) if setup is not None else step}"
+    return f"from {step_title(setup) if setup is not None else step}"
 
 
 def _species_subset(value: Any, species: Sequence[str]) -> Any:

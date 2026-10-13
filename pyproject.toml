@@ -47,6 +47,8 @@ cadetgui = [
     "widgets/ui/*.png",
     "widgets/elements/*.css",
     "widgets/elements/*.js",
+    "widgets/elements/shared/*.css",
+    "widgets/elements/shared/*.js",
 ]
 
 [dependency-groups]

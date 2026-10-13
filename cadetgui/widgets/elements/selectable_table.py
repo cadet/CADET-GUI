@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import traitlets as T
 
-from ._assets import css, esm
+from .assets import css, esm
 from .choice_field import ChoiceField
 
 __all__ = ["SelectableTable"]
@@ -31,8 +31,8 @@ class SelectableTable(ChoiceField):
     rows = T.List(T.List(T.Dict())).tag(sync=True)
     empty_text = T.Unicode("Nothing here yet.").tag(sync=True)
 
-    _esm = esm("selectable_table", "_field")
-    _css = css("_error", "selectable_table")
+    _esm = esm("selectable_table", "shared/field")
+    _css = css("shared/error", "selectable_table")
 
     def __init__(
         self,

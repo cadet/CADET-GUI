@@ -5,13 +5,10 @@ import warnings
 import numpy as np
 import pytest
 from cadetgui import FlowSheetWidget, ProcessWidget, SimulationWidget
-from cadetgui.widgets.process_model.flow_sheet import render_flow_sheet_svg
+from cadetgui.process_model.values import assign_literal, format_value
+from cadetgui.widgets.diagrams.flow_sheet import render_flow_sheet_svg
 from cadetgui.widgets.process_model.unit_operations import UnitOperationWidget
-from cadetgui.widgets.process_model.values import (
-    assign_literal,
-    format_value,
-    value_html,
-)
+from cadetgui.widgets.process_model.values import value_html
 from cadetgui.widgets.ui.format import unit_html
 from CADETProcess.processModel import (
     ComponentSystem,

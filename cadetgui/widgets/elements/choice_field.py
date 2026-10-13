@@ -4,7 +4,7 @@ from typing import Any, List, Optional, Sequence, Tuple
 
 import traitlets as T
 
-from ._assets import FIELD_CSS, field_esm
+from .assets import FIELD_CSS, field_esm
 from .base import Element, Validator
 
 __all__ = ["ChoiceField"]

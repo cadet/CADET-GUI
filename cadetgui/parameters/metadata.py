@@ -30,7 +30,7 @@ from CADETProcess.simulator.cadetAdapter import (
     unit_parameters_map,
 )
 
-__all__ = ["get_parameters", "get_parameter", "describe_parameter"]
+__all__ = ["get_parameters", "get_parameter", "describe_parameter", "parameter_descriptor"]
 
 # The CADET-Process class behind each (category, model name).
 _MODEL_CLASSES: dict[tuple[str, str], type] = {
@@ -62,7 +62,7 @@ def _inverse_co_name_maps() -> dict[tuple[str, str], dict[str, str]]:
     return out
 
 
-def _descriptor(cls: type, name: str) -> Any | None:
+def parameter_descriptor(cls: type, name: str) -> Any | None:
     """Return the `ParameterBase` descriptor backing `name` on `cls`, or `None`.
 
     `q`, `cp` and `surface_diffusion` are properties over a private descriptor
@@ -113,7 +113,7 @@ def get_parameters(category: str, model: str) -> dict[str, dict]:
     Raises `KeyError` for an unregistered `(category, model)`.
     """
     cls = _MODEL_CLASSES[(category, model)]
-    descriptors = {name: _descriptor(cls, name) for name in sorted(set(cls._parameters))}
+    descriptors = {name: parameter_descriptor(cls, name) for name in sorted(set(cls._parameters))}
     return {
         name: _live_metadata(category, model, name, descriptor)
         for name, descriptor in descriptors.items()
@@ -140,7 +140,7 @@ def describe_parameter(obj: Any, name: str) -> tuple[str, str]:
     """Return unit and description of parameter `name` of any CADET-Process object."""
     if isinstance(obj, Inlet) and name in _INLET_DESCRIPTIONS:
         return _INLET_DESCRIPTIONS[name]
-    descriptor = _descriptor(type(obj), name)
+    descriptor = parameter_descriptor(type(obj), name)
     if descriptor is None:
         return "", ""
     return descriptor.unit or "", descriptor.description or ""

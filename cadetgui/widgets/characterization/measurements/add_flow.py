@@ -26,6 +26,11 @@ from ....characterization.guide import (
 )
 from ....characterization.study import Study
 from ....instrument.process_builder import check_recipe
+from ....instrument.recipes import (
+    recipe_flow_rate,
+    recipe_with_template,
+    template_options,
+)
 from ....io.configuration_store import ConfigurationState
 from ....io.experimental_data import ExperimentalRun
 from ...diagrams.instrument import recipe_diagram_svg
@@ -36,27 +41,22 @@ from ...elements import (
     TextField,
 )
 from ...ui.html import status_html
+from ...ui.layout import note, row, section_title
 from ..help import term_html
 from .labels import (
     ML_PER_MIN,
-    _check_float,
-    _detector_hint,
-    _format,
-    _note,
-    _observed_unit,
-    _optional_float,
-    _recipe_flow_rate,
-    _row,
-    _same,
-    _template_options,
-    _title,
+    check_float,
     component_options,
+    detector_hint,
+    number_or_blank,
     observation_label,
+    observed_unit,
+    optional_float,
     problems_html,
     recipe_summary_html,
-    recipe_with_template,
+    same_value,
 )
-from .upload import _RunUpload
+from .upload import RunUpload
 
 if TYPE_CHECKING:
     pass
@@ -69,7 +69,7 @@ _MAX_PREVIEW_POINTS = 2000
 _PAGES = ("Upload", "Channel", "Experiment type", "Details", "Confirm")
 
 
-class AddMeasurementFlow(_RunUpload):
+class AddMeasurementFlow(RunUpload):
     """In-pane stepper: data file → channel → experiment type → details → a new comparison.
 
     Started for a step (or one of its experiment types), the experiment-type page is
@@ -110,7 +110,7 @@ class AddMeasurementFlow(_RunUpload):
 
         self._channel = ChoiceField(label="Channel:")
         self._channel_chart = ChromatogramChart(view_width=480, view_height=200, y_label="Signal")
-        self._markers = _note()
+        self._markers = note()
 
         self._type_table = SelectableTable(
             columns=["Feeds step", "Experiment type", "Detector"],
@@ -118,13 +118,13 @@ class AddMeasurementFlow(_RunUpload):
         )
         self._type_help = W.HTML()
         self._other_template = ChoiceField(label="Process template:")
-        self._other_template_note = _note(
+        self._other_template_note = note(
             "Runs added as “Other” get no experiment type, so pick the process (method) "
             "the run followed. It starts with the template's default timing and "
             "concentrations; change them under Advanced after adding."
         )
         self._other_template_box = W.VBox(
-            [_row(self._other_template), self._other_template_note],
+            [row(self._other_template), self._other_template_note],
             layout=W.Layout(display="none"),
         )
 
@@ -139,7 +139,7 @@ class AddMeasurementFlow(_RunUpload):
         self._new_component = TextField(label="New component:",
                                         validate=self._check_new_component)
         self._new_role = ChoiceField(label="Role:")
-        self._component_note = _note()
+        self._component_note = note()
         self._role_fix = W.HTML()
         self._role_fix_target: Optional[Tuple[str, str]] = None
         self._btn_role_fix = W.Button(
@@ -147,9 +147,9 @@ class AddMeasurementFlow(_RunUpload):
             layout=W.Layout(width="auto", display="none"),
         )
         self._btn_role_fix.on_click(lambda _b: self.make_component_fit())
-        self._flow_rate = TextField(label="Flow rate:", units="mL/min", validate=_check_float)
+        self._flow_rate = TextField(label="Flow rate:", units="mL/min", validate=check_float)
         self._marker = ChoiceField(label="Injection marker:")
-        self._details_note = _note()
+        self._details_note = note()
 
         self._base_note = W.HTML()
         self._summary = W.HTML()
@@ -160,7 +160,7 @@ class AddMeasurementFlow(_RunUpload):
             description="Also add the values this experiment type assumes to the parameter store",
             layout=W.Layout(width="auto"),
         )
-        self._implied_note = _note()
+        self._implied_note = note()
 
         self._progress = W.HTML()
         self._btn_back = W.Button(description="Back", icon="arrow-left")
@@ -185,13 +185,13 @@ class AddMeasurementFlow(_RunUpload):
         self._pages = [
             upload_page,
             W.VBox([
-                _note("Pick the detector channel this measurement compares against."),
-                _row(self._channel),
+                note("Pick the detector channel this measurement compares against."),
+                row(self._channel),
                 self._channel_chart,
                 self._markers,
             ]),
             W.VBox([
-                _note("What did you run? The experiment type sets the flow path, process "
+                note("What did you run? The experiment type sets the flow path, process "
                       "template and observation point, and which characterization step the "
                       "measurement feeds. Types matching the channel's detector are marked."),
                 self._type_table,
@@ -200,16 +200,16 @@ class AddMeasurementFlow(_RunUpload):
             ]),
             W.VBox([
                 self._step_type_box,
-                _row(self._name, self._component),
-                _row(self._new_component, self._new_role),
+                row(self._name, self._component),
+                row(self._new_component, self._new_role),
                 self._component_note,
-                _row(self._role_fix, self._btn_role_fix),
-                _row(self._flow_rate, self._marker),
+                row(self._role_fix, self._btn_role_fix),
+                row(self._flow_rate, self._marker),
                 self._details_note,
             ]),
             W.VBox([
                 self._base_note,
-                _title(term_html("recipe", "Recipe") + " of the new measurement"),
+                section_title(term_html("recipe", "Recipe") + " of the new measurement"),
                 self._summary,
                 self._diagram,
                 self._confirm_problems,
@@ -417,7 +417,7 @@ class AddMeasurementFlow(_RunUpload):
     # 3 Experiment type
 
     def _fill_types(self, select: Optional[str]) -> None:
-        hint = _detector_hint(self._channel.value or "")
+        hint = detector_hint(self._channel.value or "")
         options: List[Tuple[str, str]] = []
         rows: List[List[Any]] = []
         chained = [t for g in DEFAULT_CHAIN for t in g.experiment_types]
@@ -478,7 +478,7 @@ class AddMeasurementFlow(_RunUpload):
             self._other_template.set_options([], keep_value=False)
             return
         keep = self._other_template.value
-        options = _template_options(base)
+        options = template_options(base)
         self._other_template.set_options(options, keep_value=False)
         values = [v for _, v in options]
         self._other_template.value = keep if keep in values else base.template_key
@@ -498,7 +498,7 @@ class AddMeasurementFlow(_RunUpload):
         channel = self._channel.value
         if not self._type_chosen and channel != self._typed_for_channel:
             self._typed_for_channel = channel
-            hint = _detector_hint(channel or "")
+            hint = detector_hint(channel or "")
             matches = [t for t in types if EXPERIMENT_TYPES[t].detector == hint]
             if self._explicit_type in types:
                 choice = self._explicit_type
@@ -651,15 +651,6 @@ class AddMeasurementFlow(_RunUpload):
         if role is not None:
             self._new_role.value = role
 
-    def _unique_name(self, base: str) -> str:
-        names = {c.name for c in self.study.comparisons}
-        if base not in names:
-            return base
-        i = 2
-        while f"{base} {i}" in names:
-            i += 1
-        return f"{base} {i}"
-
     def _prefill_details(self) -> None:
         experiment_type = self.experiment_type
         base, _ = self._base_recipe()
@@ -667,7 +658,7 @@ class AddMeasurementFlow(_RunUpload):
         if key != self._prefilled_for:
             self._prefilled_for = key
             label = self.run.label if self.run is not None else "Measurement"
-            self._name.value = self._unique_name(label)
+            self._name.value = self.study.unique_comparison_name(label)
             probes = [
                 c.probe for c in self.study.comparisons
                 if c.probe and experiment_type is not None
@@ -680,8 +671,8 @@ class AddMeasurementFlow(_RunUpload):
                     experiment_type.apply(base, component="Probe")
                     if experiment_type is not None else base
                 )
-                flow_rate = _recipe_flow_rate(recipe)
-            self._flow_rate.value = _format(
+                flow_rate = recipe_flow_rate(recipe)
+            self._flow_rate.value = number_or_blank(
                 flow_rate / ML_PER_MIN if flow_rate is not None else None
             )
             self._fill_markers(experiment_type)
@@ -714,7 +705,7 @@ class AddMeasurementFlow(_RunUpload):
         name = self._name.value.strip()
         channel = self._channel.value or ""
         marker = self._marker.value
-        flow_rate = _optional_float(self._flow_rate.value)
+        flow_rate = optional_float(self._flow_rate.value)
         flow_rate = flow_rate * ML_PER_MIN if flow_rate is not None else None
         experiment_type = self.experiment_type
         if experiment_type is None:
@@ -722,7 +713,7 @@ class AddMeasurementFlow(_RunUpload):
             template = self._other_template.value
             if template is not None and template != base.template_key:
                 recipe = recipe_with_template(recipe, template)
-            recipe_flow = _recipe_flow_rate(recipe)
+            recipe_flow = recipe_flow_rate(recipe)
             options = list(check_recipe(recipe).signal_options)
             unit, port = options[0][1] if options else ("outlet", "inlet")
             comparison = Comparison(
@@ -731,7 +722,7 @@ class AddMeasurementFlow(_RunUpload):
                 channel=channel,
                 recipe=recipe,
                 solution_path=f"{unit}.{port}",
-                flow_rate=None if _same(flow_rate, recipe_flow) else flow_rate,
+                flow_rate=None if same_value(flow_rate, recipe_flow) else flow_rate,
                 injection_marker=marker,
                 probe=self.component,
                 run=self.run,
@@ -744,7 +735,7 @@ class AddMeasurementFlow(_RunUpload):
         comparison = measurement_from_run(
             name, self.run, channel, experiment_type, base,
             component=component,
-            flow_rate=None if _same(flow_rate, recipe_flow) else flow_rate,
+            flow_rate=None if same_value(flow_rate, recipe_flow) else flow_rate,
             injection_marker=marker,
         )
         return dataclasses.replace(comparison, data_file=self.data_file, injection_marker=marker)
@@ -774,7 +765,7 @@ class AddMeasurementFlow(_RunUpload):
         comparison = self.draft()
         self._summary.value = recipe_summary_html(comparison)
         self._diagram.value = recipe_diagram_svg(
-            comparison.recipe, observe=_observed_unit(comparison.solution_path), compact=True
+            comparison.recipe, observe=observed_unit(comparison.solution_path), compact=True
         )
         self._confirm_problems.value = problems_html(comparison.problems())
         self._btn_add.disabled = False

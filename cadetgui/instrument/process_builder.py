@@ -8,9 +8,9 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 from CADETProcess.instruments import LCFlowSheet
 from CADETProcess.processModel import ComponentSystem, Process
 
-from ..characterization.parameter_store import has_parameter
 from ..io.configuration_store import ConfigurationState
 from ..parameters.specs import FieldSpec, ModelSpec, build_parameter_config_spec
+from ..process_model.values import has_parameter
 from .signals import measurable_signal_options
 from .system import (
     BINDING_MODELS,

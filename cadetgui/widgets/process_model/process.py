@@ -9,23 +9,23 @@ import numpy as np
 from CADETProcess.instruments import LCFlowSheet
 from CADETProcess.processModel import FlowSheet, Process
 
-from ..base import Widget
-from ..elements import EventTimelineChart, TextField
-from ..instrument.templates import TemplateEditor, available_templates
-from ..ui.layout import CodeView, collapsible, panel
-from .events import EventEditor
-from .sync import changed, watch
-from .timeline import timeline_chart_data
-from .values import (
+from ...process_model.values import (
     assign_literal,
     code_literal,
-    components_html,
     format_value,
     parameter_names,
     parameter_owners,
     set_by_path,
-    value_html,
 )
+from ..base import Widget
+from ..elements import EventTimelineChart, TextField
+from ..instrument.templates import TemplateEditor, available_templates
+from ..ui.html import table_html
+from ..ui.layout import CodeView, collapsible, panel
+from .events import EventEditor
+from .sync import changed, watch
+from .timeline import timeline_chart_data
+from .values import components_html, value_html
 
 __all__ = ["ProcessWidget", "parameter_paths_html"]
 
@@ -45,15 +45,9 @@ def parameter_paths_html(process: Any) -> str:
                 shown = "<span class='cadetgui-param-missing'>missing</span>"
             else:
                 shown = "–" if value is None else value
-            rows.append(
-                f"<tr><td><code>{html.escape(prefix)}.{html.escape(name)}</code></td>"
-                f"<td>{shown}</td></tr>"
-            )
-    if not rows:
-        return "<em>The flow sheet has no units yet.</em>"
-    return (
-        "<table class='cadetgui-table'><thead><tr><th>Path</th><th>Value</th></tr></thead>"
-        f"<tbody>{''.join(rows)}</tbody></table>"
+            rows.append([f"<code>{html.escape(prefix)}.{html.escape(name)}</code>", shown])
+    return table_html(
+        ["Path", "Value"], rows, empty_html="<em>The flow sheet has no units yet.</em>"
     )
 
 

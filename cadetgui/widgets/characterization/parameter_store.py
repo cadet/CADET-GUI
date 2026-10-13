@@ -17,20 +17,21 @@ from ...characterization.parameter_store import (
 )
 from ...characterization.study import Study
 from ...instrument.system import UNIT_LABELS
+from ...process_model.values import number_text
 from ..elements import ChoiceField, SelectableTable
 from ..ui.html import status_html
 from ..ui.theme import style_tag
 from .help import term_html
 
-__all__ = ["ParameterStoreWidget", "parameter_label", "set_by_label"]
+__all__ = ["ParameterStoreWidget", "parameter_row_label", "set_by_label"]
 
 CURRENT = "__current__"
 INITIAL = "__initial__"
 ASSUMED = "assumed: "
 
 
-def parameter_label(path: str) -> str:
-    """Plain name for a parameter path, e.g. "Tubing (pre column) · axial dispersion"."""
+def parameter_row_label(path: str) -> str:
+    """Return a parameter path's table-row name, e.g. "Tubing (pre column) · axial dispersion"."""
     parts = path.split(".")
     if len(parts) >= 3 and parts[0] == "flow_sheet" and parts[1] in UNIT_LABELS:
         return f"{UNIT_LABELS[parts[1]]} · {' '.join(parts[2:]).replace('_', ' ')}"
@@ -47,11 +48,9 @@ def set_by_label(step: str) -> str:
 
 
 def _fmt(value: Any) -> str:
-    if isinstance(value, float):
-        return f"{value:.4g}"
     if isinstance(value, list):
         return "[" + ", ".join(_fmt(v) for v in value) + "]"
-    return str(value)
+    return number_text(value, digits=4) if isinstance(value, float) else str(value)
 
 
 def _metric(metric: Optional[dict]) -> str:
@@ -202,7 +201,7 @@ class ParameterStoreWidget:
             prov = entry.provenance
             for species, value in values:
                 rows.append([
-                    parameter_label(path), path, species, _fmt(value),
+                    parameter_row_label(path), path, species, _fmt(value),
                     (set_by_label(prov.step), "info"), prov.probe or "", prov.source or "",
                     _metric(prov.metric), prov.note or "",
                 ])

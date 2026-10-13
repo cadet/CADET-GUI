@@ -15,10 +15,10 @@ from ....characterization.parameter_store import ParameterStore
 from ....characterization.runner import Candidate, StepSetup, current_best_average
 from ...elements import ChromatogramChart, LineChart
 from ...ui.html import status_html
-from .results import _preview_series, _preview_title
+from .results import preview_series, preview_title
 
 
-class _StepRun:
+class StepRun:
     """Run mechanics of `CharacterizationStepWidget`: fit thread, progress, live fit plot.
 
     The host provides `running` and `_finish(start)`.
@@ -190,8 +190,8 @@ class _StepRun:
 
     def _show_live(self, previews: list, title: str) -> None:
         for (label, chart), preview in zip(self._live_chart_widgets, previews):
-            label.value = _preview_title(preview)
-            chart.series = _preview_series(preview)
+            label.value = preview_title(preview)
+            chart.series = preview_series(preview)
         self._live_title.value = f"<b>{html.escape(title)}</b>"
         self._live_note.value = ""
 
