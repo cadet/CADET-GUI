@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import replace
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Collection,
@@ -38,10 +37,6 @@ from ..forms import FormRenderer
 from ..ui.html import status_html
 from ..ui.layout import toggle_box
 from ..ui.theme import style_tag
-
-if TYPE_CHECKING:
-    from ...characterization.study import Study
-    from ..characterization.components import StudyComponentsWidget
 
 __all__ = ["InstrumentWidget"]
 
@@ -88,8 +83,8 @@ class InstrumentWidget:
     parameter form. The "Components" section above the hardware edits the component names
     (also settable via `.components`); the column/binding types are driven from outside via
     `set_column_and_binding()`. Both default to something sane so the widget also builds a
-    flow sheet on its own. `bind_study(study)` turns the Components section into an editor
-    of `study.components` (name and role) that the component names follow.
+    flow sheet on its own. `set_components_editor` swaps the component-name field for
+    another editor (the characterization bench shows its study's components there).
 
     Builds `.flow_sheet`, auto-committing on every valid change; `add_listener` fires with
     it on every build. While any input is invalid the offending field shows the error,
@@ -116,9 +111,6 @@ class InstrumentWidget:
 
         self._component_names: List[str] = ["Component 1"]
         self._syncing_components = False
-        self._study: Optional["Study"] = None
-        self._study_names: List[str] = []
-        self.study_components: Optional["StudyComponentsWidget"] = None
         self._components_field = ComponentListField(
             label="Components:", value=self._component_names
         )
@@ -337,27 +329,9 @@ class InstrumentWidget:
         self._components_note.value = f"<em>{note}</em>" if note else ""
         self._components_note.layout.display = "" if note else "none"
 
-    def bind_study(self, study: "Study") -> None:
-        """Edit `study.components` (name and role) in the Components section.
-
-        The component names follow the study's list (salt first) whenever it changes.
-        """
-        from ..characterization.components import StudyComponentsWidget
-
-        self._study = study
-        self.study_components = StudyComponentsWidget(study)
-        self.study_components.root.remove_class("cadetgui-section")
-        self._components_section.children = (
-            self.study_components.root, self._components_note,
-        )
-        study.add_listener(self._sync_from_study)
-        self._sync_from_study()
-
-    def _sync_from_study(self) -> None:
-        names = [c.name for c in self._study.components]
-        if names and names != self._study_names:
-            self._study_names = names
-            self.components = names
+    def set_components_editor(self, editor: W.Widget) -> None:
+        """Show `editor` instead of the component-name field, e.g. a study's component table."""
+        self._components_section.children = (editor, self._components_note)
 
     def set_column_and_binding(
         self,

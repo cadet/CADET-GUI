@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional
 
 import ipywidgets as W
 
-from ..characterization.measurements.labels import ML_PER_MIN
+from ...instrument.templates import ML_PER_MIN
 from ..elements import TextField
 
 if TYPE_CHECKING:

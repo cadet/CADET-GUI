@@ -29,6 +29,9 @@ CONCENTRATION_UNITS = r"\frac{\mathrm{mol}}{\mathrm{m}^{3}_{\mathrm{IV}}}"
 # 1 mL/min in m^3/s, written at the 10 significant figures the event sliders round to.
 DEFAULT_FLOW_RATE = 1.666666667e-8
 
+# 1 mL/min in m^3/s, for converting entered flow rates.
+ML_PER_MIN = 1e-6 / 60.0
+
 # Shared scalar process fields (m^3/s, s). Per-component concentration fields are built
 # by `_concentration_field` instead, since they depend on the component system.
 PARAMS: dict[str, FieldSpec] = {

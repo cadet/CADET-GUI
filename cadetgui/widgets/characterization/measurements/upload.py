@@ -16,9 +16,9 @@ from ....io.experimental_data import (
     read_headers,
 )
 from ...elements import ChoiceField
+from ...instrument.data_import import COLUMN_ROLE_OPTIONS
 from ...ui.html import status_html
 from ...ui.layout import note, row
-from .labels import COLUMN_ROLE_OPTIONS
 
 
 def _upload_items(value: Any) -> List[dict]:

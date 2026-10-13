@@ -10,6 +10,7 @@ from ...characterization.guide import guide_for_step
 from ...characterization.step_checks import study_steps_status
 from ...characterization.study import Study
 from ...io.configuration_store import ConfigurationState
+from ..characterization.components import bind_study_components
 from ..characterization.guide import CharacterizationGuideWidget
 from ..characterization.measurements.comparisons import ComparisonsWidget
 from ..characterization.parameter_store import ParameterStoreWidget, chain_warnings
@@ -116,8 +117,7 @@ class CharacterizationWorkbenchWidget:
                 binding="Steric Mass Action (SMA)",
             )
 
-        self.instrument.bind_study(self.study)
-        self.components = self.instrument.study_components
+        self.components = bind_study_components(self.instrument, self.study)
         self.flow_rate = FlowRateSection(self.configuration, note=_FLOW_RATE_NOTE)
         self.instrument.add_section(self.flow_rate.root, after_components=True)
 

@@ -15,12 +15,21 @@ from ...io.experimental_data import (
     read_headers,
     to_time,
 )
-from ..characterization.measurements.labels import COLUMN_ROLE_OPTIONS
 from ..elements import ChoiceField
 from ..ui.html import status_html
 from ..ui.theme import style_tag
 
 __all__ = ["DataImportWidget", "ExperimentalDataset"]
+
+
+# Column-mapping dropdown options: (label, ColumnRole value).
+COLUMN_ROLE_OPTIONS = [
+    ("Time [s]", "time_s"),
+    ("Time [min]", "time_min"),
+    ("Volume [mL]", "volume_ml"),
+    ("Signal channel", "signal"),
+    ("Skip", "skip"),
+]
 
 
 class DataImportWidget:

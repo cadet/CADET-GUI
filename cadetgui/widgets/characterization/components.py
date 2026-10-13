@@ -10,7 +10,7 @@ from ..ui.html import info_box_html, status_html
 from ..ui.theme import style_tag
 from .help import term_html
 
-__all__ = ["StudyComponentsWidget", "COMPONENTS_HELP"]
+__all__ = ["StudyComponentsWidget", "COMPONENTS_HELP", "bind_study_components"]
 
 COMPONENTS_HELP = (
     "<p>Components are the molecules you inject or elute with: tracers, the protein and, "
@@ -208,3 +208,25 @@ class StudyComponentsWidget:
         from IPython.display import display as _display
 
         _display(self.root)
+
+
+def bind_study_components(instrument: Any, study: Study) -> StudyComponentsWidget:
+    """Edit `study.components` in an InstrumentWidget's Components section.
+
+    The instrument's component names follow the study's list (salt first) whenever it
+    changes.
+    """
+    editor = StudyComponentsWidget(study)
+    editor.root.remove_class("cadetgui-section")
+    instrument.set_components_editor(editor.root)
+    shown: List[str] = []
+
+    def follow() -> None:
+        names = [c.name for c in study.components]
+        if names and names != shown:
+            shown[:] = names
+            instrument.components = names
+
+    study.add_listener(follow)
+    follow()
+    return editor

@@ -12,13 +12,13 @@ from ....characterization.comparison import Comparison
 from ....characterization.guide import EXPERIMENT_TYPES, role_fix
 from ....characterization.study import Study
 from ....instrument.process_builder import check_recipe
+from ....instrument.templates import ML_PER_MIN
 from ....io.configuration_store import ConfigurationState
 from ....io.experimental_data import ExperimentalRun
 from ...elements import BoolField, ChoiceField, TextField
 from ...ui.layout import collapsible, note, row, section_title
 from ..help import term_html
 from .labels import (
-    ML_PER_MIN,
     check_float,
     component_options,
     flow_rate_text,

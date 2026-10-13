@@ -18,6 +18,7 @@ from ....characterization.study import Study
 from ....instrument.recipes import recipe_flow_rate
 from ....instrument.signals import signal_label
 from ....instrument.system import BYPASSABLE_UNITS, UNIT_LABELS
+from ....instrument.templates import ML_PER_MIN
 from ....io.configuration_store import ConfigurationState
 from ....parameters.specs import parse_float_list
 from ....process_model.values import number_text
@@ -28,17 +29,9 @@ if TYPE_CHECKING:
     pass
 
 
-ML_PER_MIN = 1e-6 / 60.0
 MAX_CHART_POINTS = 2000
 
 # Column-mapping dropdown options: (label, ColumnRole value).
-COLUMN_ROLE_OPTIONS = [
-    ("Time [s]", "time_s"),
-    ("Time [min]", "time_min"),
-    ("Volume [mL]", "volume_ml"),
-    ("Signal channel", "signal"),
-    ("Skip", "skip"),
-]
 
 # Substring of a `Comparison.problems()` message -> what the user should do about it.
 _ADVICE: Tuple[Tuple[str, str], ...] = (

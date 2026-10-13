@@ -7,7 +7,10 @@ import cadetgui.io.configuration_store as configuration_store
 import pytest
 from cadetgui.characterization.study import Study, StudyComponent
 from cadetgui.widgets.benches.characterization import CharacterizationWorkbenchWidget
-from cadetgui.widgets.characterization.components import StudyComponentsWidget
+from cadetgui.widgets.characterization.components import (
+    StudyComponentsWidget,
+    bind_study_components,
+)
 from cadetgui.widgets.characterization.measurements.comparisons import ComparisonsWidget
 from cadetgui.widgets.characterization.setup import (
     CharacterizationSetupWidget,
@@ -88,7 +91,7 @@ def test_salt_row_is_fixed(study):
 def test_system_pane_edits_components_with_roles_above_the_hardware(study):
     wb = CharacterizationWorkbenchWidget(study=study)
     assert wb._shell.panes["System: Instrument"] is wb.instrument.root
-    assert wb.components is wb.instrument.study_components
+    assert wb.components.root in wb.instrument._components_section.children
     children = list(wb.instrument.root.children)
     section = wb.instrument._components_section
     assert children.index(section) < children.index(wb.instrument._diagram.root)
@@ -112,12 +115,11 @@ def test_workbench_components_follow_the_study(study):
 
 def test_roles_only_when_a_study_is_bound(study):
     iw = InstrumentWidget()
-    assert iw.study_components is None
     assert iw._components_field in iw._components_section.children
 
-    iw.bind_study(study)
+    editor = bind_study_components(iw, study)
     assert iw._components_field not in iw._components_section.children
-    assert iw.study_components.rows["SmallTracer"][1].value == "small tracer"
+    assert editor.rows["SmallTracer"][1].value == "small tracer"
     assert iw.components == EXAMPLE
 
 
