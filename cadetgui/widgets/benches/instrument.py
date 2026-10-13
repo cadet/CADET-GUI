@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
+from ..base import Widget
 from ..estimation.estimation import ParameterEstimationWidget
 from ..instrument.configuration import ConfigurationWidget
 from ..instrument.instrument import InstrumentWidget
@@ -27,7 +28,7 @@ PROCESS_PANE = system_pane_label(PROCESS)
 _STEPS = (SYSTEM, PROCESS, SIMULATION, ESTIMATION)
 
 
-class InstrumentWorkbenchWidget:
+class InstrumentWorkbenchWidget(Widget):
     """Top-level shell: a sidebar of system and process configuration, simulation, estimation.
 
     Builds and wires an `InstrumentWidget`, `ConfigurationWidget`, `SolutionWidget` and
@@ -56,6 +57,7 @@ class InstrumentWorkbenchWidget:
         parameter_estimation: Optional[ParameterEstimationWidget] = None,
         starting_values: bool = True,
     ) -> None:
+        super().__init__()
         steps = tuple(include) if include is not None else _STEPS
         validate_steps(steps, _STEPS)
 
@@ -111,9 +113,3 @@ class InstrumentWorkbenchWidget:
             )
 
         self.root = bench_root("Workbench", self._shell, self.configuration)
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)

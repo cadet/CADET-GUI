@@ -10,6 +10,7 @@ from ...instrument.signals import measurable_signal_options
 from ...io import configuration_store, run_store
 from ...process_model.signals import classify_signal_ports
 from ...process_model.simulation import run_process as _default_runner
+from ..base import Widget
 from ..elements import ChoiceField
 from ..process_model.solution_view import SolutionView
 from ..ui.html import status_html
@@ -57,7 +58,7 @@ def save_signal_outputs(
     return saved
 
 
-class SolutionWidget:
+class SolutionWidget(Widget):
     """Run a CADET-Process process, plot its solution and keep a history of runs."""
 
     def __init__(
@@ -66,11 +67,11 @@ class SolutionWidget:
         process: Any = None,
         runner: Optional[Callable[..., Any]] = None,
     ) -> None:
+        super().__init__()
         self._runner = runner or _default_runner
         self.process = process
         self.result: Any = None
         self._config_widget: Optional[Any] = None
-        self._listeners: list[Callable[[], None]] = []
         # Setting the history folder by hand stops it following the bound configuration.
         self._history_store_dir_overridden = False
         self._suspend_store_dir_sync = False
@@ -194,14 +195,6 @@ class SolutionWidget:
         self._history_store_dir_overridden = store_dir is not None
         if store_dir is None:
             self._sync_history_store_dir()
-
-    def add_listener(self, fn: Callable[[], None]) -> None:
-        """Register a callback fired (no args) whenever a new result is loaded."""
-        self._listeners.append(fn)
-
-    def _notify(self) -> None:
-        for fn in list(self._listeners):
-            fn()
 
     def _display_name(self) -> str:
         """Return the bound configuration's name, or the process's own name if none is bound."""
@@ -443,9 +436,3 @@ class SolutionWidget:
             self.result, targets, results_dir, stem_prefix, plots=plots, csv=csv
         )
         self._save_outputs_status.value = f"<em>Saved {saved} file(s) to {results_dir}.</em>"
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)

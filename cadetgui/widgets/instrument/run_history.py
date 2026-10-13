@@ -8,6 +8,7 @@ from typing import Any, Callable, List, Optional
 import ipywidgets as W
 
 from ...io import run_store
+from ..base import Widget
 from ..elements import SelectableTable, TextField
 from ..ui.theme import style_tag
 
@@ -37,7 +38,7 @@ class RunRecord:
         return self.error is None
 
 
-class RunHistoryWidget:
+class RunHistoryWidget(Widget):
     """Chronological list of run results; pick one to revisit.
 
     Callers `record()` a run and `add_listener()` to react when the user picks one.
@@ -55,8 +56,8 @@ class RunHistoryWidget:
         store_dir: "Path | str | None" = None,
         on_manual_store_dir_change: Optional[Callable[[Optional[Path]], None]] = None,
     ) -> None:
+        super().__init__()
         self.runs: List[RunRecord] = []
-        self._listeners: List[Callable[[RunRecord], None]] = []
         self._store_dir: Optional[Path] = None
         self._on_manual_store_dir_change = on_manual_store_dir_change
 
@@ -75,10 +76,6 @@ class RunHistoryWidget:
         self.root.add_class("cadetgui-panel")
 
         self.store_dir = store_dir
-
-    def add_listener(self, fn: Callable[[RunRecord], None]) -> None:
-        """Register a callback fired with the picked RunRecord on every selection."""
-        self._listeners.append(fn)
 
     def record(
         self,
@@ -208,11 +205,4 @@ class RunHistoryWidget:
         run = self.picker.value
         if run is None:
             return
-        for fn in list(self._listeners):
-            fn(run)
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)
+        self._notify(run)

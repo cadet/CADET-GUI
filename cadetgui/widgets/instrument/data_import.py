@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, List, Optional
+from typing import List, Optional
 
 import ipywidgets as W
 
@@ -15,6 +15,7 @@ from ...io.experimental_data import (
     read_headers,
     to_time,
 )
+from ..base import Widget
 from ..elements import ChoiceField
 from ..ui.html import status_html
 from ..ui.theme import style_tag
@@ -32,7 +33,7 @@ COLUMN_ROLE_OPTIONS = [
 ]
 
 
-class DataImportWidget:
+class DataImportWidget(Widget):
     """Import experimental chromatography data for comparison.
 
     Reads generic header CSVs (one x column + N signal columns) and Äkta/Unicorn-style
@@ -41,8 +42,8 @@ class DataImportWidget:
     """
 
     def __init__(self) -> None:
+        super().__init__()
         self.datasets: List[ExperimentalDataset] = []
-        self._listeners: List[Callable[[], None]] = []
 
         self._upload = W.FileUpload(
             accept=".csv,.txt,.tsv", multiple=True, description="Import CSV"
@@ -80,14 +81,6 @@ class DataImportWidget:
             ]
         )
         self.root.add_class("cadetgui-panel")
-
-    def add_listener(self, fn: Callable[[], None]) -> None:
-        """Register a callback fired (no args) whenever the dataset list changes."""
-        self._listeners.append(fn)
-
-    def _notify(self) -> None:
-        for fn in list(self._listeners):
-            fn()
 
     def _on_upload(self, _change: dict) -> None:
         if not self._upload.value:
@@ -268,9 +261,3 @@ class DataImportWidget:
             ax.set_title(ds.label)
             display(fig)
             plt.close(fig)
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)

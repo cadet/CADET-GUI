@@ -31,6 +31,7 @@ from ...parameters.specs import (
     build_parameter_config_spec,
     require_finite_above,
 )
+from ..base import Widget
 from ..diagrams.instrument import SystemDiagram
 from ..elements import ChoiceField, ComponentListField, FloatField
 from ..forms import FormRenderer
@@ -75,7 +76,7 @@ _UNIT_ORDER = (
 )
 
 
-class InstrumentWidget:
+class InstrumentWidget(Widget):
     """Configure an LC-system topology around a column/binding choice it is given.
 
     Optional layer on top of `ConfigurationWidget`: adds a sample loop and the choice of
@@ -102,8 +103,8 @@ class InstrumentWidget:
     """
 
     def __init__(self, *, hardware_expanded: bool = False, hardware_only: bool = False) -> None:
+        super().__init__()
         self.hardware_only = hardware_only
-        self._listeners: List[Callable[[Any], None]] = []
         self._built_sheet: Optional[LCFlowSheet] = None
         self._problems: Dict[str, str] = {}
         # Set around apply_state()'s field writes so the restored state rebuilds once.
@@ -298,10 +299,6 @@ class InstrumentWidget:
         if self._sample_loop_checkbox.value and not self._loop_diameter_auto_checkbox.value:
             require_finite_above()(value)
 
-    def add_listener(self, fn: Callable[[Any], None]) -> None:
-        """Register a callback fired with `.flow_sheet` on every successful build."""
-        self._listeners.append(fn)
-
     @property
     def components(self) -> List[str]:
         """Current component names, driven by the owning `ConfigurationWidget`."""
@@ -411,10 +408,9 @@ class InstrumentWidget:
             self._equilibration, self._column_label,
         )
 
-    def _notify(self) -> None:
+    def _publish(self) -> None:
         self._refresh_diagram()
-        for fn in list(self._listeners):
-            fn(self.flow_sheet)
+        self._notify(self.flow_sheet)
 
     def _on_change(self, change: dict) -> None:
         if change["owner"] is self._sample_loop_checkbox and not self._loop_locked:
@@ -520,14 +516,14 @@ class InstrumentWidget:
         self._problems[source] = message
         self._refresh_status()
         if was_valid:
-            self._notify()
+            self._publish()
 
     def _resolve_problem(self, source: str) -> None:
         if self._problems.pop(source, None) is None:
             return
         self._refresh_status()
         if not self._problems and self._built_sheet is not None:
-            self._notify()
+            self._publish()
 
     def _refresh_status(self) -> None:
         if self._problems:
@@ -575,7 +571,7 @@ class InstrumentWidget:
         if self._problems:
             self._built_sheet = None
             self._refresh_status()
-            self._notify()
+            self._publish()
             return
 
         bypass = self.bypass_units()
@@ -597,16 +593,10 @@ class InstrumentWidget:
             self._built_sheet = None
             self._problems = {"System": str(exc)}
             self._refresh_status()
-            self._notify()
+            self._publish()
             return
 
         self._built_sheet = flow_sheet
         self._rebuild_unit_forms(flow_sheet, bypass)
         self._refresh_status()
-        self._notify()
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)
+        self._publish()
