@@ -17,10 +17,10 @@ from ...characterization.parameter_store import (
     missing_requirements,
 )
 from ...characterization.study import Study
-from .._chrome import style_tag
 from .._help import term_html
-from .._status import status_html
 from ..elements import ChoiceField, SelectableTable
+from ..ui.html import status_html
+from ..ui.theme import style_tag
 
 __all__ = ["ParameterStoreWidget", "parameter_label", "set_by_label"]
 

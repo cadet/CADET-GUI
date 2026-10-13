@@ -15,11 +15,10 @@ from ...parameter_estimation import (
     simulate_at,
 )
 from ...simulation import run_process
-from .._chrome import style_tag
-from .._mpl_figure import display_figure, new_figure
-from .._series import reference_series, solution_series
-from .._status import status_html
 from ..elements import ChoiceField, ChromatogramChart
+from ..ui.html import status_html
+from ..ui.plotting import display_figure, new_figure, reference_series, solution_series
+from ..ui.theme import style_tag
 from ._optimizer_runner_panel import FIGSIZE, OptimizerRunnerPanel
 from ._reference_signal import ReferenceSignalControls
 from .data_import import DataImportWidget

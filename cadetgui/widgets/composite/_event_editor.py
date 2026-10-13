@@ -7,8 +7,8 @@ import ipywidgets as W
 import numpy as np
 from CADETProcess import CADETProcessError
 
-from .._status import status_html
 from ..elements import ChoiceField, SelectableTable, TextField
+from ..ui.html import status_html
 from ._parameter_values import _number_text
 from ._polynomial_editor import PolynomialEditor
 

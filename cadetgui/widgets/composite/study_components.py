@@ -6,9 +6,9 @@ import ipywidgets as W
 
 from ...characterization.guide import COMPONENT_ROLES, SALT, SALT_ROLE
 from ...characterization.study import Study
-from .._chrome import style_tag
-from .._help import info_box_html, term_html
-from .._status import status_html
+from .._help import term_html
+from ..ui.html import info_box_html, status_html
+from ..ui.theme import style_tag
 
 __all__ = ["StudyComponentsWidget", "COMPONENTS_HELP"]
 

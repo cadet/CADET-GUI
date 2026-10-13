@@ -8,8 +8,8 @@ import ipywidgets as W
 import numpy as np
 
 from ...parameters import describe_parameter
-from .._units import unit_html
 from ..elements import TextField
+from ..ui.format import unit_html
 from ._parameter_values import _number_text
 
 __all__ = ["PolynomialEditor", "profile_svg"]

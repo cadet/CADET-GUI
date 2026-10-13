@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .._tokens import with_tokens
+from ..ui.theme import with_tokens
 
 _DIR = Path(__file__).parent
 

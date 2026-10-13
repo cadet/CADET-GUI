@@ -9,10 +9,10 @@ from CADETProcess import CADETProcessError
 from CADETProcess.processModel import Cstr, Inlet, Outlet, TubularReactor
 from CADETProcess.processModel.unitOperation import ChromatographicColumnBase
 
-from .._chrome import style_tag
-from .._status import status_html
+from ..base import Widget
 from ..elements import ChoiceField
-from ._code_view import CodeView
+from ..ui.html import status_html
+from ..ui.layout import CodeView, panel
 from ._model_sync import changed, watch
 from ._parameter_values import components_html
 from ._pid_symbols import FG, MUTED, MUTED_STROKE, load_symbol
@@ -285,13 +285,14 @@ class _BuildControls:
             self._run(lambda: self.flow_sheet.add_connection(origin, destination))
 
 
-class FlowSheetWidget:
+class FlowSheetWidget(Widget):
     """Diagram of a CADET-Process FlowSheet, with a chosen unit's view below it.
 
     Units with missing parameters are marked in the diagram. Given `units` (a list of unit
     operations, or a dict of name: unit operation), it also adds units and connects them;
     `connections` (pairs of unit names) are made right away, adding their units. Without
-    `units`, a chosen unit's parameters are shown below the diagram.
+    `units`, a chosen unit's parameters are shown below the diagram. Listeners get the flow
+    sheet after every edit made here.
     """
 
     def __init__(
@@ -300,6 +301,7 @@ class FlowSheetWidget:
         units: Any = None,
         connections: Sequence[Tuple[str, str]] = (),
     ) -> None:
+        super().__init__()
         self.flow_sheet = flow_sheet
         if connections:
             available = {u.name: u for u in _units_of(units)}
@@ -316,18 +318,12 @@ class FlowSheetWidget:
         self.controls = None if units is None else _BuildControls(flow_sheet, units, self._edited)
         self.code_view = CodeView(self.code)
         title = escape(str(flow_sheet.name))
-        children = [
-            W.HTML(style_tag()),
-            W.HTML(f"<div class='cadetgui-panel-title'>Flow sheet · {title}</div>"),
-            self._components,
-            self.diagram,
-        ]
+        children = [self._components, self.diagram]
         if self.controls is not None:
             children += [self.controls.root, self.code_view.root]
         else:
             children += [self.unit_picker, self._panel]
-        self.root = W.VBox(children)
-        self.root.add_class("cadetgui-panel")
+        self.root = panel(f"Flow sheet · {title}", *children)
         self.unit_picker.observe(lambda _change: self._show_unit(), names="selected_index")
         watch(flow_sheet.component_system, self)
         self.refresh()
@@ -351,6 +347,7 @@ class FlowSheetWidget:
     def _edited(self) -> None:
         self.refresh()
         changed(self.flow_sheet.component_system, self)
+        self._notify(self.flow_sheet)
 
     def _show_unit(self) -> None:
         if self.controls is not None:
@@ -376,9 +373,3 @@ class FlowSheetWidget:
     def get_value(self) -> Any:
         """Return the FlowSheet this widget shows."""
         return self.flow_sheet
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)

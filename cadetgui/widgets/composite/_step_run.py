@@ -13,8 +13,8 @@ import numpy as np
 from ...characterization import runner
 from ...characterization.parameter_store import ParameterStore
 from ...characterization.runner import Candidate, StepSetup, current_best_average
-from .._status import status_html
 from ..elements import ChromatogramChart, LineChart
+from ..ui.html import status_html
 from ._step_results import _preview_series, _preview_title
 
 

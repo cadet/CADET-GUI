@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import html
 import keyword
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import ipywidgets as W
 from CADETProcess.processModel import (
@@ -15,10 +15,10 @@ from CADETProcess.processModel import (
     TubularReactor,
 )
 
-from .._chrome import style_tag
-from .._status import status_html
+from ..base import Widget
 from ..elements import ChoiceField, TextField
-from ._code_view import CodeView
+from ..ui.html import status_html
+from ..ui.layout import CodeView, panel
 from ._model_sync import changed, watch
 from ._unit_parameters import UnitParametersEditor, parameter_code
 
@@ -43,8 +43,10 @@ def _suggested_name(model: type) -> str:
     return _SUGGESTED_NAMES.get(model, "column")
 
 
-class UnitOperationsWidget:
+class UnitOperationsWidget(Widget):
     """Create unit operations by model and name, and set their parameters.
+
+    Listeners get `units` whenever a unit is created, removed or a parameter changes.
 
     Created units are stored in `units`, a dict of name: unit operation, which is filled in
     place when given; entries that are model classes are created right away. With
@@ -62,13 +64,13 @@ class UnitOperationsWidget:
         edit: bool = True,
         flow_rate_profile: bool = False,
     ) -> None:
+        super().__init__()
         self.component_system = component_system
         self._editor_options = {"flow_rate_profile": flow_rate_profile}
         self.parameter_picker = ChoiceField(label="Parameters of:", options=[])
         self.editor: Optional[UnitParametersEditor] = None
         self._editor_box = W.VBox()
         self.units: Dict[str, Any] = {} if units is None else units
-        self._listeners: List[Callable[[Any], None]] = []
         self.model_picker = ChoiceField(label="Model:", options=list(UNIT_OPERATION_MODELS.items()))
         self.name_field = TextField(label="Name:", value=_suggested_name(Inlet))
         self.create_button = W.Button(description="Create", icon="plus")
@@ -78,18 +80,14 @@ class UnitOperationsWidget:
         title = "Unit operations" if create and edit else (
             "Create unit operations" if create else "Unit operation parameters"
         )
-        children: List[W.Widget] = [
-            W.HTML(style_tag()),
-            W.HTML(f"<div class='cadetgui-panel-title'>{title}</div>"),
-        ]
+        children: List[W.Widget] = []
         if create:
             children += [
                 self.model_picker, self.name_field, self.create_button, self.status, self._list,
             ]
         if edit:
             children += [self.parameter_picker, self._editor_box]
-        self.root = W.VBox(children + [self.code_view.root])
-        self.root.add_class("cadetgui-panel")
+        self.root = panel(title, *children, self.code_view.root)
         self.model_picker.observe(lambda _change: self._suggest_name(), names="selected_index")
         self.create_button.on_click(lambda _button: self.create())
         self.parameter_picker.observe(lambda _change: self._show_editor(), names="selected_index")
@@ -136,7 +134,7 @@ class UnitOperationsWidget:
 
     def _changed(self) -> None:
         self.refresh()
-        self._notify()
+        self._edited()
 
     def refresh(self) -> None:
         """Show the current units and parameters, e.g. after they were changed in code."""
@@ -165,15 +163,14 @@ class UnitOperationsWidget:
             return
         self.editor = (
             None if unit is None
-            else UnitParametersEditor(unit, self._notify, **self._editor_options)
+            else UnitParametersEditor(unit, self._edited, **self._editor_options)
         )
         self._editor_box.children = [] if self.editor is None else [self.editor.root]
 
-    def _notify(self) -> None:
+    def _edited(self) -> None:
         self.code_view.refresh()
         changed(self.component_system, self)
-        for fn in list(self._listeners):
-            fn(self.units)
+        self._notify(self.units)
 
     def code(self) -> str:
         """Return the CADET-Process code that creates these unit operations."""
@@ -189,13 +186,3 @@ class UnitOperationsWidget:
     def get_value(self) -> Dict[str, Any]:
         """Return the created unit operations by name."""
         return dict(self.units)
-
-    def add_listener(self, fn: Callable[[Any], None]) -> None:
-        """Call `fn(units)` whenever a unit is created, removed or a parameter changes."""
-        self._listeners.append(fn)
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)

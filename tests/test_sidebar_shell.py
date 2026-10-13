@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import ipywidgets as W
 import pytest
-from cadetgui.widgets.shell import (
+from cadetgui.widgets.ui.shell import (
     SidebarShell,
     collect_panes,
     resolve_step,

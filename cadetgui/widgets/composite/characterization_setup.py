@@ -22,9 +22,9 @@ from ...characterization.stages import STAGES
 from ...characterization.step_checks import StepStatus, study_steps_status
 from ...characterization.study import Study
 from ...io.configuration_store import ConfigurationState, InstrumentState
-from .._chrome import style_tag
 from .._help import determines_table_html, experiments_table_html, term_html
-from .._status import status_html
+from ..ui.html import status_html
+from ..ui.theme import style_tag
 from ._measurement_common import observation_label, system_summary_html
 from .system_diagram import recipe_diagram_svg
 

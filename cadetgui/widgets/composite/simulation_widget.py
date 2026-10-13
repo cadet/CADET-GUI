@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import html
-from typing import Any, Callable, List, Mapping, Optional, Tuple
+from typing import Any, List, Mapping, Optional, Tuple
 
 import ipywidgets as W
 from CADETProcess.processModel import Inlet, Outlet
 from CADETProcess.solution import SolutionIO
 
 from ...simulation import run_process
-from .._chrome import style_tag
-from .._series import reference_series, solution_series
-from .._status import status_html
+from ..base import Widget
 from ..elements import ChoiceField, ChromatogramChart
-from ._code_view import CodeView
+from ..ui.html import status_html
+from ..ui.layout import CodeView, panel
+from ..ui.plotting import reference_series, solution_series
 
 __all__ = ["SimulationWidget"]
 
@@ -36,13 +36,14 @@ def _solution_options(process: Any, results: Any) -> List[Tuple[str, Tuple[str, 
     return options
 
 
-class SimulationWidget:
+class SimulationWidget(Widget):
     """Simulate a CADET-Process Process and plot the concentration at a chosen unit.
 
     Inlets and outlets are listed by their unit name (what an inlet delivers, what reaches
     an outlet), other units by port, e.g. `column.outlet`; it starts on the first outlet.
     A `reference` (CADET-Process `ReferenceIO`, e.g. measured data) is drawn dashed;
     `markers` (name: time in seconds, e.g. an expected breakthrough time) as vertical lines.
+    Listeners get the results after every successful run.
     """
 
     def __init__(
@@ -51,11 +52,11 @@ class SimulationWidget:
         reference: Optional[Any] = None,
         markers: Optional[Mapping[str, float]] = None,
     ) -> None:
+        super().__init__()
         self.process = process
         self.reference = reference
         self.markers = dict(markers or {})
         self.results: Optional[Any] = None
-        self._listeners: List[Callable[[Any], None]] = []
         self._btn_run = W.Button(description="Run simulation", icon="play", button_style="success")
         self._signal = ChoiceField(label="Show:", options=[])
         self.chart = ChromatogramChart(
@@ -64,16 +65,14 @@ class SimulationWidget:
         self.status = W.HTML()
         self.code_view = CodeView(self.code)
         title = html.escape(process.name)
-        self.root = W.VBox([
-            W.HTML(style_tag()),
-            W.HTML(f"<div class='cadetgui-panel-title'>Simulation of {title}</div>"),
+        self.root = panel(
+            f"Simulation of {title}",
             self._btn_run,
             self._signal,
             self.chart,
             self.status,
             self.code_view.root,
-        ])
-        self.root.add_class("cadetgui-panel")
+        )
         self._btn_run.on_click(lambda _btn: self.run())
         self._signal.observe(lambda _change: self._plot(), names="selected_index")
         self._signal.observe(lambda _change: self.code_view.refresh(), names="selected_index")
@@ -104,8 +103,7 @@ class SimulationWidget:
         self.status.value = status_html(
             "ok", f"Simulation finished in {results.time_elapsed:.2f} s."
         )
-        for fn in list(self._listeners):
-            fn(results)
+        self._notify(results)
         return results
 
     def _plot(self) -> None:
@@ -140,13 +138,3 @@ class SimulationWidget:
     def get_value(self) -> Optional[Any]:
         """Return the SimulationResults of the last run, or None."""
         return self.results
-
-    def add_listener(self, fn: Callable[[Any], None]) -> None:
-        """Call `fn(results)` after every successful run."""
-        self._listeners.append(fn)
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)

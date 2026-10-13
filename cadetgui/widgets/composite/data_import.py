@@ -15,9 +15,9 @@ from ...io.experimental_data import (
     read_headers,
     to_time,
 )
-from .._chrome import style_tag
-from .._status import status_html
 from ..elements import ChoiceField
+from ..ui.html import status_html
+from ..ui.theme import style_tag
 from ._measurement_common import COLUMN_ROLE_OPTIONS
 
 __all__ = ["DataImportWidget", "ExperimentalDataset"]

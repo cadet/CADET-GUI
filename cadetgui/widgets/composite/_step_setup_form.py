@@ -37,8 +37,8 @@ from ...characterization.stages import STAGES, VariableDef, describe_stage
 from ...characterization.study import Study
 from ...optimizer_runner import OPTIMIZERS
 from .._help import term_html
-from .._status import status_html
 from ..elements import BoolField, ChoiceField
+from ..ui.html import status_html
 from ._measurement_common import measurement_caption
 
 MULTI_OBJECTIVE = DEFAULT_OPTIMIZER

@@ -1,3 +1,5 @@
+"""Units in the LaTeX subset CADET-Process uses, rendered as HTML."""
+
 from __future__ import annotations
 
 import re

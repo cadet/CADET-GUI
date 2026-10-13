@@ -29,13 +29,13 @@ from ...io.configuration_store import ConfigurationState
 from ...io.experimental_data import ExperimentalRun
 from ...process_builder import check_recipe
 from .._help import term_html
-from .._status import status_html
 from ..elements import (
     ChoiceField,
     ChromatogramChart,
     SelectableTable,
     TextField,
 )
+from ..ui.html import status_html
 from ._measurement_common import (
     ML_PER_MIN,
     _check_float,

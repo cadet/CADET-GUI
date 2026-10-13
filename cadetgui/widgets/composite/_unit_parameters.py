@@ -7,8 +7,8 @@ import ipywidgets as W
 from CADETProcess.processModel import Inlet, NoBinding
 
 from ...parameters import describe_parameter
-from .._status import status_html
 from ..elements import TextField
+from ..ui.html import status_html
 from ._parameter_values import (
     assign_literal,
     code_literal,

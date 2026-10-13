@@ -1,5 +1,6 @@
 from cadetgui.characterization.guide import GLOSSARY
-from cadetgui.widgets._help import checklist_html, info_box_html, term_html
+from cadetgui.widgets._help import term_html
+from cadetgui.widgets.ui.html import checklist_html, info_box_html
 
 
 def test_known_term_carries_its_definition_as_tip():

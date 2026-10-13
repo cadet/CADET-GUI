@@ -5,7 +5,6 @@ import warnings
 import numpy as np
 import pytest
 from cadetgui import FlowSheetWidget, ProcessWidget, SimulationWidget
-from cadetgui.widgets._units import unit_html
 from cadetgui.widgets.composite import UnitOperationWidget
 from cadetgui.widgets.composite._parameter_values import (
     assign_literal,
@@ -13,6 +12,7 @@ from cadetgui.widgets.composite._parameter_values import (
     value_html,
 )
 from cadetgui.widgets.composite.flow_sheet_widget import render_flow_sheet_svg
+from cadetgui.widgets.ui.format import unit_html
 from CADETProcess.processModel import (
     ComponentSystem,
     Cstr,

@@ -14,10 +14,10 @@ from ...optimizer_runner import (
     RunSpec,
     run_optimization,
 )
-from .._mpl_figure import display_figure, new_figure
-from .._settings_popover import SettingsPopover
-from .._status import status_html
 from ..elements import ChoiceField, ChromatogramChart, LineChart
+from ..ui.html import status_html
+from ..ui.layout import SettingsPopover
+from ..ui.plotting import display_figure, new_figure
 
 __all__ = ["FIGSIZE", "OptimizerRunnerPanel"]
 

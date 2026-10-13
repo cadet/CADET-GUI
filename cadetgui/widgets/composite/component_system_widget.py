@@ -1,20 +1,19 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, List, Optional
+from typing import List, Optional
 
-import ipywidgets as W
 from CADETProcess.processModel import ComponentSystem
 
-from .._chrome import style_tag
+from ..base import Widget
 from ..elements import ComponentListField
-from ._code_view import CodeView
+from ..ui.layout import CodeView, panel
 from ._model_sync import changed, watch
 
 __all__ = ["ComponentSystemWidget"]
 
 
-class ComponentSystemWidget:
+class ComponentSystemWidget(Widget):
     """Define the components of a ComponentSystem by name.
 
     The ComponentSystem is edited in place, so units, flow sheets and processes made with
@@ -22,7 +21,7 @@ class ComponentSystemWidget:
     """
 
     def __init__(self, component_system: Optional[ComponentSystem] = None) -> None:
-        self._listeners: List[Callable[[Any], None]] = []
+        super().__init__()
         self._component_system = (
             ComponentSystem() if component_system is None else component_system
         )
@@ -30,13 +29,7 @@ class ComponentSystemWidget:
             label="Components:", value=list(self._component_system.names), blank_rows=True
         )
         self.code_view = CodeView(self.code)
-        self.root = W.VBox([
-            W.HTML(style_tag()),
-            W.HTML("<div class='cadetgui-panel-title'>Component system</div>"),
-            self.field,
-            self.code_view.root,
-        ])
-        self.root.add_class("cadetgui-panel")
+        self.root = panel("Component system", self.field, self.code_view.root)
         self.field.observe(lambda _change: self._changed(), names="value")
         watch(self._component_system, self)
 
@@ -75,15 +68,4 @@ class ComponentSystemWidget:
                 self._component_system.add_component(name)
         self.code_view.refresh()
         changed(self._component_system, self)
-        for fn in list(self._listeners):
-            fn(self.names)
-
-    def add_listener(self, fn: Callable[[Any], None]) -> None:
-        """Call `fn(names)` whenever the components change."""
-        self._listeners.append(fn)
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)
+        self._notify(self.names)

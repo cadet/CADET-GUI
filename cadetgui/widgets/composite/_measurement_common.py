@@ -30,7 +30,7 @@ from ...characterization.guide import (
 from ...characterization.study import Study
 from ...io.configuration_store import ConfigurationState
 from .._help import term_html
-from .._status import status_html
+from ..ui.html import status_html
 
 if TYPE_CHECKING:
     pass

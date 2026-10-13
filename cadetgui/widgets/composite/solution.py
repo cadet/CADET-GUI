@@ -7,11 +7,11 @@ import ipywidgets as W
 from ...cadetprocessadapter import classify_signal_ports, measurable_signal_options
 from ...io import configuration_store, run_store
 from ...simulation import run_process as _default_runner
-from .._chrome import style_tag
-from .._series import solution_series
-from .._settings_popover import toggle_box
-from .._status import status_html
 from ..elements import ChoiceField, ChromatogramChart
+from ..ui.html import status_html
+from ..ui.layout import toggle_box
+from ..ui.plotting import solution_series
+from ..ui.theme import style_tag
 from ._result_export import save_signal_outputs
 from .run_history import RunHistoryWidget, RunRecord
 

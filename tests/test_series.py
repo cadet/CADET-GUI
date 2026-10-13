@@ -3,7 +3,11 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import numpy as np
-from cadetgui.widgets._series import decimate_minmax, reference_series, solution_series
+from cadetgui.widgets.ui.plotting import (
+    decimate_minmax,
+    reference_series,
+    solution_series,
+)
 
 
 def test_decimate_keeps_short_traces_untouched():

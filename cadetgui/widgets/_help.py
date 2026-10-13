@@ -9,11 +9,10 @@ from ..characterization.guide import (
     GLOSSARY_ALIASES,
     Determined,
 )
+from .ui.html import table_html
 
 __all__ = [
     "term_html",
-    "info_box_html",
-    "checklist_html",
     "determines_table_html",
     "experiments_table_html",
 ]
@@ -34,28 +33,6 @@ def term_html(term: str, label: Optional[str] = None) -> str:
     return f"<span class='cadetgui-term' tabindex='0' data-tip=\"{tip}\">{text}</span>"
 
 
-def info_box_html(title: str, body_html: str, *, open: bool = False) -> str:
-    """Return a collapsible help box; `body_html` is inserted as is, `title` is escaped."""
-    state = " open" if open else ""
-    return (
-        f"<details class='cadetgui-info'{state}>"
-        f"<summary>{html.escape(title, quote=False)}</summary>"
-        f"<div class='cadetgui-info-body'>{body_html}</div></details>"
-    )
-
-
-def checklist_html(items: Sequence[str]) -> str:
-    """Return `items` as an escaped bullet list."""
-    rows = "".join(f"<li>{html.escape(item, quote=False)}</li>" for item in items)
-    return f"<ul class='cadetgui-checklist'>{rows}</ul>"
-
-
-def _table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> str:
-    head = "".join(f"<th>{h}</th>" for h in headers)
-    body = "".join("<tr>" + "".join(f"<td>{c}</td>" for c in row) + "</tr>" for row in rows)
-    return f"<table class='cadetgui-info-table'><tr>{head}</tr>{body}</table>"
-
-
 def determines_table_html(determines: Sequence[Determined]) -> str:
     """Return a Parameter / Meaning / Unit table for a step's determined parameters."""
     rows = [
@@ -66,7 +43,7 @@ def determines_table_html(determines: Sequence[Determined]) -> str:
         )
         for d in determines
     ]
-    return _table(["Parameter", "Meaning", "Unit"], rows)
+    return table_html(["Parameter", "Meaning", "Unit"], rows, css_class="cadetgui-info-table")
 
 
 def experiments_table_html(
@@ -92,4 +69,4 @@ def experiments_table_html(
                 else "<em class='cadetgui-info-missing'>none yet</em>"
             )
         rows.append(row)
-    return _table(headers, rows)
+    return table_html(headers, rows, css_class="cadetgui-info-table")

@@ -5,8 +5,6 @@ from typing import Any, Callable, Dict, Mapping, Optional
 import ipywidgets as W
 
 from ...cadetprocessadapter import FieldSpec, ModelSpec
-from .._chrome import style_tag
-from .._status import status_html
 from ..elements import (
     BoolField,
     ChoiceField,
@@ -15,6 +13,8 @@ from ..elements import (
     FloatListField,
     TextField,
 )
+from ..ui.html import status_html
+from ..ui.theme import style_tag
 
 __all__ = ["FormRenderer", "element_for_field"]
 

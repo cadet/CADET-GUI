@@ -10,7 +10,7 @@ from ...characterization.guide import guide_for_step
 from ...characterization.step_checks import study_steps_status
 from ...characterization.study import Study
 from ...io.configuration_store import ConfigurationState
-from ..shell import (
+from ..ui.shell import (
     SYSTEM_GROUP,
     SidebarShell,
     collect_panes,

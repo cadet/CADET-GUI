@@ -15,8 +15,8 @@ from ...io.experimental_data import (
     read_generic_csv,
     read_headers,
 )
-from .._status import status_html
 from ..elements import ChoiceField
+from ..ui.html import status_html
 from ._measurement_common import COLUMN_ROLE_OPTIONS, _note, _row
 
 

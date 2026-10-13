@@ -13,8 +13,8 @@ from ...characterization.guide import (
     GLOSSARY,
     WORKFLOW_GUIDE,
 )
-from .._chrome import style_tag
-from .._help import checklist_html
+from ..ui.html import checklist_html
+from ..ui.theme import style_tag
 
 __all__ = ["CharacterizationGuideWidget", "markdown_html"]
 

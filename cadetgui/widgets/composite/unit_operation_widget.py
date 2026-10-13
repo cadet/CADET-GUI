@@ -8,8 +8,9 @@ from CADETProcess.processModel import NoBinding
 from CADETProcess.processModel.unitOperation import ChromatographicColumnBase
 
 from ...parameters import describe_parameter
-from .._chrome import style_tag
-from .._units import unit_html
+from ..base import Widget
+from ..ui.format import unit_html
+from ..ui.layout import panel
 from ._parameter_values import parameter_names, value_html
 
 __all__ = ["UnitOperationWidget", "parameters_html"]
@@ -50,14 +51,14 @@ def parameters_html(obj: Any) -> str:
     return f"<div class='cadetgui-params'>{''.join(parts)}</div>"
 
 
-class UnitOperationWidget:
+class UnitOperationWidget(Widget):
     """Read-only view of a unit operation: its model, parameters and binding model."""
 
     def __init__(self, unit: Any) -> None:
+        super().__init__()
         self.unit = unit
         self._body = W.HTML()
-        self.root = W.VBox([W.HTML(style_tag()), self._body])
-        self.root.add_class("cadetgui-panel")
+        self.root = panel(None, self._body)
         self.refresh()
 
     def refresh(self) -> None:
@@ -79,9 +80,3 @@ class UnitOperationWidget:
     def get_value(self) -> Any:
         """Return the unit operation this widget shows."""
         return self.unit
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)

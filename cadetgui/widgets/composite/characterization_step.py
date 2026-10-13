@@ -38,14 +38,9 @@ from ...characterization.step_checks import (
     step_checks,
 )
 from ...characterization.study import Study
-from .._chrome import style_tag
-from .._help import (
-    determines_table_html,
-    experiments_table_html,
-    info_box_html,
-    term_html,
-)
-from .._status import status_html
+from .._help import determines_table_html, experiments_table_html, term_html
+from ..ui.html import info_box_html, status_html
+from ..ui.theme import style_tag
 from ._step_results import _CandidateResults
 from ._step_run import _StepRun
 from ._step_setup_form import _StepSetupForm, _unit_html

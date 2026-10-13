@@ -15,9 +15,9 @@ from ...characterization import runner
 from ...characterization.parameter_store import ParameterStore
 from ...characterization.runner import Candidate, StepResult, StepSetup
 from .._help import term_html
-from .._series import decimate_minmax, reference_series
-from .._status import status_html
 from ..elements import ChromatogramChart, SelectableTable
+from ..ui.html import status_html
+from ..ui.plotting import decimate_minmax, reference_series
 
 
 def _preview_series(preview: Any) -> list:

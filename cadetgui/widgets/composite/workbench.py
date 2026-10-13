@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from ..shell import (
+from ..ui.shell import (
     SYSTEM_GROUP,
     SidebarShell,
     collect_panes,

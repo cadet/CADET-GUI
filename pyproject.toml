@@ -43,8 +43,8 @@ version = { attr = "cadetgui.__version__" }
 cadetgui = [
     "assets/pid/*.svg",
     "parameters/*.json",
-    "widgets/*.css",
-    "widgets/assets/*.png",
+    "widgets/ui/*.css",
+    "widgets/ui/*.png",
     "widgets/elements/*.css",
     "widgets/elements/*.js",
 ]

@@ -29,9 +29,7 @@ from ...io.experimental_data import (
     to_time,
 )
 from ...process_builder import check_recipe
-from .._chrome import style_tag
-from .._help import info_box_html, term_html
-from .._status import status_html
+from .._help import term_html
 from ..elements import (
     BoolField,
     ChoiceField,
@@ -39,6 +37,8 @@ from ..elements import (
     SelectableTable,
     TextField,
 )
+from ..ui.html import info_box_html, status_html
+from ..ui.theme import style_tag
 from ._measurement_common import (
     ML_PER_MIN,
     _check_float,

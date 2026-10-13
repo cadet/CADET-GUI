@@ -30,11 +30,11 @@ from ...cadetprocessadapter import (
     require_finite_above,
 )
 from ...io.configuration_store import InstrumentState
-from .._chrome import style_tag
-from .._settings_popover import toggle_box
-from .._status import status_html
 from ..elements import ChoiceField, ComponentListField, FloatField
 from ..forms import FormRenderer
+from ..ui.html import status_html
+from ..ui.layout import toggle_box
+from ..ui.theme import style_tag
 from .system_diagram import SystemDiagram
 
 if TYPE_CHECKING:

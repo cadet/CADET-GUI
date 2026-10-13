@@ -217,8 +217,8 @@ def test_step_header_names_the_components(study):
 
 
 def test_role_selectors_are_styled_dropdowns(study):
-    from cadetgui.widgets._chrome import style_tag
     from cadetgui.widgets.elements import ChoiceField
+    from cadetgui.widgets.ui.theme import style_tag
 
     editor = StudyComponentsWidget(study)
     selectors = [row[1] for row in editor.rows.values()] + [editor._new_role]

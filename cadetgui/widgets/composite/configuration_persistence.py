@@ -13,9 +13,9 @@ from ...io.configuration_store import (
     load_h5,
     save_to_store,
 )
-from .._settings_popover import toggle_box
-from .._status import status_html
 from ..elements import TextField
+from ..ui.html import status_html
+from ..ui.layout import toggle_box
 
 __all__ = ["ConfigurationPersistence", "CompactParts"]
 

@@ -27,9 +27,6 @@ from ...cadetprocessadapter import (
 )
 from ...io.configuration_store import ConfigurationState
 from ...starting_values import with_starting_values
-from .._chrome import style_tag
-from .._settings_popover import SettingsPopover
-from .._status import status_html
 from ..elements import (
     ChoiceField,
     ComponentListField,
@@ -37,6 +34,9 @@ from ..elements import (
     FloatField,
 )
 from ..forms import FormRenderer
+from ..ui.html import status_html
+from ..ui.layout import SettingsPopover
+from ..ui.theme import style_tag
 from ._script_export import instrument_script, standalone_script
 from ._timeline_data import timeline_chart_data
 from .configuration_persistence import ConfigurationPersistence

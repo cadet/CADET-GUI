@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import html
 import math
-from typing import Any, Callable, List, Mapping, Optional
+from typing import Any, Mapping, Optional
 
 import ipywidgets as W
 import numpy as np
 from CADETProcess.instruments import LCFlowSheet
 from CADETProcess.processModel import FlowSheet, Process
 
-from .._chrome import style_tag
+from ..base import Widget
 from ..elements import EventTimelineChart, TextField
-from ._code_view import CodeView
+from ..ui.layout import CodeView, collapsible, panel
 from ._event_editor import EventEditor
 from ._model_sync import changed, watch
 from ._parameter_values import (
@@ -57,19 +57,13 @@ def parameter_paths_html(process: Any) -> str:
     )
 
 
-def _collapsible(title: str, child: W.Widget) -> W.Accordion:
-    accordion = W.Accordion(children=[child])
-    accordion.set_title(0, title)
-    accordion.selected_index = None
-    return accordion
-
-
-class ProcessWidget:
+class ProcessWidget(Widget):
     """A CADET-Process Process: its cycle time and events, and the parameters it reaches.
 
     The parameters belong to the unit operations; the process reaches them under paths
     such as `flow_sheet.column.length`, which events and optimization refer to. Given a
     flow sheet, it creates the process `name`; `values` (path: value) are set first.
+    Listeners get the process after every accepted edit.
     """
 
     def __init__(
@@ -78,12 +72,12 @@ class ProcessWidget:
         name: str = "process",
         values: Optional[Mapping[str, Any]] = None,
     ) -> None:
+        super().__init__()
         if isinstance(process, FlowSheet):
             process = Process(process, name)
         for path, value in (values or {}).items():
             set_by_path(process, path, value)
         self.process = process
-        self._listeners: List[Callable[[Any], None]] = []
         self.cycle_time = TextField(
             label="cycle_time", value=format_value(process, "cycle_time"), units=r"\mathrm{s}"
         )
@@ -104,23 +98,21 @@ class ProcessWidget:
         )
         self._paths = W.HTML()
         self._components = W.HTML()
-        self.events = _collapsible(
+        self.events = collapsible(
             "Events",
             W.VBox([self.mode, self.event_editor.table, self._editor_and_chart]),
         )
-        self.parameters = _collapsible("Parameters by path", self._paths)
+        self.parameters = collapsible("Parameters by path", self._paths)
         self.code_view = CodeView(self.code)
         title = html.escape(process.name)
-        self.root = W.VBox([
-            W.HTML(style_tag()),
-            W.HTML(f"<div class='cadetgui-panel-title'>Process · {title}</div>"),
+        self.root = panel(
+            f"Process · {title}",
             self._components,
             self.cycle_time,
             self.events,
             self.parameters,
             self.code_view.root,
-        ])
-        self.root.add_class("cadetgui-panel")
+        )
         self.cycle_time.observe(lambda change: self._on_cycle_time(change), names="value")
         watch(process.component_system, self)
         self.refresh()
@@ -164,8 +156,7 @@ class ProcessWidget:
     def _edited(self) -> None:
         self.refresh()
         changed(self.process.component_system, self)
-        for fn in list(self._listeners):
-            fn(self.process)
+        self._notify(self.process)
 
     def code(self) -> str:
         """Return the CADET-Process code that creates this process: template call or events."""
@@ -191,13 +182,3 @@ class ProcessWidget:
     def get_value(self) -> Any:
         """Return the Process this widget configures."""
         return self.process
-
-    def add_listener(self, fn: Callable[[Any], None]) -> None:
-        """Call `fn(process)` after every accepted edit."""
-        self._listeners.append(fn)
-
-    def display(self) -> None:
-        """Render this widget in a Jupyter cell."""
-        from IPython.display import display as _display
-
-        _display(self.root)

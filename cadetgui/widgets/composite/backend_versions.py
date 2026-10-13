@@ -3,7 +3,7 @@ from __future__ import annotations
 import ipywidgets as W
 
 from ...backend_versions import cadet_core_version, cadet_process_version
-from .._chrome import style_tag
+from ..ui.theme import style_tag
 
 __all__ = ["BackendVersionsWidget", "backend_versions_text"]
 
