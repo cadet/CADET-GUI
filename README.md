@@ -103,6 +103,10 @@ To frame your own selection as a bench, hand `(label, widget)` panes to
 
 See [`examples/instrument_widgets.ipynb`](examples/instrument_widgets.ipynb)
 and [`examples/build_your_own_bench.ipynb`](examples/build_your_own_bench.ipynb).
+[`examples/process_model_widgets.ipynb`](examples/process_model_widgets.ipynb) builds a model
+step by step with the object widgets;
+[`examples/build_your_own_widget.ipynb`](examples/build_your_own_widget.ipynb) writes a new
+widget from `Widget`, `ui` and `elements`.
 
 ### Example data
 
