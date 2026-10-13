@@ -4,7 +4,7 @@ import warnings
 
 import cadetgui.io.configuration_store as configuration_store
 import pytest
-from cadetgui.cadetprocessadapter import INSTRUMENT_TEMPLATES, PARAMS
+from cadetgui.instrument.templates import INSTRUMENT_TEMPLATES, PARAMS
 from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)

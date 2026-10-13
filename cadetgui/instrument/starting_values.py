@@ -1,6 +1,6 @@
 """Shared standard starting values for model parameters and methods. Headless.
 
-`parameters/starting_values.json` lists, per binding model, `scalar` and `per_component`
+`starting_values.json` lists, per binding model, `scalar` and `per_component`
 values and, under `methods`, per process template the method values that suit it;
 with `salt_first` the first component is the salt. Binding values only fill parameters
 that are missing or zero, switches and optional scalars only an untouched model; method
@@ -16,8 +16,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
 
-from .cadetprocessadapter import BINDING_MODELS
-from .io.configuration_store import ConfigurationState
+from ..io.configuration_store import ConfigurationState
+from .system import BINDING_MODELS
 
 __all__ = [
     "starting_values",
@@ -26,7 +26,7 @@ __all__ = [
     "with_starting_values",
 ]
 
-_PATH = Path(__file__).parent / "parameters" / "starting_values.json"
+_PATH = Path(__file__).parent / "starting_values.json"
 
 
 @lru_cache(maxsize=1)

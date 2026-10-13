@@ -6,7 +6,7 @@ from typing import Collection, List, Mapping, Optional, Sequence, Tuple
 
 import ipywidgets as W
 
-from ...cadetprocessadapter import BYPASSABLE_UNITS, UNIT_LABELS
+from ...instrument.system import BYPASSABLE_UNITS, UNIT_LABELS
 from ...io.configuration_store import ConfigurationState, InstrumentState
 from ._pid_symbols import FG, MUTED, MUTED_STROKE, SURFACE, load_symbol
 

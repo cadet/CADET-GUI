@@ -14,9 +14,9 @@ from CADETProcess.optimization import OptimizationProblem
 from CADETProcess.processModel import ComponentSystem
 from CADETProcess.reference import ReferenceIO
 
-from .cadetprocessadapter import FieldSpec
+from ..parameters.specs import FieldSpec
+from ..process_model.simulation import Simulator, run_process
 from .optimizer_runner import run_optimization
-from .simulation import Simulator, run_process
 
 __all__ = [
     "FittableParameter",

@@ -4,9 +4,10 @@ from typing import Any, Callable, Optional
 
 import ipywidgets as W
 
-from ...cadetprocessadapter import classify_signal_ports, measurable_signal_options
+from ...instrument.signals import measurable_signal_options
 from ...io import configuration_store, run_store
-from ...simulation import run_process as _default_runner
+from ...process_model.signals import classify_signal_ports
+from ...process_model.simulation import run_process as _default_runner
 from ..elements import ChoiceField, ChromatogramChart
 from ..ui.html import status_html
 from ..ui.layout import toggle_box

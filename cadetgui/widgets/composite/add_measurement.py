@@ -25,9 +25,9 @@ from ...characterization.guide import (
     with_implied_values,
 )
 from ...characterization.study import Study
+from ...instrument.process_builder import check_recipe
 from ...io.configuration_store import ConfigurationState
 from ...io.experimental_data import ExperimentalRun
-from ...process_builder import check_recipe
 from .._help import term_html
 from ..elements import (
     ChoiceField,

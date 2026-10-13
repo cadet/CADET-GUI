@@ -10,8 +10,6 @@ from typing import Any, Callable, Dict, List, Optional
 
 import ipywidgets as W
 
-from ... import process_builder
-from ...cadetprocessadapter import UNIT_LABELS
 from ...characterization.comparison import Comparison
 from ...characterization.guide import (
     CHAIN_BY_ID,
@@ -35,7 +33,9 @@ from ...characterization.runner import (
 )
 from ...characterization.stages import STAGES, VariableDef, describe_stage
 from ...characterization.study import Study
-from ...optimizer_runner import OPTIMIZERS
+from ...estimation.optimizer_runner import OPTIMIZERS
+from ...instrument import process_builder
+from ...instrument.system import UNIT_LABELS
 from .._help import term_html
 from ..elements import BoolField, ChoiceField
 from ..ui.html import status_html

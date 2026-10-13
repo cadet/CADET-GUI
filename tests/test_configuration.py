@@ -5,12 +5,8 @@ import warnings
 
 import cadetgui.io.configuration_store as configuration_store
 import pytest
-from cadetgui.cadetprocessadapter import (
-    BINDING_MODELS,
-    COLUMN_MODELS,
-    INSTRUMENT_TEMPLATES,
-    PARAMS,
-)
+from cadetgui.instrument.system import BINDING_MODELS, COLUMN_MODELS
+from cadetgui.instrument.templates import INSTRUMENT_TEMPLATES, PARAMS
 from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -103,7 +99,7 @@ def test_export_script_produces_executable_equivalent_process():
     assert ns["component_system"].n_comp == len(cw.components)
     assert list(ns["component_system"].names) == cw.components
 
-    from cadetgui.simulation import run_process
+    from cadetgui.process_model.simulation import run_process
 
     res_widget = run_process(cw.process)
     res_script = run_process(ns["process"])
@@ -163,7 +159,7 @@ def test_switching_column_type_keeps_binding_model_attachable():
 
 def test_export_script_includes_binding_model_and_round_trips():
     import numpy as np
-    from cadetgui.simulation import run_process
+    from cadetgui.process_model.simulation import run_process
 
     iw, cw = built()
     cw._binding_picker.value = BINDING_MODELS["Linear"]

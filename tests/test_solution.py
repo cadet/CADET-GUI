@@ -8,8 +8,9 @@ import pytest
 matplotlib.use("Agg")  # headless test environment, no display needed
 
 import cadetgui.io.configuration_store as configuration_store
-from cadetgui.cadetprocessadapter import INSTRUMENT_TEMPLATES, classify_signal_ports
-from cadetgui.simulation import run_process as _default_runner
+from cadetgui.instrument.templates import INSTRUMENT_TEMPLATES
+from cadetgui.process_model.signals import classify_signal_ports
+from cadetgui.process_model.simulation import run_process as _default_runner
 from cadetgui.widgets.composite import (
     ConfigurationWidget,
     InstrumentWidget,

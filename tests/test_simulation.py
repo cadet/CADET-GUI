@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from cadetgui.simulation import Simulator, output_time_step
+from cadetgui.process_model.simulation import Simulator, output_time_step
 
 
 def _process(*section_times: float) -> SimpleNamespace:

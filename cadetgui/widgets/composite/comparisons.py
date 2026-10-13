@@ -9,10 +9,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence,
 import ipywidgets as W
 import numpy as np
 
-from ...cadetprocessadapter import (
-    FieldSpec,
-    parse_float_list,
-)
 from ...characterization.comparison import Comparison
 from ...characterization.guide import (
     CHAIN_BY_ID,
@@ -22,13 +18,14 @@ from ...characterization.guide import (
     role_fix,
 )
 from ...characterization.study import Study
+from ...instrument.process_builder import check_recipe
 from ...io import configuration_store
 from ...io.configuration_store import ConfigurationState
 from ...io.experimental_data import (
     ExperimentalRun,
     to_time,
 )
-from ...process_builder import check_recipe
+from ...parameters.specs import FieldSpec, parse_float_list
 from .._help import term_html
 from ..elements import (
     BoolField,

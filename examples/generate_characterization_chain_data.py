@@ -43,7 +43,7 @@ from cadetgui.io.configuration_store import (  # noqa: E402
     ConfigurationState,
     InstrumentState,
 )
-from cadetgui.process_builder import build_process  # noqa: E402
+from cadetgui.instrument.process_builder import build_process  # noqa: E402
 from CADETProcess.simulator import Cadet  # noqa: E402
 
 OUT_DIR = Path(__file__).parent / "data" / "characterization_akta"

@@ -8,7 +8,7 @@ import ipywidgets as W
 import numpy as np
 from CADETProcess.plotting import get_fig_size
 
-from ...optimizer_runner import (
+from ...estimation.optimizer_runner import (
     OPTIMIZERS,
     OptimizerRunResult,
     RunSpec,

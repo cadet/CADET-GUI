@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import cadetgui.backend_versions as bv
-import cadetgui.simulation as simulation
+import cadetgui.process_model.simulation as simulation
 import cadetgui.widgets.composite.backend_versions as widget_module
 import pytest
 from cadetgui.widgets.composite import BackendVersionsWidget

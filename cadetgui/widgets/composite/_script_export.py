@@ -5,7 +5,7 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 from CADETProcess.instruments import LCFlowSheet
 from CADETProcess.processModel import ComponentSystem
 
-from ...cadetprocessadapter import BYPASSABLE_UNITS
+from ...instrument.system import BYPASSABLE_UNITS
 from ...io.configuration_store import InstrumentState
 
 

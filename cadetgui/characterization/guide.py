@@ -15,17 +15,13 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from CADETProcess.processModel import ComponentSystem
 
-from ..cadetprocessadapter import (
-    BYPASSABLE_UNITS,
-    INSTRUMENT_TEMPLATES,
-    PARAMS,
-    UNIT_LABELS,
-)
+from ..instrument.process_builder import check_recipe
+from ..instrument.starting_values import with_starting_values
+from ..instrument.system import BYPASSABLE_UNITS, UNIT_LABELS
+from ..instrument.templates import INSTRUMENT_TEMPLATES, PARAMS
 from ..io.configuration_store import ConfigurationState, InstrumentState
 from ..io.experimental_data import ExperimentalRun
 from ..parameters import get_parameters
-from ..process_builder import check_recipe
-from ..starting_values import with_starting_values
 from .comparison import Comparison
 from .parameter_store import (
     Entry,

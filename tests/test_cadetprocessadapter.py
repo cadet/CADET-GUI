@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 
 import pytest
-from cadetgui.cadetprocessadapter import (
+from cadetgui.parameters.specs import (
     build_parameter_config_spec,
     parse_float_list,
     require_finite_above,

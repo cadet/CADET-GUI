@@ -16,7 +16,7 @@ from cadetgui.characterization.parameter_store import (
 )
 from cadetgui.io.configuration_store import ConfigurationState, InstrumentState
 from cadetgui.io.experimental_data import Channel, ExperimentalRun
-from cadetgui.simulation import run_process
+from cadetgui.process_model.simulation import run_process
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import cadetgui.widgets.elements as elements_pkg
 import pytest
-from cadetgui.parameters import _MODEL_CLASSES, get_parameters
+from cadetgui.parameters.metadata import _MODEL_CLASSES, get_parameters
 
 ELEMENTS_DIR = Path(elements_pkg.__file__).parent
 

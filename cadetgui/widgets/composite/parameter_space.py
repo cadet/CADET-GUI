@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import ipywidgets as W
 
-from ...parameter_estimation import FittableParameter
+from ...estimation.parameter_estimation import FittableParameter
 from ..elements import ChoiceField
 
 __all__ = ["ParameterSpaceEditor"]

@@ -7,8 +7,8 @@ import warnings
 import cadetgui.io.configuration_store as configuration_store
 import cadetgui.widgets.composite._optimizer_runner_panel as runner_panel
 import pytest
-from cadetgui.optimizer_runner import OptimizerRunResult
-from cadetgui.simulation import run_process
+from cadetgui.estimation.optimizer_runner import OptimizerRunResult
+from cadetgui.process_model.simulation import run_process
 from cadetgui.widgets.composite import (
     ConfigurationWidget,
     DataImportWidget,

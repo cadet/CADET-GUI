@@ -3,12 +3,12 @@ from __future__ import annotations
 import warnings
 
 from cadetgui.characterization.guide import EXPERIMENT_TYPES
-from cadetgui.io.configuration_store import ConfigurationState
-from cadetgui.starting_values import (
+from cadetgui.instrument.starting_values import (
     binding_starting_values,
     starting_values,
     with_starting_values,
 )
+from cadetgui.io.configuration_store import ConfigurationState
 
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -85,7 +85,7 @@ def test_without_method_only_the_binding_is_filled():
 def test_every_listed_method_names_real_template_fields():
     from types import SimpleNamespace
 
-    from cadetgui.cadetprocessadapter import INSTRUMENT_TEMPLATES
+    from cadetgui.instrument.templates import INSTRUMENT_TEMPLATES
     from CADETProcess.processModel import ComponentSystem
 
     stub = SimpleNamespace(component_system=ComponentSystem(["Salt", "Protein"]))

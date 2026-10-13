@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence
 
-from ...cadetprocessadapter import (
+from ...instrument.templates import (
     CONCENTRATION_UNITS,
     process_phase_spans,
     sample_injection_times,

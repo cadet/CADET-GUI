@@ -55,7 +55,7 @@ flow rate — the same chain handoff `CADETProcess.characterization.Characterize
 All six runs share one instrument: flow rate 8.3e-9 m³/s, a 20 µL sample loop (`Pulse Injection`
 template, sample loop included), 50 mol/m³ tracer in the loop — an injected amount of 1e-6 mol,
 used as every comparison's `normalization.target_area`. The Pulse Injection template has no
-pre-injection equilibration phase available through `cadetgui.process_builder.build_process` (its
+pre-injection equilibration phase available through `cadetgui.instrument.process_builder.build_process` (its
 `c_buffer_a`/`c_sample`/`cycle_time`/`flow_rate` fields never reach `delta_t_equilibration`), so
 every process injects at simulated `t=0`; the exported Äkta CSVs still start `PRE_OFFSET_S = 60 s`
 earlier, as a real export would, and alignment (via the `"Phase Elution"` marker) crops that
@@ -85,7 +85,7 @@ normalization. `Small tracer pulse 1 (conductivity)` needs its explicit `baselin
 pre-injection dip), which is the point — this dataset is deliberately not clean everywhere.
 
 Also verified: rebuilding each process from its recipe, `initial_store` and the relevant step's
-`truth` (`cadetgui.process_builder.build_process` + `cadetgui.characterization.parameter_store.apply_store`)
+`truth` (`cadetgui.instrument.process_builder.build_process` + `cadetgui.characterization.parameter_store.apply_store`)
 reproduces this file's own generation exactly, since CADET-Core is deterministic for identical
 input; see `tests/test_characterization_chain_data.py`.
 

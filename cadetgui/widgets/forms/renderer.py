@@ -4,7 +4,7 @@ from typing import Any, Callable, Dict, Mapping, Optional
 
 import ipywidgets as W
 
-from ...cadetprocessadapter import FieldSpec, ModelSpec
+from ...parameters.specs import FieldSpec, ModelSpec
 from ..elements import (
     BoolField,
     ChoiceField,

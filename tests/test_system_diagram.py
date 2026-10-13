@@ -7,14 +7,9 @@ from pathlib import Path
 
 import cadetgui.io.configuration_store as configuration_store
 import pytest
-from cadetgui.cadetprocessadapter import (
-    BYPASSABLE_UNITS,
-    INSTRUMENT_TEMPLATES,
-    active_inlets,
-    friendly_signal_options,
-    inlet_contents,
-    signal_label,
-)
+from cadetgui.instrument.signals import friendly_signal_options, signal_label
+from cadetgui.instrument.system import BYPASSABLE_UNITS, active_inlets, inlet_contents
+from cadetgui.instrument.templates import INSTRUMENT_TEMPLATES
 from cadetgui.io.configuration_store import ConfigurationState, InstrumentState
 from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
 from cadetgui.widgets.composite.system_diagram import (
@@ -498,7 +493,7 @@ def _column_caption(html: str) -> list[str]:
 
 
 def test_column_model_is_captioned_under_the_column_and_follows_the_picker():
-    from cadetgui.cadetprocessadapter import COLUMN_MODELS
+    from cadetgui.instrument.system import COLUMN_MODELS
 
     iw, cw = _bound("Breakthrough")
     name = "Lumped Rate Model With Pores (LRMP)"

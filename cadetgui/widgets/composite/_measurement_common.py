@@ -11,16 +11,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence,
 
 import ipywidgets as W
 
-from ...cadetprocessadapter import (
-    BYPASSABLE_UNITS,
-    INSTRUMENT_TEMPLATES,
-    STANDALONE_TEMPLATES,
-    UNIT_LABELS,
-    FieldSpec,
-    parse_float_list,
-    signal_label,
-    template_required_units,
-)
 from ...characterization.comparison import Comparison
 from ...characterization.guide import (
     CHAIN_BY_ID,
@@ -28,7 +18,15 @@ from ...characterization.guide import (
     SALT_ROLE,
 )
 from ...characterization.study import Study
+from ...instrument.signals import signal_label
+from ...instrument.system import BYPASSABLE_UNITS, UNIT_LABELS
+from ...instrument.templates import (
+    INSTRUMENT_TEMPLATES,
+    STANDALONE_TEMPLATES,
+    template_required_units,
+)
 from ...io.configuration_store import ConfigurationState
+from ...parameters.specs import FieldSpec, parse_float_list
 from .._help import term_html
 from ..ui.html import status_html
 

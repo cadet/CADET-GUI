@@ -5,10 +5,11 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
-from cadetgui import process_builder
-from cadetgui.cadetprocessadapter import BINDING_MODELS, INSTRUMENT_TEMPLATES
-from cadetgui.process_builder import build_process, check_recipe
-from cadetgui.simulation import run_process
+from cadetgui.instrument import process_builder
+from cadetgui.instrument.process_builder import build_process, check_recipe
+from cadetgui.instrument.system import BINDING_MODELS
+from cadetgui.instrument.templates import INSTRUMENT_TEMPLATES
+from cadetgui.process_model.simulation import run_process
 from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
 from CADETProcess.simulator import Cadet
 

@@ -18,18 +18,20 @@ import ipywidgets as W
 from CADETProcess.instruments import LCFlowSheet
 from CADETProcess.processModel import ComponentSystem
 
-from ...cadetprocessadapter import (
+from ...instrument.system import (
     BINDING_MODELS,
     BYPASSABLE_UNITS,
     COLUMN_MODELS,
     CONFIGURABLE_UNITS,
     UNIT_LABELS,
     UNIT_SEED_DEFAULTS,
+)
+from ...io.configuration_store import InstrumentState
+from ...parameters.specs import (
     ModelSpec,
     build_parameter_config_spec,
     require_finite_above,
 )
-from ...io.configuration_store import InstrumentState
 from ..elements import ChoiceField, ComponentListField, FloatField
 from ..forms import FormRenderer
 from ..ui.html import status_html

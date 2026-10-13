@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import ipywidgets as W
 import pytest
-from cadetgui.cadetprocessadapter import PARAMS
 from cadetgui.characterization.study import Study
+from cadetgui.instrument.templates import PARAMS
 from cadetgui.io import configuration_store
 from cadetgui.widgets.composite import ComparisonsWidget
 
@@ -388,7 +388,7 @@ def test_add_flow_opens_under_its_step_heading_and_follows_the_type(widget):
 
 
 def test_other_type_offers_a_process_template_that_sets_the_new_recipe(widget, study):
-    from cadetgui.cadetprocessadapter import INSTRUMENT_TEMPLATES
+    from cadetgui.instrument.templates import INSTRUMENT_TEMPLATES
 
     flow = widget._flow
     widget.start_add()

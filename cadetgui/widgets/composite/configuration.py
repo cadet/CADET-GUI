@@ -8,25 +8,29 @@ import ipywidgets as W
 from CADETProcess.instruments import LCFlowSheet
 from CADETProcess.processModel import ComponentSystem
 
-from ...cadetprocessadapter import (
+from ...instrument.starting_values import with_starting_values
+from ...instrument.system import (
     BINDING_MODELS,
     COLUMN_MODELS,
     INSTRUMENT_COMPATIBLE_COLUMNS,
-    INSTRUMENT_TEMPLATES,
-    MULTIPLEXABLE_COLUMN_PARAMS,
-    STANDALONE_TEMPLATES,
     active_inlets,
-    build_parameter_config_spec,
     equilibration_inlets,
     inlet_contents,
+)
+from ...instrument.templates import (
+    INSTRUMENT_TEMPLATES,
+    STANDALONE_TEMPLATES,
     lwe_spec,
-    parameter_defaults,
-    require_positive,
     step_elution_spec,
     template_required_units,
 )
 from ...io.configuration_store import ConfigurationState
-from ...starting_values import with_starting_values
+from ...parameters.specs import (
+    MULTIPLEXABLE_COLUMN_PARAMS,
+    build_parameter_config_spec,
+    parameter_defaults,
+    require_positive,
+)
 from ..elements import (
     ChoiceField,
     ComponentListField,

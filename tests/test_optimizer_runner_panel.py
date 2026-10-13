@@ -7,7 +7,7 @@ from typing import Any, Mapping, Sequence
 
 import cadetgui.widgets.composite._optimizer_runner_panel as panel_module
 import pytest
-from cadetgui.optimizer_runner import OptimizerRunResult, RunSpec
+from cadetgui.estimation.optimizer_runner import OptimizerRunResult, RunSpec
 from cadetgui.widgets.composite._optimizer_runner_panel import OptimizerRunnerPanel
 from CADETProcess.optimization import OptimizationProblem
 

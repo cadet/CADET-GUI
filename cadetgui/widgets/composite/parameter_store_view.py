@@ -7,7 +7,6 @@ from typing import Any, Callable, List, Optional
 
 import ipywidgets as W
 
-from ...cadetprocessadapter import UNIT_LABELS
 from ...characterization.guide import EXPERIMENT_TYPES
 from ...characterization.parameter_store import (
     ChainError,
@@ -17,6 +16,7 @@ from ...characterization.parameter_store import (
     missing_requirements,
 )
 from ...characterization.study import Study
+from ...instrument.system import UNIT_LABELS
 from .._help import term_html
 from ..elements import ChoiceField, SelectableTable
 from ..ui.html import status_html

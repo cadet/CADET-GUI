@@ -6,7 +6,7 @@ from typing import Optional
 
 import CADETProcess
 
-from . import simulation
+from .process_model import simulation
 
 __all__ = ["cadet_process_version", "cadet_core_version"]
 

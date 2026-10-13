@@ -12,7 +12,7 @@ import h5py
 from cadet import H5
 
 from .. import __version__ as _cadetgui_version
-from ._record_store import user_store_dir
+from .record_store import user_store_dir
 
 __all__ = [
     "InstrumentState",
@@ -136,7 +136,7 @@ def save_h5(
     h5 = H5()
     if process is not None:
         try:
-            from ..simulation import Simulator
+            from ..process_model.simulation import Simulator
 
             h5.root.update(Simulator().get_process_config(process))
         except Exception:  # noqa: BLE001

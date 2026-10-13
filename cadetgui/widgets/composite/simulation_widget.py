@@ -7,7 +7,7 @@ import ipywidgets as W
 from CADETProcess.processModel import Inlet, Outlet
 from CADETProcess.solution import SolutionIO
 
-from ...simulation import run_process
+from ...process_model.simulation import run_process
 from ..base import Widget
 from ..elements import ChoiceField, ChromatogramChart
 from ..ui.html import status_html

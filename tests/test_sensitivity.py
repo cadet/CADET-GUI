@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import cadetgui.sensitivity as sensitivity
+import cadetgui.estimation.sensitivity as sensitivity
 import numpy as np
 import pytest
-from cadetgui.sensitivity import (
+from cadetgui.estimation.sensitivity import (
     _get_by_path,
     _report_from_matrix,
     _set_by_path,

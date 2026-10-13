@@ -8,20 +8,17 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 from CADETProcess.instruments import LCFlowSheet
 from CADETProcess.processModel import ComponentSystem, Process
 
-from .cadetprocessadapter import (
+from ..characterization.parameter_store import has_parameter
+from ..io.configuration_store import ConfigurationState
+from ..parameters.specs import FieldSpec, ModelSpec, build_parameter_config_spec
+from .signals import measurable_signal_options
+from .system import (
     BINDING_MODELS,
     COLUMN_MODELS,
     CONFIGURABLE_UNITS,
-    INSTRUMENT_TEMPLATES,
-    STANDALONE_TEMPLATES,
     UNIT_SEED_DEFAULTS,
-    FieldSpec,
-    ModelSpec,
-    build_parameter_config_spec,
-    measurable_signal_options,
 )
-from .characterization.parameter_store import has_parameter
-from .io.configuration_store import ConfigurationState
+from .templates import INSTRUMENT_TEMPLATES, STANDALONE_TEMPLATES
 
 __all__ = [
     "build_process",

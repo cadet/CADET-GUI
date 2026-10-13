@@ -4,7 +4,7 @@ import threading
 import time
 
 import pytest
-from cadetgui.optimizer_runner import run_optimization
+from cadetgui.estimation.optimizer_runner import run_optimization
 from CADETProcess.optimization import OptimizationProblem
 
 

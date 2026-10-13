@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 from .. import __version__ as _cadetgui_version
-from ._record_store import (
+from .record_store import (
     delete_record,
     list_records,
     load_record,

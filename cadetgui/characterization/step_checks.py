@@ -19,8 +19,8 @@ from collections import OrderedDict
 from dataclasses import dataclass, field, replace
 from typing import Any, Collection, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from ..cadetprocessadapter import UNIT_LABELS
-from ..process_builder import build_process, check_recipe, recipe_key
+from ..instrument.process_builder import build_process, check_recipe, recipe_key
+from ..instrument.system import UNIT_LABELS
 from .comparison import Comparison
 from .guide import (
     EXPERIMENT_TYPES,

@@ -20,11 +20,11 @@ from CADETProcess.processModel import ComponentSystem, Process
 from CADETProcess.reference import ReferenceIO
 from CADETProcess.solution import slice_solution
 
-from .. import process_builder
-from ..cadetprocessadapter import process_phase_spans, sample_injection_times
+from ..instrument import process_builder
+from ..instrument.templates import process_phase_spans, sample_injection_times
 from ..io.configuration_store import ConfigurationState, InstrumentState
 from ..io.experimental_data import ExperimentalRun, read_experimental_csv, to_time
-from ..simulation import run_process
+from ..process_model.simulation import run_process
 from .parameter_store import ParameterStore, apply_store
 
 __all__ = ["Comparison", "ComparisonPreview", "recipe_from_dict"]

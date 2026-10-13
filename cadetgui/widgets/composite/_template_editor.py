@@ -4,7 +4,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import ipywidgets as W
 
-from ...cadetprocessadapter import INSTRUMENT_TEMPLATES, template_required_units
+from ...instrument.templates import INSTRUMENT_TEMPLATES, template_required_units
 from ..elements import ChoiceField
 from ..forms import FormRenderer
 

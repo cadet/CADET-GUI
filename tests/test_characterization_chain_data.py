@@ -25,11 +25,11 @@ from cadetgui.characterization.comparison import (  # noqa: E402
     recipe_from_dict,
 )
 from cadetgui.characterization.runner import StepSetup, build  # noqa: E402
+from cadetgui.instrument.process_builder import build_process  # noqa: E402
 from cadetgui.io.experimental_data import (  # noqa: E402
     is_akta_format,
     read_experimental_csv,
 )
-from cadetgui.process_builder import build_process  # noqa: E402
 
 EXAMPLES_DIR = Path(__file__).parents[1] / "examples"
 DATA_DIR = EXAMPLES_DIR / "data" / "characterization_akta"

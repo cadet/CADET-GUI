@@ -4,12 +4,12 @@ from typing import Any, Callable, Dict, List, Optional
 
 import ipywidgets as W
 
-from ...cadetprocessadapter import measurable_signal_options
-from ...parameter_estimation import (
+from ...estimation.parameter_estimation import (
     CalibrationMethod,
     build_reference,
     calibrate_reference,
 )
+from ...instrument.signals import measurable_signal_options
 from ..elements import ChoiceField
 
 __all__ = ["ReferenceSignalControls"]

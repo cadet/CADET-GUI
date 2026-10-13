@@ -15,10 +15,10 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 import numpy as np
 from CADETProcess.optimization import OptimizationProblem
 
-from ..cadetprocessadapter import COLUMN_MODELS
-from ..optimizer_runner import OPTIMIZERS, pareto_front, run_optimization
-from ..process_builder import check_recipe
-from ..simulation import Simulator
+from ..estimation.optimizer_runner import OPTIMIZERS, pareto_front, run_optimization
+from ..instrument.process_builder import check_recipe
+from ..instrument.system import COLUMN_MODELS
+from ..process_model.simulation import Simulator
 from .comparison import Comparison
 from .parameter_store import (
     ParameterStore,

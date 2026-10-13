@@ -42,7 +42,7 @@ version = { attr = "cadetgui.__version__" }
 [tool.setuptools.package-data]
 cadetgui = [
     "assets/pid/*.svg",
-    "parameters/*.json",
+    "instrument/*.json",
     "widgets/ui/*.css",
     "widgets/ui/*.png",
     "widgets/elements/*.css",

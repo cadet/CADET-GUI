@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import ipywidgets as W
 import pytest
-from cadetgui.cadetprocessadapter import FieldSpec, ModelSpec, require_positive
+from cadetgui.parameters.specs import FieldSpec, ModelSpec, require_positive
 from cadetgui.widgets.elements import (
     BoolField,
     ChoiceField,

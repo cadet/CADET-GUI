@@ -6,7 +6,7 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 
-from .simulation import run_process
+from ..process_model.simulation import run_process
 
 __all__ = ["SensitivityReport", "perturb_parameters", "response_matrix", "analyze_sensitivity"]
 

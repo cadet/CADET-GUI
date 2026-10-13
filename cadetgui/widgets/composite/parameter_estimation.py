@@ -5,16 +5,16 @@ from typing import Any, Optional, Sequence, Union
 
 import ipywidgets as W
 
-from ...io import configuration_store
-from ...optimizer_runner import OptimizerRunResult, RunSpec
-from ...parameter_estimation import (
+from ...estimation.optimizer_runner import OptimizerRunResult, RunSpec
+from ...estimation.parameter_estimation import (
     EstimationResult,
     FittableParameter,
     build_estimation_problem,
     list_fittable_parameters,
     simulate_at,
 )
-from ...simulation import run_process
+from ...io import configuration_store
+from ...process_model.simulation import run_process
 from ..elements import ChoiceField, ChromatogramChart
 from ..ui.html import status_html
 from ..ui.plotting import display_figure, new_figure, reference_series, solution_series

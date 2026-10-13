@@ -7,21 +7,18 @@ import warnings
 
 import numpy as np
 import pytest
-from cadetgui.cadetprocessadapter import (
-    FieldSpec,
-    classify_signal_ports,
-    list_signal_ports,
-    measurable_signal_options,
-)
-from cadetgui.optimizer_runner import OPTIMIZERS, OptimizerSpec
-from cadetgui.parameter_estimation import (
+from cadetgui.estimation.optimizer_runner import OPTIMIZERS, OptimizerSpec
+from cadetgui.estimation.parameter_estimation import (
     build_reference,
     calibrate_reference,
     list_fittable_parameters,
     run_estimation,
     simulate_at,
 )
-from cadetgui.simulation import run_process
+from cadetgui.instrument.signals import measurable_signal_options
+from cadetgui.parameters.specs import FieldSpec
+from cadetgui.process_model.signals import classify_signal_ports, list_signal_ports
+from cadetgui.process_model.simulation import run_process
 from cadetgui.widgets.composite import ConfigurationWidget, InstrumentWidget
 
 warnings.filterwarnings("ignore", category=UserWarning)

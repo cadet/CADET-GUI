@@ -12,7 +12,6 @@ import pytest
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
-from cadetgui.cadetprocessadapter import UNIT_LABELS  # noqa: E402
 from cadetgui.characterization.comparison import (  # noqa: E402
     Comparison,
     recipe_from_dict,
@@ -42,12 +41,13 @@ from cadetgui.characterization.parameter_store import (  # noqa: E402
 from cadetgui.characterization.stages import describe_stage  # noqa: E402
 from cadetgui.characterization.step_checks import study_steps_status  # noqa: E402
 from cadetgui.characterization.study import Study  # noqa: E402
+from cadetgui.instrument.process_builder import build_process  # noqa: E402
+from cadetgui.instrument.system import UNIT_LABELS
 from cadetgui.io.configuration_store import (  # noqa: E402
     ConfigurationState,
     InstrumentState,
 )
 from cadetgui.io.experimental_data import Channel, ExperimentalRun  # noqa: E402
-from cadetgui.process_builder import build_process  # noqa: E402
 
 DATA_DIR = Path(__file__).parents[1] / "examples" / "data" / "characterization_akta"
 

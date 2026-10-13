@@ -104,7 +104,7 @@ def test_load_run_results_raises_when_the_output_file_is_missing(tmp_path):
 
 
 def test_load_run_results_reconstructs_a_real_simulation_result(tmp_path):
-    from cadetgui.simulation import run_process
+    from cadetgui.process_model.simulation import run_process
 
     process = built_process()
     run_id = run_store.new_run_id()
