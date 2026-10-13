@@ -110,7 +110,9 @@ class UnitParametersEditor:
             return [editor.root for editor in editors]
         key = f"{target}.{name}"
         unit_label, _description = describe_parameter(owner, name)
-        field = TextField(label=name, value=format_value(owner, name), units=unit_label)
+        field = TextField(
+            label=name, value=format_value(owner, name), units=unit_label, compact=True
+        )
         field.observe(lambda change, key=key: self._on_edit(key, change), names="value")
         self.fields[key] = field
         self._owners[key] = (owner, name)
@@ -250,7 +252,7 @@ class UnitOperationsWidget(Widget):
         self._editor_box = W.VBox()
         self.units: Dict[str, Any] = {} if units is None else units
         self.model_picker = ChoiceField(label="Model:", options=list(UNIT_OPERATION_MODELS.items()))
-        self.name_field = TextField(label="Name:", value=_suggested_name(Inlet))
+        self.name_field = TextField(label="Name:", value=_suggested_name(Inlet), compact=True)
         self.create_button = W.Button(description="Create", icon="plus")
         self.status = W.HTML()
         self._list = W.VBox()

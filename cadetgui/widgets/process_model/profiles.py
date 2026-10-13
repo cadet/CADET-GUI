@@ -109,7 +109,10 @@ class PolynomialEditor:
         self._unit, _description = describe_parameter(owner, name)
         self.chart = W.HTML()
         self.fields: List[TextField] = [
-            TextField(label=label, units=_coefficient_unit(self._unit, k), help=help_text)
+            TextField(
+                label=label, units=_coefficient_unit(self._unit, k), help=help_text,
+                compact=True,
+            )
             for k, (label, help_text) in enumerate(_TERMS)
         ]
         self._note = W.HTML()

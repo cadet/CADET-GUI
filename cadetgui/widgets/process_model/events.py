@@ -113,10 +113,12 @@ class EventEditor:
         self.table = SelectableTable(label="Events", columns=_COLUMNS, empty_text="No events yet.")
         self.new = W.Button(description="New event", icon="plus")
         self.title = W.HTML()
-        self.name = TextField(label="name")
+        self.name = TextField(label="name", compact=True)
         self.path = ChoiceField(label="parameter")
-        self.time = TextField(label="time", units=r"\mathrm{s}", help="When the event happens.")
-        self.value = TextField(label="value")
+        self.time = TextField(
+            label="time", units=r"\mathrm{s}", help="When the event happens.", compact=True
+        )
+        self.value = TextField(label="value", compact=True)
         self._state = W.VBox()
         self.apply = W.Button(description="Add event", icon="check")
         self.remove = W.Button(description="Remove event", icon="trash")

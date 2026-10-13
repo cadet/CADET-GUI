@@ -73,7 +73,8 @@ class ProcessWidget(Widget):
             set_by_path(process, path, value)
         self.process = process
         self.cycle_time = TextField(
-            label="cycle_time", value=format_value(process, "cycle_time"), units=r"\mathrm{s}"
+            label="cycle_time", value=format_value(process, "cycle_time"), units=r"\mathrm{s}",
+            compact=True,
         )
         self.chart = EventTimelineChart()
         self.event_editor = EventEditor(process, self._edited)
