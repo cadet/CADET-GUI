@@ -11,6 +11,7 @@ from ...parameters import describe_parameter
 from ...process_model.values import number_text
 from ..elements import TextField
 from ..ui.format import unit_html
+from ..ui.layout import collapsible
 
 __all__ = ["PolynomialEditor", "profile_svg"]
 
@@ -85,7 +86,7 @@ class PolynomialEditor:
 
     The profile is `a0 + a1*dt + a2*dt**2 + a3*dt**3`, with `dt` the time since `start`
     (CADET restarts it at every section). A picture shows it over the cycle of `process`,
-    or over `duration` seconds without a process.
+    or over `duration` seconds without a process, in a collapsed preview.
     """
 
     def __init__(
@@ -123,7 +124,8 @@ class PolynomialEditor:
             "a₀ + a₁·Δt + a₂·Δt² + a₃·Δt³"
             f"<br><small>Δt: time since {escape(start)}</small>"
         )
-        self.root = W.VBox([W.HTML(formula), *self.fields, self._note, self.chart])
+        self.preview = collapsible("Profile preview", self.chart)
+        self.root = W.VBox([W.HTML(formula), *self.fields, self._note, self.preview])
         for k, field in enumerate(self.fields):
             field.observe(lambda change, k=k: self._on_field(k, change), names="value")
         self.refresh()

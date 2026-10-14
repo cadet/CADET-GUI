@@ -255,3 +255,35 @@ def test_line_chart_draws_toggleable_series_or_the_empty_text(mount):
     assert view.js("return v.qa('.cadetgui-chart-line').length;") == 1
 
     assert mount(LineChart(empty_text="No data")).text(".cadetgui-chart-empty") == "No data"
+
+
+def test_chart_clipping_ids_are_unique_across_widget_modules(page):
+    series = [{"name": "Tracer", "times": [0, 2, 10], "values": [0, 0.3, 1]}]
+    widgets = [EventTimelineChart(series=series), ChromatogramChart(series=series)]
+    payload = [
+        {"esm": widget._esm, "state": widget.get_state()}
+        for widget in widgets
+    ]
+    result = page.evaluate(
+        """async (widgets) => {
+          document.body.replaceChildren();
+          const ids = [];
+          const ownsClip = [];
+          for (const {esm, state} of widgets) {
+            // Each anywidget loads its own module instance in the same document.
+            const url = URL.createObjectURL(new Blob([esm], {type: "text/javascript"}));
+            const mod = await import(url);
+            const el = document.createElement("div");
+            document.body.appendChild(el);
+            mod.default.render({model: {get: key => state[key], on: () => {}}, el});
+            URL.revokeObjectURL(url);
+            const id = el.querySelector("clipPath").id;
+            ids.push(id);
+            ownsClip.push(el.contains(document.getElementById(id)));
+          }
+          return {ids, ownsClip};
+        }""",
+        payload,
+    )
+    assert len(set(result["ids"])) == len(widgets)
+    assert all(result["ownsClip"])

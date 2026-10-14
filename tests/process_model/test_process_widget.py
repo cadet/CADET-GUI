@@ -145,11 +145,17 @@ def test_polynomial_editor_edits_one_profile(pulse_process, name, index):
     calls = []
     editor = PolynomialEditor(inlet, name, index, process=pulse_process,
                               on_change=lambda: calls.append(1))
+    assert editor.preview.selected_index is None
+    before = editor.chart.value
     editor.fields[1].value = "0.01"
     assert editor.coefficients()[1] == 0.01
     profile = getattr(inlet, name)
     assert np.ravel(profile[index] if index is not None else profile)[1] == 0.01
     assert calls == [1]
+    assert editor.chart.value != before
+    assert editor.preview.selected_index is None
+    editor.preview.selected_index = 0
+    assert editor.preview.children == (editor.chart,)
 
     editor.fields[2].value = "x"
     assert editor.fields[2].error

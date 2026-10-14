@@ -138,7 +138,7 @@ function validMarkers(raw) {
     .map((m) => ({ name: String(m.name ?? ""), time: m.time }));
 }
 
-let clipCounter = 0;
+const clipCounterKey = Symbol.for("cadetgui.chart.clipCounter");
 
 function svgText(attrs, text) {
   const node = svgEl("text", attrs);
@@ -337,7 +337,8 @@ function render({ model, el }) {
   tooltip.hidden = true;
   wrap.appendChild(tooltip);
 
-  const clipId = `cadetgui-chart-clip-${clipCounter++}`;
+  globalThis[clipCounterKey] = (globalThis[clipCounterKey] || 0) + 1;
+  const clipId = `cadetgui-chart-clip-${globalThis[clipCounterKey]}`;
   const state = { view: null, hidden: new Set() };
 
   resetBtn.addEventListener("click", () => {
