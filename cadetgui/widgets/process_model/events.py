@@ -247,8 +247,14 @@ class EventEditor:
                 )
             self.status.value = status_html("warn", str(exc))
             return
-        self.refresh(select=name)
+        # After adding, return to a new event, so the next entry cannot overwrite this one.
+        self.refresh(select=None if event is None else name)
         self._on_change()
+        if event is None:
+            self.status.value = status_html(
+                "ok",
+                f"Added '{name}'. Enter the next event, or select one in the table to change it.",
+            )
 
     def _remove(self) -> None:
         event = self._event()

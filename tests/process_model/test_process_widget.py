@@ -49,11 +49,15 @@ def test_event_editor_adds_edits_and_removes_events(pulse_process):
     _fill(editor, "elute", "flow_sheet.inlet.c", "300", "2")
     assert pulse_process.events_dict["elute"].time == 300
     assert 'process.add_event("elute", "flow_sheet.inlet.c", [2], 300)' in widget.code()
-    assert editor.table.value == "elute"
+    assert editor.table.value is None
+    assert "Added 'elute'" in editor.status.value
 
+    editor.table.value = "elute"
+    assert editor.apply.description == "Save changes"
     editor.time.value = "200"
     editor.apply.click()
     assert pulse_process.events_dict["elute"].time == 200
+    assert editor.table.value == "elute"
 
     editor.new.click()
     _fill(editor, "elute", "flow_sheet.inlet.c", "100", "0")
@@ -74,6 +78,7 @@ def test_event_editor_adds_edits_and_removes_events(pulse_process):
 def test_event_editor_keeps_an_event_whose_edit_fails(pulse_process):
     editor = ProcessWidget(pulse_process).event_editor
     _fill(editor, "reverse", "flow_sheet.column.flow_direction", "100", "-1")
+    editor.table.value = "reverse"
     editor.value.value = "5"
     editor.apply.click()
     assert "one of" in editor.status.value
@@ -160,3 +165,16 @@ def test_polynomial_editor_edits_one_profile(pulse_process, name, index):
     editor.fields[2].value = "x"
     assert editor.fields[2].error
     assert editor.coefficients()[2] == 0
+
+
+def test_event_editor_returns_to_a_new_event_after_adding(pulse_process):
+    """Entering a second event right after adding one must not overwrite the first."""
+    editor = ProcessWidget(pulse_process).event_editor
+    editor.new.click()
+    _fill(editor, "elute", "flow_sheet.inlet.c", "300", "2")
+    assert editor.apply.description == "Add event"
+    assert editor.name.value == ""
+    _fill(editor, "final_wash", "flow_sheet.inlet.c", "400", "0")
+    assert pulse_process.events_dict["elute"].time == 300
+    assert pulse_process.events_dict["final_wash"].time == 400
+    assert editor.table.option_labels == ["load", "wash", "elute", "final_wash"]
