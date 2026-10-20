@@ -125,11 +125,12 @@ class EventEditor:
         self.status = W.HTML()
         self.editors: List[PolynomialEditor] = []
         self._scratch: Optional[Any] = None
+        # "New event" leaves a selected event; it is hidden while the form already adds one.
         self.form = W.VBox([
             self.title, self.name, self.path, self.time, self._state,
-            W.HBox([self.apply, self.remove]), self.status,
+            W.HBox([self.apply, self.remove, self.new]), self.status,
         ])
-        self.controls = W.VBox([self.new, self.form])
+        self.controls = W.VBox([self.form])
         self.table.observe(lambda _change: self._load(), names="selected_index")
         self.path.observe(lambda _change: self._show_state(), names="selected_index")
         self.time.observe(lambda _change: self._show_state(), names="value")
@@ -166,6 +167,7 @@ class EventEditor:
         self.title.value = f"<div class='cadetgui-section-title'>{title}</div>"
         self.apply.description = "Add event" if event is None else "Save changes"
         self.remove.layout.display = "none" if event is None else ""
+        self.new.layout.display = "none" if event is None else ""
         self.status.value = ""
         if event is None:
             self.name.value = ""

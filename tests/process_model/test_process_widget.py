@@ -178,3 +178,14 @@ def test_event_editor_returns_to_a_new_event_after_adding(pulse_process):
     assert pulse_process.events_dict["elute"].time == 300
     assert pulse_process.events_dict["final_wash"].time == 400
     assert editor.table.option_labels == ["load", "wash", "elute", "final_wash"]
+
+
+def test_new_event_button_is_shown_only_while_an_event_is_selected(pulse_process):
+    editor = ProcessWidget(pulse_process).event_editor
+    assert editor.new.layout.display == "none"
+    editor.table.value = "load"
+    assert editor.new.layout.display == ""
+    editor.new.click()
+    assert editor.table.value is None
+    assert editor.new.layout.display == "none"
+    assert editor.apply.description == "Add event"
