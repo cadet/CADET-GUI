@@ -27,7 +27,7 @@ class LineChart(anywidget.AnyWidget):
     view_width = T.Int(480).tag(sync=True)
     view_height = T.Int(220).tag(sync=True)
 
-    _esm = esm("line_chart", "shared/unit_parser")
+    _esm = esm("line_chart", "shared/theme", "shared/unit_parser")
     _css = css("line_chart")
 
     def __init__(

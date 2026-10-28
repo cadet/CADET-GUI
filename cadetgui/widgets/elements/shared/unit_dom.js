@@ -7,9 +7,8 @@ const UNIT_GLOSSARY = {
 // Body-appended and fixed-position: Jupyter output areas clip overflow, which
 // would cut off a CSS ::after tooltip. Colors are hardcoded because the
 // element sits outside every scoped stylesheet.
-function tooltipColors() {
-  const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  return dark ? { bg: "#9ca3af", fg: "#1f2937" } : { bg: "#6b7280", fg: "#ffffff" };
+function tooltipColors(anchorEl) {
+  return isDark(anchorEl) ? { bg: "#9ca3af", fg: "#1f2937" } : { bg: "#6b7280", fg: "#ffffff" };
 }
 
 function getTooltipEl() {
@@ -37,7 +36,7 @@ function getTooltipEl() {
 
 function showTooltip(anchorEl, text) {
   const tip = getTooltipEl();
-  const { bg, fg } = tooltipColors();
+  const { bg, fg } = tooltipColors(anchorEl);
   tip.style.background = bg;
   tip.style.color = fg;
   tip.textContent = text;

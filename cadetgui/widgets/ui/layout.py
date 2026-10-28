@@ -120,7 +120,8 @@ class SettingsPopover:
 _PRE_STYLE = (
     "font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; "
     "line-height: 1.45; margin: 0; padding: 8px 12px; white-space: pre; overflow-x: auto; "
-    "background: var(--cg-page, #f5f7fa); border: 1px solid var(--cg-border, #d1d5db); "
+    "background: var(--cg-page, #f5f7fa); color: var(--cg-fg, #1f2937); "
+    "border: 1px solid var(--cg-border, #d1d5db); "
     "border-radius: 6px"
 )
 

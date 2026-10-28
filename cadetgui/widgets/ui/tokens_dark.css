@@ -1,0 +1,17 @@
+/* Dark design tokens (declarations only); see ui/theme.py for when they apply. */
+--cg-theme: dark;
+--cg-fg: #e5e7eb;
+--cg-muted: #9ca3af;
+--cg-border: #4b5563;
+--cg-border-strong: #7a8391;
+--cg-bg: #1f2937;
+--cg-surface: #1f2937;
+--cg-page: #111827;
+--cg-focus: #4fa8d1;
+--cg-primary: #26759b;
+--cg-primary-fg: #ffffff;
+--cg-danger: #f87171;
+--cg-success: #34d399;
+--cg-warn: #facc15;
+--cg-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5);
+--cg-shadow-pop: 0 4px 14px rgba(0, 0, 0, 0.55);

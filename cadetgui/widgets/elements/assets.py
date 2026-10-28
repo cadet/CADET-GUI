@@ -27,5 +27,5 @@ def esm(name: str, *shared: str) -> str:
 
 def field_esm(name: str, *, units: bool = True) -> str:
     """ESM source of a form-field view with the field helpers (and unit renderer)."""
-    units_js = ("shared/unit_parser", "shared/unit_dom") if units else ()
+    units_js = ("shared/theme", "shared/unit_parser", "shared/unit_dom") if units else ()
     return esm(name, *units_js, "shared/field")

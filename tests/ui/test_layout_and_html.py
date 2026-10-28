@@ -21,6 +21,7 @@ from cadetgui.widgets.ui import (
     toggle_box,
 )
 from cadetgui.widgets.ui.format import number_html
+from cadetgui.widgets.ui.theme import style_tag
 
 
 def test_layout_boxes_wrap_their_children():
@@ -91,3 +92,25 @@ def test_table_html_renders_rows_or_the_empty_text():
 )
 def test_number_html_switches_to_powers_of_ten_outside_a_moderate_range(value, expected):
     assert number_html(value) == expected
+
+
+@pytest.mark.parametrize(
+    "body, expected",
+    [
+        ("<body>", "dark"),
+        ('<body data-jp-theme-light="true">', "light"),
+        ('<body data-jp-theme-light="false">', "dark"),
+        ('<body class="vscode-light">', "light"),
+        ('<body class="vscode-dark">', "dark"),
+    ],
+    ids=["os-fallback", "jupyter-light", "jupyter-dark", "vscode-light", "vscode-dark"],
+)
+def test_theme_follows_the_notebook_host_before_the_os(chromium, body, expected):
+    page = chromium.new_page(color_scheme="dark")
+    page.set_content(f"<html>{body}{style_tag()}<div class='cadetgui-panel'></div></body></html>")
+    theme = page.evaluate(
+        "getComputedStyle(document.querySelector('.cadetgui-panel'))"
+        ".getPropertyValue('--cg-theme').trim()"
+    )
+    page.close()
+    assert theme == expected

@@ -12,13 +12,11 @@ const PAD_T = 26;
 const PAD_B = 46;
 const MIN_DRAG_PX = 6;
 
-function isDark() {
-  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-}
+let darkTheme = false;
 
 function colorFor(s, i) {
-  if (s.reference) return isDark() ? REFERENCE_DARK : REFERENCE_LIGHT;
-  const pal = isDark() ? PALETTE_DARK : PALETTE_LIGHT;
+  if (s.reference) return darkTheme ? REFERENCE_DARK : REFERENCE_LIGHT;
+  const pal = darkTheme ? PALETTE_DARK : PALETTE_LIGHT;
   return pal[i % pal.length];
 }
 
@@ -347,6 +345,7 @@ function render({ model, el }) {
   });
 
   function draw() {
+    darkTheme = isDark(wrap);
     svg.replaceChildren();
     legend.replaceChildren();
     tooltip.hidden = true;
